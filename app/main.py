@@ -1,14 +1,23 @@
-from risk import calculate_risk
+accounts = [
+    {
+        "name": "Main Account",
+        "balance": 5000,
+        "risk": 2
+    },
+    {
+        "name": "Swing Account",
+        "balance": 8000,
+        "risk": 1.5
+    },
+    {
+        "name": "Demo Account",
+        "balance": 10000,
+        "risk": 1
+    }
+]
 
-balances = [5000, 8000, 10000, -2000]
-risk_percentage = 2
-
-print("=== Risk Calculation for Multiple Accounts ===")
-
-for balance in balances:
-    result = calculate_risk(balance, risk_percentage)
-
-    if result is None:
-        print("Balance:", balance, "-> Invalid account balance")
-    else:
-        print("Balance:", balance, "-> Risk Amount:", result)
+for account in accounts:
+    print("Account:", account["name"])
+    print("Balance:", account["balance"])
+    print("Risk:", account["risk"], "%")
+    print()
