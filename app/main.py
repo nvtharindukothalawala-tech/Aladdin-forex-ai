@@ -1,5 +1,12 @@
-project_name = "Aladdin"
-developer = "Tharindu"
+print("=== Aladdin Forex Risk Calculator ===")
 
-print("Welcome to", project_name)
-print("Developer:", developer)
+balance = float(input("Enter account balance: "))
+risk_percentage = float(input("Enter risk percentage: "))
+
+risk_amount = balance * risk_percentage / 100
+
+print()
+print("------ Result ------")
+print("Account Balance:", balance)
+print("Risk Percentage:", risk_percentage, "%")
+print("Risk Amount:", risk_amount)
