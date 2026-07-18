@@ -7,5 +7,8 @@ risk = float(input("Enter risk percentage: "))
 
 result = calculate_risk(balance, risk)
 
-print()
-print("Risk Amount:", result)
+if result is None:
+    print("Error: Invalid account balance.")
+else:
+    print()
+    print("Risk Amount:", result)
