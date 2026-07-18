@@ -1,15 +1,9 @@
-print("=== Aladdin Forex Risk Calculator ===")
+print("=== Trade Permission Checker ===")
 
 balance = float(input("Enter account balance: "))
-risk_percentage = float(input("Enter risk percentage: "))
+risk = float(input("Enter risk percentage: "))
 
-if balance > 0:
-    risk_amount = balance * risk_percentage / 100
-
-    print()
-    print("------ Result ------")
-    print("Account Balance:", balance)
-    print("Risk Percentage:", risk_percentage, "%")
-    print("Risk Amount:", risk_amount)
+if balance > 0 and risk <= 2:
+    print("Trade Allowed")
 else:
-    print("Error: Account balance must be greater than 0.")
+    print("Trade Not Allowed")
