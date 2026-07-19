@@ -1,18 +1,28 @@
 from account import TradingAccount
+from account_manager import AccountManager
 
-account = TradingAccount(
-    "Main Account",
-    5000,
-    2
-)
+main_account = TradingAccount("Main Account", 5000, 2)
+demo_account = TradingAccount("Demo Account", 10000, 1)
+funded_account = TradingAccount("Funded Account", 25000, 0.5)
 
-print("Before")
-account.show_details()
+manager = AccountManager()
 
-print()
+manager.add_account(main_account)
+manager.add_account(demo_account)
+manager.add_account(funded_account)
 
-# Directly changing the balance
-account.balance = -100000
+manager.add_account(demo_account)
 
-print("After")
-account.show_details()
+manager.remove_account("Demo Account")
+
+manager.show_all_accounts()
+
+search_name = input("Enter account name: ")
+
+found_account = manager.find_account(search_name)
+
+if found_account:
+    print("Account found:")
+    found_account.show_details()
+else:
+    print("Account not found.")
