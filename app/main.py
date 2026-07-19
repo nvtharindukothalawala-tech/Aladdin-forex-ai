@@ -6,14 +6,13 @@ account = TradingAccount(
     2
 )
 
-print("Current Balance:", account.balance)
+print("Before Transactions")
+account.show_details()
 
-withdraw_success = account.withdraw(1000)
+print()
 
-if withdraw_success:
-    print("Withdrawal successful")
-else:
-    print("Withdrawal failed")
+account.deposit(1000)
+account.withdraw(500)
 
-print("New Balance:", account.balance)
-print("Risk Amount:", account.calculate_risk())
+print("After Transactions")
+account.show_details()

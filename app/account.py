@@ -25,3 +25,9 @@ class TradingAccount:
 
         self.balance = self.balance - amount
         return True
+    
+    def show_details(self):
+        print("Account:", self.name)
+        print("Balance:", self.balance)
+        print("Risk:", self.risk, "%")
+        print("Risk Amount:", self.calculate_risk())
