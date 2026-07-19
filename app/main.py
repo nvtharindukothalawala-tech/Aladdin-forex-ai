@@ -6,13 +6,13 @@ account = TradingAccount(
     2
 )
 
-print("Before Transactions")
+print("Before")
 account.show_details()
 
 print()
 
-account.deposit(1000)
-account.withdraw(500)
+# Directly changing the balance
+account.balance = -100000
 
-print("After Transactions")
+print("After")
 account.show_details()
