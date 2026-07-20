@@ -122,3 +122,49 @@ class AccountManager:
 
         print("Transfer failed.")
         return False
+    
+    def generate_statement(self, account_name):
+        account = self.find_account(account_name)
+
+        if not account:
+            print("Account not found.")
+            return
+
+        print("========== ACCOUNT STATEMENT ==========")
+        print("Account:", account.name)
+        print("Balance:", account.balance)
+        print("Risk:", account.risk, "%")
+        print("Risk Amount:", account.calculate_risk())
+
+        total_deposits = 0
+        total_withdrawals = 0
+        total_transfers = 0
+        total_transactions = 0
+
+        for transaction in self.transactions:
+
+            if (
+                transaction.transaction_type == "Deposit"
+                and transaction.account == account.name
+            ):
+                total_deposits += transaction.amount
+
+            if (
+                transaction.transaction_type == "Withdrawal"
+                and transaction.account == account.name
+            ):
+                total_withdrawals += transaction.amount
+
+            if (
+                transaction.transaction_type == "Transfer"
+                and transaction.account.startswith(account.name)
+            ):
+                total_transfers += transaction.amount
+            
+            if account.name in transaction.account:
+                total_transactions += 1
+
+        print("Total Deposits:", total_deposits)
+        print("Total Withdrawals:", total_withdrawals)
+        print("Total Transfers:", total_transfers)
+        print("Total Transactions:", total_transactions)
