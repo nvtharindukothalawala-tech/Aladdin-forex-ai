@@ -25,6 +25,8 @@ manager.transfer("Main Account", "Funded Account", 1000)
 
 manager.transfer("Main Account", "Funded Account", 100000)
 
+manager.show_transaction_history()
+
 manager.show_all_accounts()
 
 search_name = input("Enter account name: ")

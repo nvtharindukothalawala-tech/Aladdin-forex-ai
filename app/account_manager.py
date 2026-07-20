@@ -1,6 +1,9 @@
+from transaction import Transaction
+
 class AccountManager:
     def __init__(self):
         self.accounts = []
+        self.transactions = []
 
     def add_account(self, account):
         existing_account = self.find_account(account.name)
@@ -50,21 +53,46 @@ class AccountManager:
         account = self.find_account(account_name)
 
         if account:
-            account.deposit(amount)
-            return True
+            if account.deposit(amount):
+                transaction = Transaction(
+                    "Deposit",
+                    account_name,
+                    amount
+                )
 
-        print("Account not found.")
+                self.transactions.append(transaction)
+
+                print("Deposit successful.")
+                return True
+
+        print("Deposit failed.")
         return False
     
     def withdraw_from_account(self, account_name, amount):
         account = self.find_account(account_name)
 
         if account:
-            account.withdraw(amount)
-            return True
+            if account.withdraw(amount):
+                transaction = Transaction(
+                    "Withdrawal",
+                    account_name,
+                    amount
+                )
 
-        print("Account not found.")
+                self.transactions.append(transaction)
+
+                print("Withdrawal successful.")
+                return True
+
+        print("Withdrawal failed.")
         return False
+    
+    def show_transaction_history(self):
+        print("=== Transaction History ===")
+
+        for transaction in self.transactions:
+            transaction.show_details()
+            print()
     
     def transfer(self, from_account_name, to_account_name, amount):
         from_account = self.find_account(from_account_name)
@@ -79,9 +107,18 @@ class AccountManager:
             return False
 
         if from_account.withdraw(amount):
-            to_account.deposit(amount)
-            print("Transfer successful.")
-            return True
+            if to_account.deposit(amount):
+
+                transaction = Transaction(
+                    "Transfer",
+                    f"{from_account_name} -> {to_account_name}",
+                    amount
+                )
+
+                self.transactions.append(transaction)
+
+                print("Transfer successful.")
+                return True
 
         print("Transfer failed.")
         return False
