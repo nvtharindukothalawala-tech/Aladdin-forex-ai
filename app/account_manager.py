@@ -34,3 +34,14 @@ class AccountManager:
 
         print("Account not found.")
         return False
+    
+    def update_balance(self, account_name, new_balance):
+        account = self.find_account(account_name)
+
+        if account:
+            account.balance = new_balance
+            print("Balance updated successfully.")
+            return True
+
+        print("Account not found.")
+        return False
