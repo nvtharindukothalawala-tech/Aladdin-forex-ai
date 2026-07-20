@@ -65,3 +65,23 @@ class AccountManager:
 
         print("Account not found.")
         return False
+    
+    def transfer(self, from_account_name, to_account_name, amount):
+        from_account = self.find_account(from_account_name)
+        to_account = self.find_account(to_account_name)
+
+        if not from_account:
+            print("Sender account not found.")
+            return False
+
+        if not to_account:
+            print("Receiver account not found.")
+            return False
+
+        if from_account.withdraw(amount):
+            to_account.deposit(amount)
+            print("Transfer successful.")
+            return True
+
+        print("Transfer failed.")
+        return False

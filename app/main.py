@@ -21,6 +21,10 @@ manager.deposit_to_account("Main Account", 1000)
 
 manager.withdraw_from_account("Main Account", 500)
 
+manager.transfer("Main Account", "Funded Account", 1000)
+
+manager.transfer("Main Account", "Funded Account", 100000)
+
 manager.show_all_accounts()
 
 search_name = input("Enter account name: ")
