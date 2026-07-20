@@ -45,3 +45,23 @@ class AccountManager:
 
         print("Account not found.")
         return False
+    
+    def deposit_to_account(self, account_name, amount):
+        account = self.find_account(account_name)
+
+        if account:
+            account.deposit(amount)
+            return True
+
+        print("Account not found.")
+        return False
+    
+    def withdraw_from_account(self, account_name, amount):
+        account = self.find_account(account_name)
+
+        if account:
+            account.withdraw(amount)
+            return True
+
+        print("Account not found.")
+        return False
