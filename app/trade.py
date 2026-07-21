@@ -14,4 +14,15 @@ class Trade:
         self.status = "Closed"
 
     def calculate_price_difference(self):
-        return self.exit_price - self.entry_price
+
+        if self.direction == "Buy":
+            return self.exit_price - self.entry_price
+
+        if self.direction == "Sell":
+            return self.entry_price - self.exit_price
+
+        return 0
+    
+    def calculate_profit(self):
+        price_difference = self.calculate_price_difference()
+        return price_difference * self.lot_size

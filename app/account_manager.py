@@ -4,6 +4,7 @@ class AccountManager:
     def __init__(self):
         self.accounts = []
         self.transactions = []
+        self.trades = []
 
     def add_account(self, account):
         existing_account = self.find_account(account.name)
@@ -14,6 +15,10 @@ class AccountManager:
 
         self.accounts.append(account)
         print("Account added successfully.")
+
+    def add_trade(self, trade):
+        self.trades.append(trade)
+        print("Trade added successfully.")
 
     def show_all_accounts(self):
         for account in self.accounts:
