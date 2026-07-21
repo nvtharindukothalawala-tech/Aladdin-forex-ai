@@ -1,5 +1,6 @@
 from account import TradingAccount
 from account_manager import AccountManager
+from trade import Trade
 
 
 # Create trading account objects
@@ -61,6 +62,23 @@ manager.show_transaction_history()
 # Generate the account statement
 manager.generate_statement("Main Account")
 
+
+# Create the first Forex trade object
+trade1 = Trade("EUR/USD", "Buy", 1.0800, 0.10)
+
+trade1.close_trade(1.0850)
+
+price_difference = trade1.calculate_price_difference()
+
+# Display the first trade information
+print("=== First Trade ===")
+print("Symbol:", trade1.symbol)
+print("Direction:", trade1.direction)
+print("Entry Price:", trade1.entry_price)
+print("Exit Price:", trade1.exit_price)
+print("Lot Size:", trade1.lot_size)
+print("Status:", trade1.status)
+print(f"Price Difference: {price_difference:.5f}")
 
 # Display all remaining accounts
 # manager.show_all_accounts()
