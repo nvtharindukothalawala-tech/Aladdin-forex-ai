@@ -115,6 +115,9 @@ print(f"Profit: {profit2:.5f}")
 manager.add_trade(trade1)
 manager.add_trade(trade2)
 
+# Display all stored trades
+manager.show_all_trades()
+
 
 # Display all remaining accounts
 # manager.show_all_accounts()

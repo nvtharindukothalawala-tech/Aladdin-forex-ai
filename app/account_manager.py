@@ -173,3 +173,16 @@ class AccountManager:
         print("Total Withdrawals:", total_withdrawals)
         print("Total Transfers:", total_transfers)
         print("Total Transactions:", total_transactions)
+
+    def show_all_trades(self):
+
+        print("\n=== Trade History ===")
+
+        for trade in self.trades:
+            print("Symbol:", trade.symbol)
+            print("Direction:", trade.direction)
+            print("Entry Price:", trade.entry_price)
+            print("Exit Price:", trade.exit_price)
+            print("Lot Size:", trade.lot_size)
+            print("Status:", trade.status)
+            print("--------------------")
