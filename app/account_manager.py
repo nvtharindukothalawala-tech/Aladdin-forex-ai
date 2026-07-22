@@ -191,7 +191,7 @@ class AccountManager:
 
         total_trades = len(self.trades)
 
-        print("\nTotal Trades:", total_trades)
+        return total_trades
 
     def calculate_total_profit(self):
 
@@ -200,4 +200,41 @@ class AccountManager:
         for trade in self.trades:
             total_profit += trade.calculate_profit()
 
-        print(f"\nTotal Profit: {total_profit:.5f}")
+        return total_profit
+
+    def count_winning_trades(self):
+
+        winning_trades = 0
+
+        for trade in self.trades:
+            if trade.calculate_profit() > 0:
+                winning_trades += 1
+
+        return winning_trades
+    
+    def count_losing_trades(self):
+
+        losing_trades = 0
+
+        for trade in self.trades:
+            if trade.calculate_profit() < 0:
+                losing_trades += 1
+
+        return losing_trades
+
+    def calculate_win_rate(self):
+
+        total_trades = len(self.trades)
+
+        if total_trades == 0:
+            return 0
+
+        winning_trades = 0
+
+        for trade in self.trades:
+            if trade.calculate_profit() > 0:
+                winning_trades += 1
+
+        win_rate = (winning_trades / total_trades) * 100
+
+        return win_rate
