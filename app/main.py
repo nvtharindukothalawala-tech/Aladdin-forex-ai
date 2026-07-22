@@ -118,6 +118,12 @@ manager.add_trade(trade2)
 # Display all stored trades
 manager.show_all_trades()
 
+# Display the total number of trades
+manager.count_trades()
+
+# Display the total profit
+manager.calculate_total_profit()
+
 
 # Display all remaining accounts
 # manager.show_all_accounts()

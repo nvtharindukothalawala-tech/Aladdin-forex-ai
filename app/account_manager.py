@@ -186,3 +186,18 @@ class AccountManager:
             print("Lot Size:", trade.lot_size)
             print("Status:", trade.status)
             print("--------------------")
+
+    def count_trades(self):
+
+        total_trades = len(self.trades)
+
+        print("\nTotal Trades:", total_trades)
+
+    def calculate_total_profit(self):
+
+        total_profit = 0
+
+        for trade in self.trades:
+            total_profit += trade.calculate_profit()
+
+        print(f"\nTotal Profit: {total_profit:.5f}")
