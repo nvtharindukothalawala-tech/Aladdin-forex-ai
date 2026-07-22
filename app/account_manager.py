@@ -238,3 +238,21 @@ class AccountManager:
         win_rate = (winning_trades / total_trades) * 100
 
         return win_rate
+    
+    def generate_trade_summary(self):
+
+        total_trades = self.count_trades()
+        total_profit = self.calculate_total_profit()
+        winning_trades = self.count_winning_trades()
+        losing_trades = self.count_losing_trades()
+        win_rate = self.calculate_win_rate()
+
+        print("\n========================================")
+        print("        ALADDIN TRADE SUMMARY")
+        print("========================================")
+        print("Total Trades      :", total_trades)
+        print("Winning Trades    :", winning_trades)
+        print("Losing Trades     :", losing_trades)
+        print(f"Win Rate          : {win_rate:.2f}%")
+        print(f"Total Profit      : {total_profit:.5f}")
+        print("========================================")

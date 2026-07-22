@@ -119,21 +119,7 @@ manager.add_trade(trade2)
 manager.show_all_trades()
 
 # Display trade statistics
-total_trades = manager.count_trades()
-print("\nTotal Trades:", total_trades)
-
-total_profit = manager.calculate_total_profit()
-print(f"\nTotal Profit: {total_profit:.5f}")
-
-winning_trades = manager.count_winning_trades()
-print("\nWinning Trades:", winning_trades)
-
-losing_trades = manager.count_losing_trades()
-print("\nLosing Trades:", losing_trades)
-
-win_rate = manager.calculate_win_rate()
-print(f"\nWin Rate: {win_rate:.2f}%")
-
+manager.generate_trade_summary()
 
 # Display all remaining accounts
 # manager.show_all_accounts()
