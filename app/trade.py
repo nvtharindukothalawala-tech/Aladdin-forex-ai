@@ -17,14 +17,36 @@ class Trade:
         if lot_size <= 0:
             raise ValueError("Lot size must be greater than zero.")
 
-        self.symbol = symbol
-
         # Validate direction
         if direction not in ["Buy", "Sell"]:
             raise ValueError("Direction must be either 'Buy' or 'Sell'.")
 
+        # Validate Stop Loss and Take Profit for Buy trades
+        if direction == "Buy":
+            if stop_loss >= entry_price:
+                raise ValueError(
+                    "For a Buy trade, stop loss must be below the entry price."
+                )
+
+            if take_profit <= entry_price:
+                raise ValueError(
+                    "For a Buy trade, take profit must be above the entry price."
+                )
+
+        # Validate Stop Loss and Take Profit for Sell trades
+        if direction == "Sell":
+            if stop_loss <= entry_price:
+                raise ValueError(
+                    "For a Sell trade, stop loss must be above the entry price."
+                )
+
+            if take_profit >= entry_price:
+                raise ValueError(
+                    "For a Sell trade, take profit must be below the entry price."
+                )
+
+        self.symbol = symbol
         self.direction = direction
-        
         self.entry_price = entry_price
         self.exit_price = None
         self.lot_size = lot_size
@@ -32,13 +54,9 @@ class Trade:
         self.take_profit = take_profit
 
         self.status = "Open"
-
-        # Record when the trade was created
         self.open_time = datetime.now()
-
-        # The trade has not been closed yet
         self.close_time = None
-
+        
     def close_trade(self, exit_price):
 
         self.exit_price = exit_price
