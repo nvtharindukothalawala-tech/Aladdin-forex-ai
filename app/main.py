@@ -201,6 +201,20 @@ manager.add_trade(trade3)
 # Display all stored trades
 manager.show_all_trades()
 
+trade_id = input("Enter Trade ID: ")
+
+trade = manager.find_trade(trade_id)
+
+if trade:
+    print("\n===== Trade Found =====")
+    print("Trade ID:", trade.trade_id)
+    print("Symbol:", trade.symbol)
+    print("Direction:", trade.direction)
+    print("Status:", trade.status)
+    print(f"Profit: {trade.calculate_profit():.5f}")
+else:
+    print("Trade not found.")
+
 # Display trade statistics
 manager.generate_trade_summary()
 

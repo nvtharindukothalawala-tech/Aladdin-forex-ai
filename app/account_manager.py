@@ -213,6 +213,15 @@ class AccountManager:
 
             print("--------------------")
 
+    def find_trade(self, trade_id):
+
+        for trade in self.trades:
+
+            if trade.trade_id.lower() == trade_id.lower():
+                return trade
+
+        return None
+
     def count_trades(self):
 
         total_trades = len(self.trades)
