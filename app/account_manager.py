@@ -277,6 +277,111 @@ class AccountManager:
 
         return profit_factor
 
+    def calculate_average_winning_trade(self):
+
+        winning_trades = self.count_winning_trades()
+
+        if winning_trades == 0:
+            return 0
+
+        gross_profit = self.calculate_gross_profit()
+
+        average_winning_trade = gross_profit / winning_trades
+
+        return average_winning_trade
+
+    def calculate_average_losing_trade(self):
+
+        losing_trades = self.count_losing_trades()
+
+        if losing_trades == 0:
+            return 0
+
+        gross_loss = self.calculate_gross_loss()
+
+        average_losing_trade = gross_loss / losing_trades
+
+        return average_losing_trade
+
+    def calculate_risk_reward_ratio(self):
+
+        average_winning_trade = self.calculate_average_winning_trade()
+        average_losing_trade = self.calculate_average_losing_trade()
+
+        if average_losing_trade == 0:
+            return 0
+
+        risk_reward_ratio = average_winning_trade / average_losing_trade
+
+        return risk_reward_ratio
+
+    def calculate_max_consecutive_wins(self):
+
+        current_wins = 0
+        max_wins = 0
+
+        for trade in self.trades:
+            profit = trade.calculate_profit()
+
+            if profit > 0:
+                current_wins += 1
+
+                if current_wins > max_wins:
+                    max_wins = current_wins
+            else:
+                current_wins = 0
+
+        return max_wins
+
+    def calculate_max_consecutive_losses(self):
+
+        current_losses = 0
+        max_losses = 0
+
+        for trade in self.trades:
+            profit = trade.calculate_profit()
+
+            if profit < 0:
+                current_losses += 1
+
+                if current_losses > max_losses:
+                    max_losses = current_losses
+            else:
+                current_losses = 0
+
+        return max_losses
+
+    def calculate_max_drawdown(self):
+
+        equity = 0
+        peak_equity = 0
+        max_drawdown = 0
+
+        for trade in self.trades:
+            profit = trade.calculate_profit()
+            equity += profit
+
+            if equity > peak_equity:
+                peak_equity = equity
+
+            drawdown = peak_equity - equity
+
+            if drawdown > max_drawdown:
+                max_drawdown = drawdown
+
+        return max_drawdown
+
+    def calculate_max_drawdown_percentage(self, starting_balance):
+
+        max_drawdown = self.calculate_max_drawdown()
+
+        if starting_balance <= 0:
+            return 0
+
+        drawdown_percentage = (max_drawdown / starting_balance) * 100
+
+        return drawdown_percentage
+    
     def count_winning_trades(self):
 
         winning_trades = 0
@@ -331,6 +436,14 @@ class AccountManager:
         gross_loss = self.calculate_gross_loss()
         profit_factor = self.calculate_profit_factor()
 
+        average_winning_trade = self.calculate_average_winning_trade()
+        average_losing_trade = self.calculate_average_losing_trade()
+        risk_reward_ratio = self.calculate_risk_reward_ratio()
+        max_consecutive_wins = self.calculate_max_consecutive_wins()
+        max_consecutive_losses = self.calculate_max_consecutive_losses()
+        max_drawdown = self.calculate_max_drawdown()
+        max_drawdown_percentage = self.calculate_max_drawdown_percentage(6000)
+
         print("\n========================================")
         print("        ALADDIN TRADE SUMMARY")
         print("========================================")
@@ -345,4 +458,11 @@ class AccountManager:
         print(f"Gross Profit         : {gross_profit:.5f}")
         print(f"Gross Loss           : {gross_loss:.5f}")
         print(f"Profit Factor        : {profit_factor:.2f}")
+        print(f"Average Winning Trade : {average_winning_trade:.5f}")
+        print(f"Average Losing Trade  : {average_losing_trade:.5f}")
+        print(f"Risk-to-Reward Ratio  : {risk_reward_ratio:.3f}")
+        print(f"Max Consecutive Wins  : {max_consecutive_wins}")
+        print(f"Max Consecutive Losses : {max_consecutive_losses}")
+        print(f"Max Drawdown         : {max_drawdown:.5f}")
+        print(f"Max Drawdown Percentage : {max_drawdown_percentage:.5f}%")
         print("========================================")
