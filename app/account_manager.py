@@ -239,6 +239,44 @@ class AccountManager:
 
         return largest_loss
 
+    def calculate_gross_profit(self):
+
+        gross_profit = 0
+
+        for trade in self.trades:
+
+            profit = trade.calculate_profit()
+
+            if profit > 0:
+                gross_profit += profit
+
+        return gross_profit
+
+    def calculate_gross_loss(self):
+
+        gross_loss = 0
+
+        for trade in self.trades:
+
+            profit = trade.calculate_profit()
+
+            if profit < 0:
+                gross_loss += abs(profit)
+
+        return gross_loss
+
+    def calculate_profit_factor(self):
+
+        gross_profit = self.calculate_gross_profit()
+        gross_loss = self.calculate_gross_loss()
+
+        if gross_loss == 0:
+            return 0
+
+        profit_factor = gross_profit / gross_loss
+
+        return profit_factor
+
     def count_winning_trades(self):
 
         winning_trades = 0
@@ -279,13 +317,19 @@ class AccountManager:
     def generate_trade_summary(self):
 
         total_trades = self.count_trades()
-        total_profit = self.calculate_total_profit()
         winning_trades = self.count_winning_trades()
         losing_trades = self.count_losing_trades()
         win_rate = self.calculate_win_rate()
+
+        total_profit = self.calculate_total_profit()
         average_profit = self.calculate_average_profit()
+
         largest_winning_trade = self.find_largest_winning_trade()
         largest_losing_trade = self.find_largest_losing_trade()
+
+        gross_profit = self.calculate_gross_profit()
+        gross_loss = self.calculate_gross_loss()
+        profit_factor = self.calculate_profit_factor()
 
         print("\n========================================")
         print("        ALADDIN TRADE SUMMARY")
@@ -297,5 +341,8 @@ class AccountManager:
         print(f"Total Profit      : {total_profit:.5f}")
         print(f"Average Profit    : {average_profit:.5f}")
         print(f"Largest Winning Trade : {largest_winning_trade:.5f}")
-        print(f"Largest Losing Trade : {largest_losing_trade:.5f}")
+        print(f"Largest Losing Trade  : {largest_losing_trade:.5f}")
+        print(f"Gross Profit         : {gross_profit:.5f}")
+        print(f"Gross Loss           : {gross_loss:.5f}")
+        print(f"Profit Factor        : {profit_factor:.2f}")
         print("========================================")
