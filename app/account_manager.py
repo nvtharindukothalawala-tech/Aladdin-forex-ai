@@ -179,12 +179,37 @@ class AccountManager:
         print("\n=== Trade History ===")
 
         for trade in self.trades:
+
             print("Symbol:", trade.symbol)
             print("Direction:", trade.direction)
-            print("Entry Price:", trade.entry_price)
-            print("Exit Price:", trade.exit_price)
+            print(f"Entry Price : {trade.entry_price:.5f}")
+            print(f"Exit Price  : {trade.exit_price:.5f}")
+            print(f"Stop Loss   : {trade.stop_loss:.5f}")
+            print(f"Take Profit : {trade.take_profit:.5f}")
             print("Lot Size:", trade.lot_size)
             print("Status:", trade.status)
+            print("Trade Result:", trade.get_trade_result())
+            print("Open Time:", trade.open_time)
+            print("Close Time:", trade.close_time)
+            print("Trade Duration:", trade.calculate_duration())
+
+            print(f"Risk Distance: {trade.calculate_risk_distance():.5f}")
+            print(f"Reward Distance: {trade.calculate_reward_distance():.5f}")
+
+            risk_reward = trade.calculate_risk_reward_ratio()
+
+            if risk_reward is not None:
+                print(f"Risk-to-Reward Ratio: 1:{risk_reward:.2f}")
+            else:
+                print("Risk-to-Reward Ratio: Invalid")
+
+            profit = trade.calculate_profit()
+
+            if profit is not None:
+                print(f"Profit: {profit:.5f}")
+            else:
+                print("Profit: Not available")
+
             print("--------------------")
 
     def count_trades(self):
