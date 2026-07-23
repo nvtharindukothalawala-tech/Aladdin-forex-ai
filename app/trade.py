@@ -18,7 +18,13 @@ class Trade:
             raise ValueError("Lot size must be greater than zero.")
 
         self.symbol = symbol
+
+        # Validate direction
+        if direction not in ["Buy", "Sell"]:
+            raise ValueError("Direction must be either 'Buy' or 'Sell'.")
+
         self.direction = direction
+        
         self.entry_price = entry_price
         self.exit_price = None
         self.lot_size = lot_size
