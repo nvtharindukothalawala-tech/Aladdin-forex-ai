@@ -3,6 +3,8 @@ from datetime import datetime
 
 class Trade:
 
+    trade_counter = 1
+
     def __init__(
         self,
         symbol,
@@ -44,6 +46,10 @@ class Trade:
                 raise ValueError(
                     "For a Sell trade, take profit must be below the entry price."
                 )
+
+        # Create a unique trade ID
+        self.trade_id = f"TRD{Trade.trade_counter:04d}"
+        Trade.trade_counter += 1
 
         self.symbol = symbol
         self.direction = direction

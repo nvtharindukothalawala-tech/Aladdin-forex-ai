@@ -180,6 +180,7 @@ class AccountManager:
 
         for trade in self.trades:
 
+            print(f"Trade ID: {trade.trade_id}")
             print("Symbol:", trade.symbol)
             print("Direction:", trade.direction)
             print(f"Entry Price : {trade.entry_price:.5f}")
