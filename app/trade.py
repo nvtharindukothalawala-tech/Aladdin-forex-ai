@@ -1,5 +1,6 @@
 from datetime import datetime
 
+
 class Trade:
 
     def __init__(
@@ -11,6 +12,11 @@ class Trade:
         stop_loss,
         take_profit
     ):
+
+        # Validate the lot size
+        if lot_size <= 0:
+            raise ValueError("Lot size must be greater than zero.")
+
         self.symbol = symbol
         self.direction = direction
         self.entry_price = entry_price
@@ -18,15 +24,45 @@ class Trade:
         self.lot_size = lot_size
         self.stop_loss = stop_loss
         self.take_profit = take_profit
+
         self.status = "Open"
 
+        # Record when the trade was created
         self.open_time = datetime.now()
+
+        # The trade has not been closed yet
         self.close_time = None
 
     def close_trade(self, exit_price):
+
         self.exit_price = exit_price
         self.status = "Closed"
         self.close_time = datetime.now()
+
+    def calculate_price_difference(self):
+
+        if self.exit_price is None:
+            return None
+
+        if self.direction == "Buy":
+            return self.exit_price - self.entry_price
+
+        if self.direction == "Sell":
+            return self.entry_price - self.exit_price
+
+        return None
+
+    def calculate_profit(self):
+
+        price_difference = self.calculate_price_difference()
+
+        if price_difference is None:
+            return None
+
+        # Temporary simplified profit calculation
+        profit = price_difference * self.lot_size
+
+        return profit
 
     def calculate_duration(self):
 
@@ -36,23 +72,6 @@ class Trade:
         duration = self.close_time - self.open_time
 
         return duration
-
-    def calculate_price_difference(self):
-
-        if self.exit_price is None:
-            return 0
-
-        if self.direction == "Buy":
-            return self.exit_price - self.entry_price
-
-        if self.direction == "Sell":
-            return self.entry_price - self.exit_price
-
-        return 0
-
-    def calculate_profit(self):
-        price_difference = self.calculate_price_difference()
-        return price_difference * self.lot_size
 
     def get_trade_result(self):
 
@@ -70,11 +89,19 @@ class Trade:
         return "Breakeven"
 
     def calculate_risk_distance(self):
-        risk_distance = abs(self.entry_price - self.stop_loss)
+
+        risk_distance = abs(
+            self.entry_price - self.stop_loss
+        )
+
         return risk_distance
 
     def calculate_reward_distance(self):
-        reward_distance = abs(self.take_profit - self.entry_price)
+
+        reward_distance = abs(
+            self.take_profit - self.entry_price
+        )
+
         return reward_distance
 
     def calculate_risk_reward_ratio(self):
