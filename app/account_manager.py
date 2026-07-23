@@ -184,32 +184,63 @@ class AccountManager:
             print("Symbol:", trade.symbol)
             print("Direction:", trade.direction)
             print(f"Entry Price : {trade.entry_price:.5f}")
-            print(f"Exit Price  : {trade.exit_price:.5f}")
+
+            if trade.exit_price is not None:
+                print(f"Exit Price  : {trade.exit_price:.5f}")
+            else:
+                print("Exit Price  : Not closed yet")
+
             print(f"Stop Loss   : {trade.stop_loss:.5f}")
             print(f"Take Profit : {trade.take_profit:.5f}")
             print("Lot Size:", trade.lot_size)
             print("Status:", trade.status)
-            print("Trade Result:", trade.get_trade_result())
-            print("Open Time:", trade.open_time)
-            print("Close Time:", trade.close_time)
-            print("Trade Duration:", trade.calculate_duration())
 
-            print(f"Risk Distance: {trade.calculate_risk_distance():.5f}")
-            print(f"Reward Distance: {trade.calculate_reward_distance():.5f}")
+            if trade.status == "Closed":
+                print("Trade Result:", trade.get_trade_result())
+            else:
+                print("Trade Result: Open")
+
+            print("Open Time:", trade.open_time)
+
+            if trade.close_time is not None:
+                print("Close Time:", trade.close_time)
+            else:
+                print("Close Time: Trade still open")
+
+            if trade.status == "Closed":
+                print("Trade Duration:", trade.calculate_duration())
+            else:
+                print("Trade Duration: Trade still open")
+
+            print(
+                f"Risk Distance: "
+                f"{trade.calculate_risk_distance():.5f}"
+            )
+
+            print(
+                f"Reward Distance: "
+                f"{trade.calculate_reward_distance():.5f}"
+            )
 
             risk_reward = trade.calculate_risk_reward_ratio()
 
             if risk_reward is not None:
-                print(f"Risk-to-Reward Ratio: 1:{risk_reward:.2f}")
+                print(
+                    f"Risk-to-Reward Ratio: "
+                    f"1:{risk_reward:.2f}"
+                )
             else:
                 print("Risk-to-Reward Ratio: Invalid")
 
-            profit = trade.calculate_profit()
+            if trade.status == "Closed":
+                profit = trade.calculate_profit()
 
-            if profit is not None:
-                print(f"Profit: {profit:.5f}")
+                if profit is not None:
+                    print(f"Profit: {profit:.5f}")
+                else:
+                    print("Profit: Not available")
             else:
-                print("Profit: Not available")
+                print("Profit: Trade still open")
 
             print("--------------------")
 
@@ -221,6 +252,23 @@ class AccountManager:
                 return trade
 
         return None
+
+    def close_trade_by_id(self, trade_id, exit_price):
+
+        trade = self.find_trade(trade_id)
+
+        if not trade:
+            print("Trade not found.")
+            return False
+
+        if trade.status == "Closed":
+            print("Trade is already closed.")
+            return False
+
+        trade.close_trade(exit_price)
+
+        print("Trade closed successfully.")
+        return True
 
     def count_trades(self):
 

@@ -193,10 +193,31 @@ print(f"Price Difference: {price_difference3:.5f}")
 print(f"Profit: {profit3:.5f}")
 print(f"Risk-to-Reward Ratio: 1:{risk_reward3:.2f}")
 
+# =====================================
+# Fourth Forex trade - Open trade
+# =====================================
+
+trade4 = Trade(
+    "AUD/USD",
+    "Buy",
+    0.6500,
+    0.10,
+    0.6450,
+    0.6600
+)
+
+print("\n=== Fourth Trade ===")
+print("Trade ID:", trade4.trade_id)
+print("Symbol:", trade4.symbol)
+print("Direction:", trade4.direction)
+print("Entry Price:", trade4.entry_price)
+print("Status:", trade4.status)
+
 # Store all trades in the manager
 manager.add_trade(trade1)
 manager.add_trade(trade2)
 manager.add_trade(trade3)
+manager.add_trade(trade4)
 
 # Display all stored trades
 manager.show_all_trades()
@@ -211,11 +232,34 @@ if trade:
     print("Symbol:", trade.symbol)
     print("Direction:", trade.direction)
     print("Status:", trade.status)
-    print(f"Profit: {trade.calculate_profit():.5f}")
+
+    profit = trade.calculate_profit()
+
+    if profit is not None:
+        print(f"Profit: {profit:.5f}")
+    else:
+        print("Profit: Trade is still open")
 else:
     print("Trade not found.")
 
-# Display trade statistics
+close_trade_id = input("\nEnter Trade ID to close: ")
+exit_price = float(input("Enter Exit Price: "))
+
+close_success = manager.close_trade_by_id(
+    close_trade_id,
+    exit_price
+)
+
+if close_success:
+    closed_trade = manager.find_trade(close_trade_id)
+
+    print("\n===== Closed Trade Details =====")
+    print("Trade ID:", closed_trade.trade_id)
+    print("Status:", closed_trade.status)
+    print(f"Exit Price: {closed_trade.exit_price:.5f}")
+    print("Close Time:", closed_trade.close_time)
+    print(f"Profit: {closed_trade.calculate_profit():.5f}")
+
 manager.generate_trade_summary()
 
 # Display all remaining accounts
