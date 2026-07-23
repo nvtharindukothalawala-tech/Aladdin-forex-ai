@@ -202,6 +202,43 @@ class AccountManager:
 
         return total_profit
 
+    def calculate_average_profit(self):
+
+        total_trades = self.count_trades()
+
+        if total_trades == 0:
+            return 0
+
+        total_profit = self.calculate_total_profit()
+
+        average_profit = total_profit / total_trades
+
+        return average_profit
+
+    def find_largest_winning_trade(self):
+
+        largest_profit = 0
+
+        for trade in self.trades:
+            profit = trade.calculate_profit()
+
+            if profit > largest_profit:
+                largest_profit = profit
+
+        return largest_profit
+
+    def find_largest_losing_trade(self):
+
+        largest_loss = 0
+
+        for trade in self.trades:
+            profit = trade.calculate_profit()
+
+            if profit < largest_loss:
+                largest_loss = profit
+
+        return largest_loss
+
     def count_winning_trades(self):
 
         winning_trades = 0
@@ -246,6 +283,9 @@ class AccountManager:
         winning_trades = self.count_winning_trades()
         losing_trades = self.count_losing_trades()
         win_rate = self.calculate_win_rate()
+        average_profit = self.calculate_average_profit()
+        largest_winning_trade = self.find_largest_winning_trade()
+        largest_losing_trade = self.find_largest_losing_trade()
 
         print("\n========================================")
         print("        ALADDIN TRADE SUMMARY")
@@ -255,4 +295,7 @@ class AccountManager:
         print("Losing Trades     :", losing_trades)
         print(f"Win Rate          : {win_rate:.2f}%")
         print(f"Total Profit      : {total_profit:.5f}")
+        print(f"Average Profit    : {average_profit:.5f}")
+        print(f"Largest Winning Trade : {largest_winning_trade:.5f}")
+        print(f"Largest Losing Trade : {largest_losing_trade:.5f}")
         print("========================================")

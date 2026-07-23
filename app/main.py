@@ -110,10 +110,33 @@ print("Status:", trade2.status)
 print(f"Price Difference: {price_difference2:.5f}")
 print(f"Profit: {profit2:.5f}")
 
+# =====================================
+# Third Forex trade
+# =====================================
 
-# Store both trades in the manager
+trade3 = Trade("USD/JPY", "Buy", 150.00, 0.10)
+
+trade3.close_trade(149.50)
+
+price_difference3 = trade3.calculate_price_difference()
+profit3 = trade3.calculate_profit()
+
+
+# Display the third trade information
+print("\n=== Third Trade ===")
+print("Symbol:", trade3.symbol)
+print("Direction:", trade3.direction)
+print("Entry Price:", trade3.entry_price)
+print("Exit Price:", trade3.exit_price)
+print("Lot Size:", trade3.lot_size)
+print("Status:", trade3.status)
+print(f"Price Difference: {price_difference3:.5f}")
+print(f"Profit: {profit3:.5f}")
+
+# Store all trades in the manager
 manager.add_trade(trade1)
 manager.add_trade(trade2)
+manager.add_trade(trade3)
 
 # Display all stored trades
 manager.show_all_trades()
