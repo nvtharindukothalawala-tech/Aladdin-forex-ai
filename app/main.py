@@ -297,6 +297,29 @@ view_journal_trade_id = input(
 
 manager.view_trade_journal(view_journal_trade_id)
 
+# ==========================
+# Edit Trade Journal
+# ==========================
+
+edit_trade_id = input(
+    "\nEnter Trade ID to edit journal: "
+)
+
+new_strategy = input("Enter New Strategy: ")
+new_reason = input("Enter New Reason: ")
+new_emotion = input("Enter New Emotion: ")
+new_lesson = input("Enter New Lesson Learned: ")
+
+manager.edit_trade_journal(
+    edit_trade_id,
+    new_strategy,
+    new_reason,
+    new_emotion,
+    new_lesson
+)
+print("\nUpdated Journal:")
+manager.view_trade_journal(edit_trade_id)
+
 #strategy = input("Enter Strategy: ")
 #reason = input("Enter Reason: ")
 #emotion = input("Enter Emotion: ")
@@ -310,23 +333,4 @@ manager.view_trade_journal(view_journal_trade_id)
 #    lesson_learned
 #)
 
-def view_trade_journal(self, trade_id):
-
-    trade = self.find_trade(trade_id)
-
-    if not trade:
-        print("Trade not found.")
-        return
-
-    if not trade.strategy:
-        print("No journal entry found for this trade.")
-        return
-
-    print("\n========== TRADE JOURNAL ==========")
-    print("Trade ID:", trade.trade_id)
-    print("Strategy:", trade.strategy)
-    print("Reason:", trade.reason)
-    print("Emotion:", trade.emotion)
-    print("Lesson Learned:", trade.lesson_learned)
-    print("==================================")
 

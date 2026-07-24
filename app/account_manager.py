@@ -321,7 +321,36 @@ class AccountManager:
         print("Emotion:", trade.emotion)
         print("Lesson Learned:", trade.lesson_learned)
         print("==================================")
-    
+
+    def edit_trade_journal(
+        self,
+        trade_id,
+        strategy,
+        reason,
+        emotion,
+        lesson_learned
+    ):
+
+        trade = self.find_trade(trade_id)
+
+        if not trade:
+            print("Trade not found.")
+            return False
+
+        if not trade.strategy:
+            print("No journal entry found for this trade.")
+            return False
+
+        trade.add_journal_entry(
+            strategy,
+            reason,
+            emotion,
+            lesson_learned
+        )
+
+        print("Trade journal updated successfully.")
+        return True
+        
     def count_trades(self):
 
         total_trades = len(self.trades)
