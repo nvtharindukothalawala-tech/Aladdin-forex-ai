@@ -306,6 +306,21 @@ class AccountManager:
         )
 
         return True
+    def view_trade_journal(self, trade_id):
+
+        trade = self.find_trade(trade_id)
+
+        if not trade:
+            print("Trade not found.")
+            return
+
+        print("\n========== TRADE JOURNAL ==========")
+        print("Trade ID:", trade.trade_id)
+        print("Strategy:", trade.strategy)
+        print("Reason:", trade.reason)
+        print("Emotion:", trade.emotion)
+        print("Lesson Learned:", trade.lesson_learned)
+        print("==================================")
     
     def count_trades(self):
 

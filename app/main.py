@@ -291,26 +291,42 @@ if found_account:
 else:
     print("Account not found.")
 
-journal_trade_id = input("\nEnter Trade ID for journal: ")
-strategy = input("Enter Strategy: ")
-reason = input("Enter Reason: ")
-emotion = input("Enter Emotion: ")
-lesson_learned = input("Enter Lesson Learned: ")
-
-journal_success = manager.add_trade_journal(
-    journal_trade_id,
-    strategy,
-    reason,
-    emotion,
-    lesson_learned
+view_journal_trade_id = input(
+    "\nEnter Trade ID to view journal: "
 )
 
-if journal_success:
-    journal_trade = manager.find_trade(journal_trade_id)
+manager.view_trade_journal(view_journal_trade_id)
 
-    print("\n===== Saved Trade Journal =====")
-    print("Trade ID:", journal_trade.trade_id)
-    print("Strategy:", journal_trade.strategy)
-    print("Reason:", journal_trade.reason)
-    print("Emotion:", journal_trade.emotion)
-    print("Lesson Learned:", journal_trade.lesson_learned)
+#strategy = input("Enter Strategy: ")
+#reason = input("Enter Reason: ")
+#emotion = input("Enter Emotion: ")
+#lesson_learned = input("Enter Lesson Learned: ")
+
+#journal_success = manager.add_trade_journal(
+#    journal_trade_id,
+#    strategy,
+#    reason,
+#    emotion,
+#    lesson_learned
+#)
+
+def view_trade_journal(self, trade_id):
+
+    trade = self.find_trade(trade_id)
+
+    if not trade:
+        print("Trade not found.")
+        return
+
+    if not trade.strategy:
+        print("No journal entry found for this trade.")
+        return
+
+    print("\n========== TRADE JOURNAL ==========")
+    print("Trade ID:", trade.trade_id)
+    print("Strategy:", trade.strategy)
+    print("Reason:", trade.reason)
+    print("Emotion:", trade.emotion)
+    print("Lesson Learned:", trade.lesson_learned)
+    print("==================================")
+
