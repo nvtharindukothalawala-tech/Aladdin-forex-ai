@@ -270,6 +270,19 @@ class AccountManager:
         print("Trade closed successfully.")
         return True
 
+    def delete_trade_by_id(self, trade_id):
+
+        trade = self.find_trade(trade_id)
+
+        if not trade:
+            print("Trade not found.")
+            return False
+
+        self.trades.remove(trade)
+
+        print("Trade deleted successfully.")
+        return True
+    
     def count_trades(self):
 
         total_trades = len(self.trades)

@@ -260,6 +260,9 @@ if close_success:
     print("Close Time:", closed_trade.close_time)
     print(f"Profit: {closed_trade.calculate_profit():.5f}")
 
+delete_trade_id = input("\nEnter Trade ID to delete: ")
+delete_success = manager.delete_trade_by_id(delete_trade_id)    
+
 manager.generate_trade_summary()
 
 # Display all remaining accounts
