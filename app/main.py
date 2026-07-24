@@ -290,3 +290,27 @@ if found_account:
     found_account.show_details()
 else:
     print("Account not found.")
+
+journal_trade_id = input("\nEnter Trade ID for journal: ")
+strategy = input("Enter Strategy: ")
+reason = input("Enter Reason: ")
+emotion = input("Enter Emotion: ")
+lesson_learned = input("Enter Lesson Learned: ")
+
+journal_success = manager.add_trade_journal(
+    journal_trade_id,
+    strategy,
+    reason,
+    emotion,
+    lesson_learned
+)
+
+if journal_success:
+    journal_trade = manager.find_trade(journal_trade_id)
+
+    print("\n===== Saved Trade Journal =====")
+    print("Trade ID:", journal_trade.trade_id)
+    print("Strategy:", journal_trade.strategy)
+    print("Reason:", journal_trade.reason)
+    print("Emotion:", journal_trade.emotion)
+    print("Lesson Learned:", journal_trade.lesson_learned)

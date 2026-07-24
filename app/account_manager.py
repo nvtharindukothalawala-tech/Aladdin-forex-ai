@@ -282,6 +282,30 @@ class AccountManager:
 
         print("Trade deleted successfully.")
         return True
+
+    def add_trade_journal(
+            self,
+            trade_id,
+            strategy,
+            reason,
+            emotion,
+            lesson_learned
+    ):
+
+        trade = self.find_trade(trade_id)
+
+        if not trade:
+            print("Trade not found.")
+            return False
+
+        trade.add_journal_entry(
+            strategy,
+            reason,
+            emotion,
+            lesson_learned
+        )
+
+        return True
     
     def count_trades(self):
 
