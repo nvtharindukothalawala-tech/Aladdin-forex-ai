@@ -77,6 +77,13 @@ trade1 = Trade(
 
 trade1.close_trade(1.0850)
 
+trade1.add_journal_entry(
+    "Breakout",
+    "Price broke above resistance.",
+    "Confident",
+    "Wait for candle confirmation."
+)
+
 price_difference1 = trade1.calculate_price_difference()
 profit1 = trade1.calculate_profit()
 duration1 = trade1.calculate_duration()
@@ -104,6 +111,10 @@ print(f"Reward Distance: {reward_distance1:.5f}")
 print(f"Price Difference: {price_difference1:.5f}")
 print(f"Profit: {profit1:.5f}")
 print(f"Risk-to-Reward Ratio: 1:{risk_reward1:.2f}")
+print("Strategy:", trade1.strategy)
+print("Reason:", trade1.reason)
+print("Emotion:", trade1.emotion)
+print("Lesson Learned:", trade1.lesson_learned)
 
 
 # =====================================

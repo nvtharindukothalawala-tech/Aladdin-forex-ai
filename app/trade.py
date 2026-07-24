@@ -62,6 +62,11 @@ class Trade:
         self.status = "Open"
         self.open_time = datetime.now()
         self.close_time = None
+
+        self.strategy = ""
+        self.reason = ""
+        self.emotion = ""
+        self.lesson_learned = ""
         
     def close_trade(self, exit_price):
 
@@ -145,3 +150,12 @@ class Trade:
         ratio = reward_distance / risk_distance
 
         return ratio
+
+    def add_journal_entry(self, strategy, reason, emotion, lesson_learned):
+
+        self.strategy = strategy
+        self.reason = reason
+        self.emotion = emotion
+        self.lesson_learned = lesson_learned
+
+        print("Trade journal added successfully.")
