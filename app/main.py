@@ -3,7 +3,6 @@ from account_manager import AccountManager
 from trade import Trade
 from trade_repository import TradeRepository
 from trade_service import TradeService
-from trade_analytics import TradeAnalytics
 
 
 # =====================================
@@ -60,21 +59,16 @@ manager.add_account(funded_account)
 
 # =====================================
 # Load Existing Trades
-# Or Create Sample Trades
+# Or Create Initial Sample Trades
 # =====================================
 
 saved_trades = trade_service.load_trades()
 
 
+
 if saved_trades:
 
     print("\nLoading existing trades...")
-
-
-    for trade in saved_trades:
-
-        manager.add_trade(trade)
-
 
 
 else:
@@ -84,7 +78,7 @@ else:
 
 
     # =====================================
-    # First Trade
+    # Trade 1
     # =====================================
 
     trade1 = Trade(
@@ -110,7 +104,7 @@ else:
 
 
     # =====================================
-    # Second Trade
+    # Trade 2
     # =====================================
 
     trade2 = Trade(
@@ -128,7 +122,7 @@ else:
 
 
     # =====================================
-    # Third Trade
+    # Trade 3
     # =====================================
 
     trade3 = Trade(
@@ -146,7 +140,8 @@ else:
 
 
     # =====================================
-    # Fourth Open Trade
+    # Trade 4
+    # Open Position
     # =====================================
 
     trade4 = Trade(
@@ -160,21 +155,12 @@ else:
 
 
 
-    # Add trades to service
+    # Add new trades to service
 
     trade_service.add_trade(trade1)
     trade_service.add_trade(trade2)
     trade_service.add_trade(trade3)
     trade_service.add_trade(trade4)
-
-
-
-    # Add trades to manager
-
-    manager.add_trade(trade1)
-    manager.add_trade(trade2)
-    manager.add_trade(trade3)
-    manager.add_trade(trade4)
 
 
 
@@ -189,140 +175,19 @@ else:
 
 
 # =====================================
-# Display Trade History
+# Sync Service Trades With Manager
+# =====================================
+
+for trade in trade_service.trades:
+
+    if trade not in manager.trades:
+
+        manager.add_trade(trade)
+
+
+
+# =====================================
+# Display Current Trade History
 # =====================================
 
 manager.show_all_trades()
-
-print("\n===== CREATE TRADE TEST =====")
-
-
-new_trade = trade_service.create_trade(
-    "GBP/JPY",
-    "Buy",
-    200.50,
-    0.10,
-    199.50,
-    202.00
-)
-
-
-print(
-    new_trade.trade_id,
-    new_trade.symbol,
-    new_trade.status
-)
-
-print("\n===== CLOSE TRADE TEST =====")
-
-
-trade_service.close_trade(
-    "TRD0005",
-    201.50
-)
-
-
-closed_trade = trade_service.find_trade(
-    "TRD0005"
-)
-
-
-print(
-    closed_trade.trade_id,
-    closed_trade.status,
-    closed_trade.exit_price
-)
-
-print("\n===== DELETE TRADE TEST =====")
-
-
-trade_service.delete_trade(
-    "TRD0006"
-)
-
-print("\n===== UPDATE TRADE TEST =====")
-
-
-trade_service.update_trade(
-    "TRD0004",
-    stop_loss=0.6480,
-    take_profit=0.6650
-)
-
-
-updated_trade = trade_service.find_trade(
-    "TRD0004"
-)
-
-
-print(
-    updated_trade.trade_id,
-    updated_trade.stop_loss,
-    updated_trade.take_profit
-)
-
-print("\n===== TRADE ANALYTICS TEST =====")
-
-
-analytics = TradeAnalytics(
-    manager.trades
-)
-
-
-print(
-    "Total Trades:",
-    analytics.total_trades()
-)
-
-
-print(
-    "Winning Trades:",
-    analytics.winning_trades()
-)
-
-
-print(
-    "Losing Trades:",
-    analytics.losing_trades()
-)
-
-
-print(
-    "Open Trades:",
-    analytics.open_trades()
-)
-
-
-print(
-    "Win Rate:",
-    analytics.win_rate()
-)
-
-
-print(
-    "Total Profit:",
-    f"{analytics.total_profit():.5f}"
-)
-
-
-print(
-    "Average Profit:",
-    f"{analytics.average_profit():.5f}"
-)
-
-print(
-    "Gross Profit:",
-    f"{analytics.gross_profit():.5f}"
-)
-
-
-print(
-    "Gross Loss:",
-    f"{analytics.gross_loss():.5f}"
-)
-
-
-print(
-    "Profit Factor:",
-    f"{analytics.profit_factor():.2f}"
-)
