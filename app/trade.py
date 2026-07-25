@@ -67,6 +67,38 @@ class Trade:
         self.reason = ""
         self.emotion = ""
         self.lesson_learned = ""
+
+    @classmethod
+    def from_dict(cls, data):
+
+        trade = cls(
+            data["symbol"],
+            data["direction"],
+            data["entry_price"],
+            data["lot_size"],
+            data["stop_loss"],
+            data["take_profit"]
+        )
+
+        trade.trade_id = data["trade_id"]
+
+        trade.exit_price = data["exit_price"]
+
+        trade.status = data["status"]
+
+        trade.open_time = data["open_time"]
+
+        trade.close_time = data["close_time"]
+
+        trade.strategy = data["strategy"]
+
+        trade.reason = data["reason"]
+
+        trade.emotion = data["emotion"]
+
+        trade.lesson_learned = data["lesson_learned"]
+
+        return trade
         
     def close_trade(self, exit_price):
 
@@ -89,15 +121,16 @@ class Trade:
 
     def calculate_profit(self):
 
-        price_difference = self.calculate_price_difference()
-
-        if price_difference is None:
+        if self.exit_price is None:
             return None
 
-        # Temporary simplified profit calculation
-        profit = price_difference * self.lot_size
+        if self.direction == "Buy":
+            profit = (self.exit_price - self.entry_price) * self.lot_size
 
-        return profit
+        else:
+            profit = (self.entry_price - self.exit_price) * self.lot_size
+
+        return round(profit, 5)
 
     def calculate_duration(self):
 
@@ -159,3 +192,25 @@ class Trade:
         self.lesson_learned = lesson_learned
 
         print("Trade journal added successfully.")
+
+    def to_dict(self):
+
+        return {
+            "trade_id": self.trade_id,
+            "symbol": self.symbol,
+            "direction": self.direction,
+            "entry_price": self.entry_price,
+            "exit_price": self.exit_price,
+            "stop_loss": self.stop_loss,
+            "take_profit": self.take_profit,
+            "lot_size": self.lot_size,
+            "status": self.status,
+            "open_time": str(self.open_time),
+            "close_time": str(self.close_time),
+            "strategy": self.strategy,
+            "reason": self.reason,
+            "emotion": self.emotion,
+            "lesson_learned": self.lesson_learned
+        }
+
+    
