@@ -101,3 +101,38 @@ class TradeService:
         print("Trade deleted successfully.")
 
         return True
+
+    def update_trade(
+            self,
+            trade_id,
+            stop_loss=None,
+            take_profit=None,
+            lot_size=None
+    ):
+
+        trade = self.find_trade(trade_id)
+
+
+        if not trade:
+            print("Trade not found.")
+            return False
+
+
+        if stop_loss is not None:
+            trade.stop_loss = stop_loss
+
+
+        if take_profit is not None:
+            trade.take_profit = take_profit
+
+
+        if lot_size is not None:
+            trade.lot_size = lot_size
+
+
+        self.save_trades()
+
+
+        print("Trade updated successfully.")
+
+        return True

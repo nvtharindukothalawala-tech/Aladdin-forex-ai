@@ -239,3 +239,24 @@ print("\n===== DELETE TRADE TEST =====")
 trade_service.delete_trade(
     "TRD0006"
 )
+
+print("\n===== UPDATE TRADE TEST =====")
+
+
+trade_service.update_trade(
+    "TRD0004",
+    stop_loss=0.6480,
+    take_profit=0.6650
+)
+
+
+updated_trade = trade_service.find_trade(
+    "TRD0004"
+)
+
+
+print(
+    updated_trade.trade_id,
+    updated_trade.stop_loss,
+    updated_trade.take_profit
+)
