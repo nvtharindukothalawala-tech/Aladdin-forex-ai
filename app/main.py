@@ -193,3 +193,49 @@ else:
 # =====================================
 
 manager.show_all_trades()
+
+print("\n===== CREATE TRADE TEST =====")
+
+
+new_trade = trade_service.create_trade(
+    "GBP/JPY",
+    "Buy",
+    200.50,
+    0.10,
+    199.50,
+    202.00
+)
+
+
+print(
+    new_trade.trade_id,
+    new_trade.symbol,
+    new_trade.status
+)
+
+print("\n===== CLOSE TRADE TEST =====")
+
+
+trade_service.close_trade(
+    "TRD0005",
+    201.50
+)
+
+
+closed_trade = trade_service.find_trade(
+    "TRD0005"
+)
+
+
+print(
+    closed_trade.trade_id,
+    closed_trade.status,
+    closed_trade.exit_price
+)
+
+print("\n===== DELETE TRADE TEST =====")
+
+
+trade_service.delete_trade(
+    "TRD0006"
+)

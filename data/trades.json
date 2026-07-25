@@ -66,5 +66,39 @@
         "reason": "",
         "emotion": "",
         "lesson_learned": ""
+    },
+    {
+        "trade_id": "TRD0005",
+        "symbol": "GBP/JPY",
+        "direction": "Buy",
+        "entry_price": 200.5,
+        "exit_price": 201.5,
+        "stop_loss": 199.5,
+        "take_profit": 202.0,
+        "lot_size": 0.1,
+        "status": "Closed",
+        "open_time": "2026-07-25 19:41:37.960322",
+        "close_time": "2026-07-25 19:53:19.437676",
+        "strategy": "",
+        "reason": "",
+        "emotion": "",
+        "lesson_learned": ""
+    },
+    {
+        "trade_id": "TRD0007",
+        "symbol": "GBP/JPY",
+        "direction": "Buy",
+        "entry_price": 200.5,
+        "exit_price": null,
+        "stop_loss": 199.5,
+        "take_profit": 202.0,
+        "lot_size": 0.1,
+        "status": "Open",
+        "open_time": "2026-07-25 19:53:19.435178",
+        "close_time": "None",
+        "strategy": "",
+        "reason": "",
+        "emotion": "",
+        "lesson_learned": ""
     }
 ]
