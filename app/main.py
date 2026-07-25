@@ -309,3 +309,20 @@ print(
     "Average Profit:",
     f"{analytics.average_profit():.5f}"
 )
+
+print(
+    "Gross Profit:",
+    f"{analytics.gross_profit():.5f}"
+)
+
+
+print(
+    "Gross Loss:",
+    f"{analytics.gross_loss():.5f}"
+)
+
+
+print(
+    "Profit Factor:",
+    f"{analytics.profit_factor():.2f}"
+)

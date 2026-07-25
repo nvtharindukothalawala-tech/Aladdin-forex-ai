@@ -121,3 +121,46 @@ class TradeAnalytics:
 
 
         return sum(closed) / len(closed)
+    
+
+    def gross_profit(self):
+
+        total = 0
+
+        for trade in self.trades:
+
+            profit = trade.calculate_profit()
+
+            if profit is not None and profit > 0:
+
+                total += profit
+
+        return total
+
+
+
+    def gross_loss(self):
+
+        total = 0
+
+        for trade in self.trades:
+
+            profit = trade.calculate_profit()
+
+            if profit is not None and profit < 0:
+
+                total += abs(profit)
+
+        return total
+
+
+
+    def profit_factor(self):
+
+        loss = self.gross_loss()
+
+        if loss == 0:
+
+            return 0
+
+        return self.gross_profit() / loss
