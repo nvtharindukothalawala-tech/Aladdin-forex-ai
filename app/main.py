@@ -6,7 +6,6 @@ from trade import Trade
 from json_manager import JSONManager
 
 
-
 # =====================================
 # Create Trading Accounts
 # =====================================
@@ -30,7 +29,6 @@ funded_account = TradingAccount(
 )
 
 
-
 # =====================================
 # Create Managers
 # =====================================
@@ -42,7 +40,6 @@ trade_file = "data/trades.json"
 json_manager = JSONManager(
     trade_file
 )
-
 
 
 # =====================================
@@ -57,18 +54,14 @@ manager.add_account(funded_account)
 
 # =====================================
 # Load Existing Trades
-# OR
-# Create New Sample Trades
+# Or Create Sample Trades
 # =====================================
-
 
 if os.path.exists(trade_file):
 
     print("\nLoading existing trades...")
 
-
     saved_trades = json_manager.load_trades()
-
 
     for trade_data in saved_trades:
 
@@ -81,16 +74,12 @@ if os.path.exists(trade_file):
         )
 
 
-
 else:
-
 
     print("\nCreating new sample trades...")
 
 
-    # ==========================
-    # Trade 1
-    # ==========================
+    # First Trade
 
     trade1 = Trade(
         "EUR/USD",
@@ -101,10 +90,7 @@ else:
         1.0900
     )
 
-
-    trade1.close_trade(
-        1.0850
-    )
+    trade1.close_trade(1.0850)
 
 
     trade1.add_journal_entry(
@@ -116,9 +102,7 @@ else:
 
 
 
-    # ==========================
-    # Trade 2
-    # ==========================
+    # Second Trade
 
     trade2 = Trade(
         "GBP/USD",
@@ -129,16 +113,11 @@ else:
         1.2400
     )
 
-
-    trade2.close_trade(
-        1.2450
-    )
+    trade2.close_trade(1.2450)
 
 
 
-    # ==========================
-    # Trade 3
-    # ==========================
+    # Third Trade
 
     trade3 = Trade(
         "USD/JPY",
@@ -149,16 +128,11 @@ else:
         151.000
     )
 
-
-    trade3.close_trade(
-        149.500
-    )
+    trade3.close_trade(149.500)
 
 
 
-    # ==========================
-    # Trade 4 Open Trade
-    # ==========================
+    # Fourth Open Trade
 
     trade4 = Trade(
         "AUD/USD",
@@ -180,16 +154,13 @@ else:
 
 
 
-    # Save first data
+    # Save initial trades
 
     trade_data = [
 
         trade1.to_dict(),
-
         trade2.to_dict(),
-
         trade3.to_dict(),
-
         trade4.to_dict()
 
     ]
@@ -200,9 +171,7 @@ else:
     )
 
 
-    print(
-        "New trades saved successfully."
-    )
+    print("New trades saved successfully.")
 
 
 
