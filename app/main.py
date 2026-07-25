@@ -1,9 +1,8 @@
-import os
 
 from account import TradingAccount
 from account_manager import AccountManager
 from trade import Trade
-from json_manager import JSONManager
+from trade_repository import TradeRepository
 
 
 # =====================================
@@ -35,10 +34,8 @@ funded_account = TradingAccount(
 
 manager = AccountManager()
 
-trade_file = "data/trades.json"
-
-json_manager = JSONManager(
-    trade_file
+trade_repository = TradeRepository(
+    "data/trades.json"
 )
 
 
@@ -57,22 +54,17 @@ manager.add_account(funded_account)
 # Or Create Sample Trades
 # =====================================
 
-if os.path.exists(trade_file):
+saved_trades = trade_repository.load_trades()
+
+
+if saved_trades:
 
     print("\nLoading existing trades...")
 
-    saved_trades = json_manager.load_trades()
 
-    for trade_data in saved_trades:
+    for trade in saved_trades:
 
-        loaded_trade = Trade.from_dict(
-            trade_data
-        )
-
-        manager.add_trade(
-            loaded_trade
-        )
-
+        manager.add_trade(trade)
 
 else:
 
@@ -156,20 +148,14 @@ else:
 
     # Save initial trades
 
-    trade_data = [
-
-        trade1.to_dict(),
-        trade2.to_dict(),
-        trade3.to_dict(),
-        trade4.to_dict()
-
+    trade_repository.save_trades(
+    [
+        trade1,
+        trade2,
+        trade3,
+        trade4
     ]
-
-
-    json_manager.save_data(
-        trade_data
-    )
-
+)
 
     print("New trades saved successfully.")
 
