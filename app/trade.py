@@ -80,23 +80,40 @@ class Trade:
             data["take_profit"]
         )
 
+
         trade.trade_id = data["trade_id"]
 
         trade.exit_price = data["exit_price"]
 
         trade.status = data["status"]
 
-        trade.open_time = data["open_time"]
 
-        trade.close_time = data["close_time"]
+        if data.get("open_time"):
 
-        trade.strategy = data["strategy"]
+            trade.open_time = datetime.fromisoformat(
+                data["open_time"]
+            )
 
-        trade.reason = data["reason"]
 
-        trade.emotion = data["emotion"]
+        if data.get("close_time") and data["close_time"] != "None":
 
-        trade.lesson_learned = data["lesson_learned"]
+            trade.close_time = datetime.fromisoformat(
+                data["close_time"]
+            )
+
+        else:
+
+            trade.close_time = None
+
+
+        trade.strategy = data.get("strategy", "")
+
+        trade.reason = data.get("reason", "")
+
+        trade.emotion = data.get("emotion", "")
+
+        trade.lesson_learned = data.get("lesson_learned", "")
+
 
         return trade
         
