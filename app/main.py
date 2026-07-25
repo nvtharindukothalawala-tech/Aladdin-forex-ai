@@ -1,8 +1,9 @@
-
 from account import TradingAccount
 from account_manager import AccountManager
 from trade import Trade
 from trade_repository import TradeRepository
+from trade_service import TradeService
+
 
 
 # =====================================
@@ -28,15 +29,23 @@ funded_account = TradingAccount(
 )
 
 
+
 # =====================================
 # Create Managers
 # =====================================
 
 manager = AccountManager()
 
+
 trade_repository = TradeRepository(
     "data/trades.json"
 )
+
+
+trade_service = TradeService(
+    trade_repository
+)
+
 
 
 # =====================================
@@ -54,7 +63,7 @@ manager.add_account(funded_account)
 # Or Create Sample Trades
 # =====================================
 
-saved_trades = trade_repository.load_trades()
+saved_trades = trade_service.load_trades()
 
 
 if saved_trades:
@@ -66,12 +75,17 @@ if saved_trades:
 
         manager.add_trade(trade)
 
+
+
 else:
 
     print("\nCreating new sample trades...")
 
 
+
+    # =====================================
     # First Trade
+    # =====================================
 
     trade1 = Trade(
         "EUR/USD",
@@ -81,6 +95,7 @@ else:
         1.0750,
         1.0900
     )
+
 
     trade1.close_trade(1.0850)
 
@@ -94,7 +109,9 @@ else:
 
 
 
+    # =====================================
     # Second Trade
+    # =====================================
 
     trade2 = Trade(
         "GBP/USD",
@@ -105,11 +122,14 @@ else:
         1.2400
     )
 
+
     trade2.close_trade(1.2450)
 
 
 
+    # =====================================
     # Third Trade
+    # =====================================
 
     trade3 = Trade(
         "USD/JPY",
@@ -120,11 +140,14 @@ else:
         151.000
     )
 
+
     trade3.close_trade(149.500)
 
 
 
+    # =====================================
     # Fourth Open Trade
+    # =====================================
 
     trade4 = Trade(
         "AUD/USD",
@@ -137,6 +160,15 @@ else:
 
 
 
+    # Add trades to service
+
+    trade_service.add_trade(trade1)
+    trade_service.add_trade(trade2)
+    trade_service.add_trade(trade3)
+    trade_service.add_trade(trade4)
+
+
+
     # Add trades to manager
 
     manager.add_trade(trade1)
@@ -146,18 +178,13 @@ else:
 
 
 
-    # Save initial trades
+    # Save trades
 
-    trade_repository.save_trades(
-    [
-        trade1,
-        trade2,
-        trade3,
-        trade4
-    ]
-)
+    trade_service.save_trades()
+
 
     print("New trades saved successfully.")
+
 
 
 
