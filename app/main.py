@@ -3,7 +3,7 @@ from account_manager import AccountManager
 from trade import Trade
 from trade_repository import TradeRepository
 from trade_service import TradeService
-
+from trade_analytics import TradeAnalytics
 
 
 # =====================================
@@ -259,4 +259,53 @@ print(
     updated_trade.trade_id,
     updated_trade.stop_loss,
     updated_trade.take_profit
+)
+
+print("\n===== TRADE ANALYTICS TEST =====")
+
+
+analytics = TradeAnalytics(
+    manager.trades
+)
+
+
+print(
+    "Total Trades:",
+    analytics.total_trades()
+)
+
+
+print(
+    "Winning Trades:",
+    analytics.winning_trades()
+)
+
+
+print(
+    "Losing Trades:",
+    analytics.losing_trades()
+)
+
+
+print(
+    "Open Trades:",
+    analytics.open_trades()
+)
+
+
+print(
+    "Win Rate:",
+    analytics.win_rate()
+)
+
+
+print(
+    "Total Profit:",
+    f"{analytics.total_profit():.5f}"
+)
+
+
+print(
+    "Average Profit:",
+    f"{analytics.average_profit():.5f}"
 )
