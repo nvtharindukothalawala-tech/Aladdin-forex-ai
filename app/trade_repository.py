@@ -1,12 +1,17 @@
-from json_manager import JSONManager
-from trade import Trade
+from app.json_manager import JSONManager
+from app.trade import Trade
+
 
 
 class TradeRepository:
 
+
     def __init__(self, file_path):
 
-        self.json_manager = JSONManager(file_path)
+        self.json_manager = JSONManager(
+            file_path
+        )
+
 
 
     # Save Trade objects into JSON
@@ -14,15 +19,18 @@ class TradeRepository:
 
         trade_data = []
 
+
         for trade in trades:
 
             trade_data.append(
                 trade.to_dict()
             )
 
+
         self.json_manager.save_data(
             trade_data
         )
+
 
 
     # Load JSON and convert into Trade objects
@@ -30,7 +38,9 @@ class TradeRepository:
 
         saved_data = self.json_manager.load_trades()
 
+
         trades = []
+
 
         for data in saved_data:
 
@@ -38,11 +48,15 @@ class TradeRepository:
                 data
             )
 
+
             trades.append(
                 trade
             )
 
+
         return trades
+
+
 
 
 
@@ -51,6 +65,7 @@ class TradeRepository:
 # =====================================
 
 if __name__ == "__main__":
+
 
     repository = TradeRepository(
         "data/trades.json"
@@ -61,6 +76,7 @@ if __name__ == "__main__":
 
 
     print("\n===== Repository Test =====")
+
 
 
     for trade in trades:

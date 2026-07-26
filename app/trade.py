@@ -1,9 +1,11 @@
 from datetime import datetime
 
 
+
 class Trade:
 
     trade_counter = 1
+
 
     def __init__(
         self,
@@ -15,41 +17,50 @@ class Trade:
         take_profit
     ):
 
-        # Validate the lot size
         if lot_size <= 0:
-            raise ValueError("Lot size must be greater than zero.")
+            raise ValueError(
+                "Lot size must be greater than zero."
+            )
 
-        # Validate direction
+
         if direction not in ["Buy", "Sell"]:
-            raise ValueError("Direction must be either 'Buy' or 'Sell'.")
+            raise ValueError(
+                "Direction must be either 'Buy' or 'Sell'."
+            )
 
-        # Validate Stop Loss and Take Profit for Buy trades
+
         if direction == "Buy":
+
             if stop_loss >= entry_price:
                 raise ValueError(
                     "For a Buy trade, stop loss must be below the entry price."
                 )
+
 
             if take_profit <= entry_price:
                 raise ValueError(
                     "For a Buy trade, take profit must be above the entry price."
                 )
 
-        # Validate Stop Loss and Take Profit for Sell trades
+
         if direction == "Sell":
+
             if stop_loss <= entry_price:
                 raise ValueError(
                     "For a Sell trade, stop loss must be above the entry price."
                 )
+
 
             if take_profit >= entry_price:
                 raise ValueError(
                     "For a Sell trade, take profit must be below the entry price."
                 )
 
-        # Create a unique trade ID
+
         self.trade_id = f"TRD{Trade.trade_counter:04d}"
+
         Trade.trade_counter += 1
+
 
         self.symbol = symbol
         self.direction = direction
@@ -60,13 +71,17 @@ class Trade:
         self.take_profit = take_profit
 
         self.status = "Open"
+
         self.open_time = datetime.now()
         self.close_time = None
+
 
         self.strategy = ""
         self.reason = ""
         self.emotion = ""
         self.lesson_learned = ""
+
+
 
     @classmethod
     def from_dict(cls, data):
@@ -83,9 +98,24 @@ class Trade:
 
         trade.trade_id = data["trade_id"]
 
+
+        # Update counter after loading existing trades
+
+        number = int(
+            trade.trade_id.replace("TRD", "")
+        )
+
+
+        if number >= cls.trade_counter:
+
+            cls.trade_counter = number + 1
+
+
+
         trade.exit_price = data["exit_price"]
 
         trade.status = data["status"]
+
 
 
         if data.get("open_time"):
@@ -93,6 +123,7 @@ class Trade:
             trade.open_time = datetime.fromisoformat(
                 data["open_time"]
             )
+
 
 
         if data.get("close_time") and data["close_time"] != "None":
@@ -106,128 +137,26 @@ class Trade:
             trade.close_time = None
 
 
-        trade.strategy = data.get("strategy", "")
 
-        trade.reason = data.get("reason", "")
+        trade.strategy = data.get(
+            "strategy",
+            ""
+        )
 
-        trade.emotion = data.get("emotion", "")
+        trade.reason = data.get(
+            "reason",
+            ""
+        )
 
-        trade.lesson_learned = data.get("lesson_learned", "")
+        trade.emotion = data.get(
+            "emotion",
+            ""
+        )
+
+        trade.lesson_learned = data.get(
+            "lesson_learned",
+            ""
+        )
 
 
         return trade
-        
-    def close_trade(self, exit_price):
-
-        self.exit_price = exit_price
-        self.status = "Closed"
-        self.close_time = datetime.now()
-
-    def calculate_price_difference(self):
-
-        if self.exit_price is None:
-            return None
-
-        if self.direction == "Buy":
-            return self.exit_price - self.entry_price
-
-        if self.direction == "Sell":
-            return self.entry_price - self.exit_price
-
-        return None
-
-    def calculate_profit(self):
-
-        if self.exit_price is None:
-            return None
-
-        if self.direction == "Buy":
-            profit = (self.exit_price - self.entry_price) * self.lot_size
-
-        else:
-            profit = (self.entry_price - self.exit_price) * self.lot_size
-
-        return round(profit, 5)
-
-    def calculate_duration(self):
-
-        if self.close_time is None:
-            return None
-
-        duration = self.close_time - self.open_time
-
-        return duration
-
-    def get_trade_result(self):
-
-        if self.status != "Closed":
-            return "Open"
-
-        profit = self.calculate_profit()
-
-        if profit > 0:
-            return "Win"
-
-        if profit < 0:
-            return "Loss"
-
-        return "Breakeven"
-
-    def calculate_risk_distance(self):
-
-        risk_distance = abs(
-            self.entry_price - self.stop_loss
-        )
-
-        return risk_distance
-
-    def calculate_reward_distance(self):
-
-        reward_distance = abs(
-            self.take_profit - self.entry_price
-        )
-
-        return reward_distance
-
-    def calculate_risk_reward_ratio(self):
-
-        risk_distance = self.calculate_risk_distance()
-        reward_distance = self.calculate_reward_distance()
-
-        if risk_distance == 0:
-            return None
-
-        ratio = reward_distance / risk_distance
-
-        return ratio
-
-    def add_journal_entry(self, strategy, reason, emotion, lesson_learned):
-
-        self.strategy = strategy
-        self.reason = reason
-        self.emotion = emotion
-        self.lesson_learned = lesson_learned
-
-        print("Trade journal added successfully.")
-
-    def to_dict(self):
-
-        return {
-            "trade_id": self.trade_id,
-            "symbol": self.symbol,
-            "direction": self.direction,
-            "entry_price": self.entry_price,
-            "exit_price": self.exit_price,
-            "stop_loss": self.stop_loss,
-            "take_profit": self.take_profit,
-            "lot_size": self.lot_size,
-            "status": self.status,
-            "open_time": str(self.open_time),
-            "close_time": str(self.close_time),
-            "strategy": self.strategy,
-            "reason": self.reason,
-            "emotion": self.emotion,
-            "lesson_learned": self.lesson_learned
-        }
-
-    
