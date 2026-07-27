@@ -139,3 +139,31 @@ def test_invalid_exit_price_is_rejected():
 
     with pytest.raises(ValueError, match="Exit price must be greater than zero"):
         trade.close_trade(0)
+
+
+def test_is_open_returns_true_for_open_trade():
+    trade = Trade(
+        symbol="EURUSD",
+        direction="Buy",
+        entry_price=1.1000,
+        lot_size=1.0,
+        stop_loss=1.0950,
+        take_profit=1.1100,
+    )
+
+    assert trade.is_open() is True
+
+
+def test_is_open_returns_false_for_closed_trade():
+    trade = Trade(
+        symbol="EURUSD",
+        direction="Buy",
+        entry_price=1.1000,
+        lot_size=1.0,
+        stop_loss=1.0950,
+        take_profit=1.1100,
+    )
+
+    trade.close_trade(1.1050)
+
+    assert trade.is_open() is False

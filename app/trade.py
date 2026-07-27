@@ -140,6 +140,10 @@ class Trade:
 
         self.close_time = datetime.now()
 
+    def is_open(self):
+
+        return self.status == "Open"
+
     def calculate_profit(self):
 
         if self.exit_price is None:
