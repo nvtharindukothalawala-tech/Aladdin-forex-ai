@@ -128,6 +128,9 @@ class Trade:
 
     def close_trade(self, exit_price):
 
+        if self.status == "Closed":
+            raise ValueError("Trade is already closed.")
+
         self.exit_price = exit_price
 
         self.status = "Closed"

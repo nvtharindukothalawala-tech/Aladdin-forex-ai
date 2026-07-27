@@ -109,3 +109,19 @@ def test_invalid_take_profit_is_rejected():
             stop_loss=1.0950,
             take_profit=0,
         )
+
+
+def test_cannot_close_trade_twice():
+    trade = Trade(
+        symbol="EURUSD",
+        direction="Buy",
+        entry_price=1.1000,
+        lot_size=1.0,
+        stop_loss=1.0950,
+        take_profit=1.1100,
+    )
+
+    trade.close_trade(1.1050)
+
+    with pytest.raises(ValueError, match="Trade is already closed"):
+        trade.close_trade(1.1100)
