@@ -11,6 +11,9 @@ class Trade:
         if not isinstance(symbol, str) or not symbol.strip():
             raise ValueError("Symbol cannot be empty.")
 
+        if entry_price <= 0:
+            raise ValueError("Entry price must be greater than zero.")
+
         if lot_size <= 0:
 
             raise ValueError("Lot size must be greater than zero.")

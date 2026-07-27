@@ -73,3 +73,15 @@ def test_empty_symbol_is_rejected():
             stop_loss=1.0950,
             take_profit=1.1100,
         )
+
+
+def test_invalid_entry_price_is_rejected():
+    with pytest.raises(ValueError, match="Entry price must be greater than zero"):
+        Trade(
+            symbol="EURUSD",
+            direction="Buy",
+            entry_price=0,
+            lot_size=1.0,
+            stop_loss=1.0950,
+            take_profit=1.1100,
+        )
