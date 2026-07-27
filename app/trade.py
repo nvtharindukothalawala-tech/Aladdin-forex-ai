@@ -148,6 +148,10 @@ class Trade:
 
         return self.status == "Closed"
 
+    def is_winning(self):
+
+        return self.calculate_profit() > 0
+
     def calculate_profit(self):
 
         if self.exit_price is None:

@@ -195,3 +195,33 @@ def test_is_closed_returns_true_for_closed_trade():
     trade.close_trade(1.1050)
 
     assert trade.is_closed() is True
+
+
+def test_is_winning_returns_true_for_profitable_trade():
+    trade = Trade(
+        symbol="EURUSD",
+        direction="Buy",
+        entry_price=1.1000,
+        lot_size=1.0,
+        stop_loss=1.0950,
+        take_profit=1.1100,
+    )
+
+    trade.close_trade(1.1050)
+
+    assert trade.is_winning() is True
+
+
+def test_is_winning_returns_false_for_losing_trade():
+    trade = Trade(
+        symbol="EURUSD",
+        direction="Buy",
+        entry_price=1.1000,
+        lot_size=1.0,
+        stop_loss=1.0950,
+        take_profit=1.1100,
+    )
+
+    trade.close_trade(1.0970)
+
+    assert trade.is_winning() is False
