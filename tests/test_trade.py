@@ -97,3 +97,15 @@ def test_invalid_stop_loss_is_rejected():
             stop_loss=0,
             take_profit=1.1100,
         )
+
+
+def test_invalid_take_profit_is_rejected():
+    with pytest.raises(ValueError, match="Take profit must be greater than zero"):
+        Trade(
+            symbol="EURUSD",
+            direction="Buy",
+            entry_price=1.1000,
+            lot_size=1.0,
+            stop_loss=1.0950,
+            take_profit=0,
+        )
