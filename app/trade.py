@@ -131,6 +131,9 @@ class Trade:
         if self.status == "Closed":
             raise ValueError("Trade is already closed.")
 
+        if exit_price <= 0:
+            raise ValueError("Exit price must be greater than zero.")
+
         self.exit_price = exit_price
 
         self.status = "Closed"

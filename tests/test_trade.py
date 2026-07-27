@@ -125,3 +125,17 @@ def test_cannot_close_trade_twice():
 
     with pytest.raises(ValueError, match="Trade is already closed"):
         trade.close_trade(1.1100)
+
+
+def test_invalid_exit_price_is_rejected():
+    trade = Trade(
+        symbol="EURUSD",
+        direction="Buy",
+        entry_price=1.1000,
+        lot_size=1.0,
+        stop_loss=1.0950,
+        take_profit=1.1100,
+    )
+
+    with pytest.raises(ValueError, match="Exit price must be greater than zero"):
+        trade.close_trade(0)
