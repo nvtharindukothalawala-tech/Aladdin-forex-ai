@@ -14,6 +14,9 @@ class Trade:
         if entry_price <= 0:
             raise ValueError("Entry price must be greater than zero.")
 
+        if stop_loss <= 0:
+            raise ValueError("Stop loss must be greater than zero.")
+
         if lot_size <= 0:
 
             raise ValueError("Lot size must be greater than zero.")
