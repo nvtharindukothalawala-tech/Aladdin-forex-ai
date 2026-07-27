@@ -4,13 +4,9 @@ class TradeAnalytics:
 
         self.trades = trades
 
-
-
     def total_trades(self):
 
         return len(self.trades)
-
-
 
     def winning_trades(self):
 
@@ -26,8 +22,6 @@ class TradeAnalytics:
 
         return count
 
-
-
     def losing_trades(self):
 
         count = 0
@@ -42,8 +36,6 @@ class TradeAnalytics:
 
         return count
 
-
-
     def open_trades(self):
 
         count = 0
@@ -56,72 +48,47 @@ class TradeAnalytics:
 
         return count
 
-
-
     def win_rate(self):
 
-        closed_trades = (
-            self.winning_trades()
-            +
-            self.losing_trades()
-        )
-
+        closed_trades = self.winning_trades() + self.losing_trades()
 
         if closed_trades == 0:
 
             return 0
 
-
-        return (
-            self.winning_trades()
-            /
-            closed_trades
-        ) * 100
-
-
+        return (self.winning_trades() / closed_trades) * 100
 
     def total_profit(self):
 
         total = 0
 
-
         for trade in self.trades:
 
             profit = trade.calculate_profit()
-
 
             if profit is not None:
 
                 total += profit
 
-
         return total
-
-
 
     def average_profit(self):
 
         closed = []
 
-
         for trade in self.trades:
 
             profit = trade.calculate_profit()
-
 
             if profit is not None:
 
                 closed.append(profit)
 
-
-
         if len(closed) == 0:
 
             return 0
 
-
         return sum(closed) / len(closed)
-    
 
     def gross_profit(self):
 
@@ -137,8 +104,6 @@ class TradeAnalytics:
 
         return total
 
-
-
     def gross_loss(self):
 
         total = 0
@@ -152,8 +117,6 @@ class TradeAnalytics:
                 total += abs(profit)
 
         return total
-
-
 
     def profit_factor(self):
 

@@ -1,5 +1,6 @@
 from datetime import datetime
 
+
 class Transaction:
 
     next_id = 1

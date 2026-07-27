@@ -4,39 +4,31 @@ class TradeRisk:
 
         self.trades = trades
 
-
     def largest_winning_trade(self):
 
         largest_profit = 0
 
-
         for trade in self.trades:
 
             profit = trade.calculate_profit()
-
 
             if profit is not None and profit > largest_profit:
 
                 largest_profit = profit
 
-
         return largest_profit
-    
 
     def largest_losing_trade(self):
 
         largest_loss = 0
 
-
         for trade in self.trades:
 
             profit = trade.calculate_profit()
 
-
             if profit is not None and profit < largest_loss:
 
                 largest_loss = profit
-
 
         return largest_loss
 
@@ -46,11 +38,9 @@ class TradeRisk:
 
         count = 0
 
-
         for trade in self.trades:
 
             ratio = trade.calculate_risk_reward_ratio()
-
 
             if ratio is not None:
 
@@ -58,11 +48,9 @@ class TradeRisk:
 
                 count += 1
 
-
         if count == 0:
 
             return 0
-
 
         return total_ratio / count
 
@@ -74,29 +62,23 @@ class TradeRisk:
 
         max_drawdown = 0
 
-
         for trade in self.trades:
 
             profit = trade.calculate_profit()
-
 
             if profit is not None:
 
                 balance += profit
 
-
                 if balance > peak:
 
                     peak = balance
 
-
                 drawdown = peak - balance
-
 
                 if drawdown > max_drawdown:
 
                     max_drawdown = drawdown
-
 
         return max_drawdown
 
@@ -106,26 +88,21 @@ class TradeRisk:
 
         maximum_wins = 0
 
-
         for trade in self.trades:
 
             result = trade.get_trade_result()
-
 
             if result == "Win":
 
                 current_wins += 1
 
-
                 if current_wins > maximum_wins:
 
                     maximum_wins = current_wins
 
-
             else:
 
                 current_wins = 0
-
 
         return maximum_wins
 
@@ -135,25 +112,20 @@ class TradeRisk:
 
         maximum_losses = 0
 
-
         for trade in self.trades:
 
             result = trade.get_trade_result()
-
 
             if result == "Loss":
 
                 current_losses += 1
 
-
                 if current_losses > maximum_losses:
 
                     maximum_losses = current_losses
 
-
             else:
 
                 current_losses = 0
-
 
         return maximum_losses

@@ -5,7 +5,6 @@ class TradeService:
         self.repository = repository
         self.trades = []
 
-
     def load_trades(self):
 
         self.trades = self.repository.load_trades()

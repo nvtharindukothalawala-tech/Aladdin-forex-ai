@@ -1,5 +1,6 @@
 from transaction import Transaction
 
+
 class AccountManager:
     def __init__(self):
         self.accounts = []
@@ -31,7 +32,7 @@ class AccountManager:
                 return account
 
         return None
-    
+
     def remove_account(self, account_name):
         account = self.find_account(account_name)
 
@@ -42,7 +43,7 @@ class AccountManager:
 
         print("Account not found.")
         return False
-    
+
     def update_balance(self, account_name, new_balance):
         account = self.find_account(account_name)
 
@@ -53,17 +54,13 @@ class AccountManager:
 
         print("Account not found.")
         return False
-    
+
     def deposit_to_account(self, account_name, amount):
         account = self.find_account(account_name)
 
         if account:
             if account.deposit(amount):
-                transaction = Transaction(
-                    "Deposit",
-                    account_name,
-                    amount
-                )
+                transaction = Transaction("Deposit", account_name, amount)
 
                 self.transactions.append(transaction)
 
@@ -72,17 +69,13 @@ class AccountManager:
 
         print("Deposit failed.")
         return False
-    
+
     def withdraw_from_account(self, account_name, amount):
         account = self.find_account(account_name)
 
         if account:
             if account.withdraw(amount):
-                transaction = Transaction(
-                    "Withdrawal",
-                    account_name,
-                    amount
-                )
+                transaction = Transaction("Withdrawal", account_name, amount)
 
                 self.transactions.append(transaction)
 
@@ -91,14 +84,14 @@ class AccountManager:
 
         print("Withdrawal failed.")
         return False
-    
+
     def show_transaction_history(self):
         print("=== Transaction History ===")
 
         for transaction in self.transactions:
             transaction.show_details()
             print()
-    
+
     def transfer(self, from_account_name, to_account_name, amount):
         from_account = self.find_account(from_account_name)
         to_account = self.find_account(to_account_name)
@@ -115,9 +108,7 @@ class AccountManager:
             if to_account.deposit(amount):
 
                 transaction = Transaction(
-                    "Transfer",
-                    f"{from_account_name} -> {to_account_name}",
-                    amount
+                    "Transfer", f"{from_account_name} -> {to_account_name}", amount
                 )
 
                 self.transactions.append(transaction)
@@ -127,7 +118,7 @@ class AccountManager:
 
         print("Transfer failed.")
         return False
-    
+
     def generate_statement(self, account_name):
         account = self.find_account(account_name)
 
@@ -165,7 +156,7 @@ class AccountManager:
                 and transaction.account.startswith(account.name)
             ):
                 total_transfers += transaction.amount
-            
+
             if account.name in transaction.account:
                 total_transactions += 1
 
@@ -212,23 +203,14 @@ class AccountManager:
             else:
                 print("Trade Duration: Trade still open")
 
-            print(
-                f"Risk Distance: "
-                f"{trade.calculate_risk_distance():.5f}"
-            )
+            print(f"Risk Distance: " f"{trade.calculate_risk_distance():.5f}")
 
-            print(
-                f"Reward Distance: "
-                f"{trade.calculate_reward_distance():.5f}"
-            )
+            print(f"Reward Distance: " f"{trade.calculate_reward_distance():.5f}")
 
             risk_reward = trade.calculate_risk_reward_ratio()
 
             if risk_reward is not None:
-                print(
-                    f"Risk-to-Reward Ratio: "
-                    f"1:{risk_reward:.2f}"
-                )
+                print(f"Risk-to-Reward Ratio: " f"1:{risk_reward:.2f}")
             else:
                 print("Risk-to-Reward Ratio: Invalid")
 
@@ -283,14 +265,7 @@ class AccountManager:
         print("Trade deleted successfully.")
         return True
 
-    def add_trade_journal(
-            self,
-            trade_id,
-            strategy,
-            reason,
-            emotion,
-            lesson_learned
-    ):
+    def add_trade_journal(self, trade_id, strategy, reason, emotion, lesson_learned):
 
         trade = self.find_trade(trade_id)
 
@@ -298,14 +273,10 @@ class AccountManager:
             print("Trade not found.")
             return False
 
-        trade.add_journal_entry(
-            strategy,
-            reason,
-            emotion,
-            lesson_learned
-        )
+        trade.add_journal_entry(strategy, reason, emotion, lesson_learned)
 
         return True
+
     def view_trade_journal(self, trade_id):
 
         trade = self.find_trade(trade_id)
@@ -322,14 +293,7 @@ class AccountManager:
         print("Lesson Learned:", trade.lesson_learned)
         print("==================================")
 
-    def edit_trade_journal(
-        self,
-        trade_id,
-        strategy,
-        reason,
-        emotion,
-        lesson_learned
-    ):
+    def edit_trade_journal(self, trade_id, strategy, reason, emotion, lesson_learned):
 
         trade = self.find_trade(trade_id)
 
@@ -341,16 +305,11 @@ class AccountManager:
             print("No journal entry found for this trade.")
             return False
 
-        trade.add_journal_entry(
-            strategy,
-            reason,
-            emotion,
-            lesson_learned
-        )
+        trade.add_journal_entry(strategy, reason, emotion, lesson_learned)
 
         print("Trade journal updated successfully.")
         return True
-        
+
     def count_trades(self):
 
         total_trades = len(self.trades)
@@ -545,7 +504,7 @@ class AccountManager:
         drawdown_percentage = (max_drawdown / starting_balance) * 100
 
         return drawdown_percentage
-    
+
     def count_winning_trades(self):
 
         winning_trades = 0
@@ -555,7 +514,7 @@ class AccountManager:
                 winning_trades += 1
 
         return winning_trades
-    
+
     def count_losing_trades(self):
 
         losing_trades = 0
@@ -582,7 +541,7 @@ class AccountManager:
         win_rate = (winning_trades / total_trades) * 100
 
         return win_rate
-    
+
     def generate_trade_summary(self):
 
         total_trades = self.count_trades()
