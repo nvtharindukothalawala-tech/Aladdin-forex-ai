@@ -8,10 +8,14 @@ class Trade:
     def __init__(
         self, symbol, direction, entry_price, lot_size, stop_loss, take_profit
     ):
+        if not isinstance(symbol, str) or not symbol.strip():
+            raise ValueError("Symbol cannot be empty.")
 
         if lot_size <= 0:
 
             raise ValueError("Lot size must be greater than zero.")
+
+        direction = direction.capitalize()
 
         if direction not in ["Buy", "Sell"]:
 
