@@ -1,45 +1,25 @@
-class TradingAccount:
+class Account:
 
-    def __init__(self, name, balance, risk):
-        self.name = name
-        self._balance = balance
-        self.risk = risk
+    def __init__(self, account_id, balance, currency, leverage):
+        if not isinstance(account_id, str) or not account_id.strip():
+            raise ValueError("Account ID cannot be empty.")
 
-    @property
-    def balance(self):
-        return self._balance
+        if balance < 0:
+            raise ValueError("Balance cannot be negative.")
 
-    @balance.setter
-    def balance(self, value):
-        if value < 0:
-            print("Balance cannot be negative.")
-            return
+        if leverage <= 0:
+            raise ValueError("Leverage must be greater than zero.")
 
-        self._balance = value
-
-    def calculate_risk(self):
-        risk_amount = self._balance * self.risk / 100
-        return risk_amount
+        self.account_id = account_id
+        self.balance = balance
+        self.currency = currency
+        self.leverage = leverage
 
     def deposit(self, amount):
         if amount <= 0:
-            return False
+            raise ValueError("Deposit amount must be greater than zero.")
 
-        self.balance = self.balance + amount
-        return True
+        self.balance += amount
 
     def withdraw(self, amount):
-        if amount <= 0:
-            return False
-
-        if amount > self._balance:
-            return False
-
-        self.balance = self.balance - amount
-        return True
-
-    def show_details(self):
-        print("Account:", self.name)
-        print("Balance:", self._balance)
-        print("Risk:", self.risk, "%")
-        print("Risk Amount:", self.calculate_risk())
+        self.balance -= amount
