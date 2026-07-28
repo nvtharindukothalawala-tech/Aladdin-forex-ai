@@ -255,3 +255,16 @@ def test_is_losing_returns_false_for_profitable_trade():
     trade.close_trade(1.1050)
 
     assert trade.is_losing() is False
+
+
+def test_calculate_risk_distance_for_buy_trade():
+    trade = Trade(
+        symbol="EURUSD",
+        direction="Buy",
+        entry_price=1.1000,
+        lot_size=1.0,
+        stop_loss=1.0950,
+        take_profit=1.1100,
+    )
+
+    assert trade.calculate_risk_distance() == pytest.approx(0.0050)
