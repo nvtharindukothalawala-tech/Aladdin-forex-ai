@@ -1,4 +1,4 @@
-from transaction import Transaction
+from app.transaction import Transaction
 
 
 class AccountManager:
@@ -8,14 +8,10 @@ class AccountManager:
         self.trades = []
 
     def add_account(self, account):
-        existing_account = self.find_account(account.name)
-
-        if existing_account:
-            print("Account already exists.")
-            return
+        if self.find_account(account.account_id):
+            raise ValueError("Account ID already exists.")
 
         self.accounts.append(account)
-        print("Account added successfully.")
 
     def add_trade(self, trade):
         self.trades.append(trade)
@@ -26,12 +22,15 @@ class AccountManager:
             account.show_details()
             print()
 
-    def find_account(self, account_name):
+    def find_account(self, account_id):
         for account in self.accounts:
-            if account.name.lower() == account_name.lower():
+            if account.account_id.lower() == account_id.lower():
                 return account
 
         return None
+
+    def get_all_accounts(self):
+        return self.accounts
 
     def remove_account(self, account_name):
         account = self.find_account(account_name)
