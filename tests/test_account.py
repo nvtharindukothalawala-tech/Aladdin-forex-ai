@@ -69,3 +69,33 @@ def test_withdraw_money():
     account.withdraw(1500)
 
     assert account.balance == 8500
+
+
+def test_withdraw_rejects_zero_or_negative_amount():
+    account = Account(
+        account_id="ACC001",
+        balance=10000,
+        currency="USD",
+        leverage=100,
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="Withdrawal amount must be greater than zero.",
+    ):
+        account.withdraw(0)
+
+
+def test_cannot_withdraw_more_than_balance():
+    account = Account(
+        account_id="ACC001",
+        balance=10000,
+        currency="USD",
+        leverage=100,
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="Insufficient balance.",
+    ):
+        account.withdraw(15000)

@@ -23,3 +23,18 @@ class Account:
 
     def withdraw(self, amount):
         self.balance -= amount
+
+    def withdraw(self, amount):
+        if amount <= 0:
+            raise ValueError("Withdrawal amount must be greater than zero.")
+
+        self.balance -= amount
+
+    def withdraw(self, amount):
+        if amount <= 0:
+            raise ValueError("Withdrawal amount must be greater than zero.")
+
+        if amount > self.balance:
+            raise ValueError("Insufficient balance.")
+
+        self.balance -= amount
