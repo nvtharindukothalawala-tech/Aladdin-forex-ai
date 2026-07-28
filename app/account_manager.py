@@ -17,11 +17,6 @@ class AccountManager:
         self.trades.append(trade)
         print("Trade added successfully.")
 
-    def show_all_accounts(self):
-        for account in self.accounts:
-            account.show_details()
-            print()
-
     def find_account(self, account_id):
         for account in self.accounts:
             if account.account_id.lower() == account_id.lower():
@@ -42,54 +37,6 @@ class AccountManager:
 
         print("Account not found.")
         return False
-
-    def update_balance(self, account_name, new_balance):
-        account = self.find_account(account_name)
-
-        if account:
-            account.balance = new_balance
-            print("Balance updated successfully.")
-            return True
-
-        print("Account not found.")
-        return False
-
-    def deposit_to_account(self, account_name, amount):
-        account = self.find_account(account_name)
-
-        if account:
-            if account.deposit(amount):
-                transaction = Transaction("Deposit", account_name, amount)
-
-                self.transactions.append(transaction)
-
-                print("Deposit successful.")
-                return True
-
-        print("Deposit failed.")
-        return False
-
-    def withdraw_from_account(self, account_name, amount):
-        account = self.find_account(account_name)
-
-        if account:
-            if account.withdraw(amount):
-                transaction = Transaction("Withdrawal", account_name, amount)
-
-                self.transactions.append(transaction)
-
-                print("Withdrawal successful.")
-                return True
-
-        print("Withdrawal failed.")
-        return False
-
-    def show_transaction_history(self):
-        print("=== Transaction History ===")
-
-        for transaction in self.transactions:
-            transaction.show_details()
-            print()
 
     def transfer(self, from_account_name, to_account_name, amount):
         from_account = self.find_account(from_account_name)
