@@ -40,10 +40,10 @@ class TradeService:
 
         Args:
             repository:
-                Repository used to load and save trades.
+                Repository used to load and save trade data.
         """
 
-        # Store the repository dependency.
+        # Store repository dependency.
         self.repository = repository
 
         # Store trades currently loaded into memory.
@@ -59,7 +59,7 @@ class TradeService:
 
         Returns:
             list:
-                All loaded Trade objects.
+                Loaded Trade objects.
         """
 
         self.trades = self.repository.load_trades()
@@ -73,7 +73,7 @@ class TradeService:
 
     def save_trades(self):
         """
-        Save the current trades using the repository.
+        Save current trades using the repository.
         """
 
         self.repository.save_trades(self.trades)
@@ -91,11 +91,30 @@ class TradeService:
         """
         Add a new trade to the in-memory trade list.
 
+        Duplicate trade IDs are not allowed.
+
         Args:
             trade:
                 Trade object that should be added.
+
+        Raises:
+            ValueError:
+                If the trade already exists.
         """
 
+        # Check whether the trade already exists.
+        existing_trade = self.find_trade(trade.trade_id)
+
+        if existing_trade:
+
+            self.logger.warning(
+                "Duplicate trade rejected: %s",
+                trade.trade_id,
+            )
+
+            raise ValueError("Trade already exists.")
+
+        # Add new trade to memory.
         self.trades.append(trade)
 
         self.logger.info(
@@ -109,14 +128,14 @@ class TradeService:
 
         Args:
             trade_id:
-                Unique ID of the trade.
+                Unique trade identifier.
 
         Returns:
             Trade:
-                Matching Trade object.
+                Matching trade object.
 
             None:
-                If no matching trade is found.
+                When trade is not found.
         """
 
         for trade in self.trades:
