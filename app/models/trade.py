@@ -10,6 +10,7 @@ Project: Aladdin
 from datetime import datetime
 
 from app.core.exceptions import TradeError
+from app.core.logger import get_logger
 
 
 class Trade:
@@ -22,6 +23,8 @@ class Trade:
 
     Trade validation errors use TradeError.
     """
+
+    logger = get_logger(__name__)
 
     # Used to generate unique trade IDs.
     trade_counter = 1
@@ -45,26 +48,62 @@ class Trade:
 
         # Validate symbol.
         if not isinstance(symbol, str) or not symbol.strip():
+
+            Trade.logger.warning(
+                "Invalid trade symbol: %s",
+                symbol,
+            )
+
             raise TradeError("Symbol cannot be empty.")
 
         # Validate prices.
         if entry_price <= 0:
+
+            Trade.logger.warning(
+                "Invalid entry price: %s",
+                entry_price,
+            )
+
             raise TradeError("Entry price must be greater than zero.")
 
         if stop_loss <= 0:
+
+            Trade.logger.warning(
+                "Invalid stop loss: %s",
+                stop_loss,
+            )
+
             raise TradeError("Stop loss must be greater than zero.")
 
         if take_profit <= 0:
+
+            Trade.logger.warning(
+                "Invalid take profit: %s",
+                take_profit,
+            )
+
             raise TradeError("Take profit must be greater than zero.")
 
         # Validate lot size.
         if lot_size <= 0:
+
+            Trade.logger.warning(
+                "Invalid lot size: %s",
+                lot_size,
+            )
+
             raise TradeError("Lot size must be greater than zero.")
 
         # Standardize direction.
         direction = direction.capitalize()
 
         if direction not in ["Buy", "Sell"]:
+
+            Trade.logger.warning(
+                "Invalid trade direction: %s",
+                direction,
+            )
+
             raise TradeError("Direction must be either 'Buy' or 'Sell'.")
 
         # Validate Buy trade.
@@ -118,6 +157,13 @@ class Trade:
         self.reason = ""
         self.emotion = ""
         self.lesson_learned = ""
+
+        self.logger.info(
+            "Trade created: %s %s %s",
+            self.trade_id,
+            self.symbol,
+            self.direction,
+        )
 
     # ==========================================
     # JSON Deserialization
@@ -183,6 +229,12 @@ class Trade:
         self.exit_price = exit_price
         self.status = "Closed"
         self.close_time = datetime.now()
+
+        self.logger.info(
+            "Trade closed: %s Exit price: %s",
+            self.trade_id,
+            exit_price,
+        )
 
     def is_open(self):
         """Return True if the trade is still open."""
