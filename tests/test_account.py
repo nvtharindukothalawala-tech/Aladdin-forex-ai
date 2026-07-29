@@ -1,6 +1,6 @@
 import pytest
 
-from app.account import Account
+from app.models.account import Account
 
 
 def test_create_account():

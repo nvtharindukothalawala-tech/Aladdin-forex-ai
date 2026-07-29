@@ -1,6 +1,6 @@
-from app.trade import Trade
-from app.trade_repository import TradeRepository
-from app.trade_service import TradeService
+from app.models.trade import Trade
+from app.repositories.trade_repository import TradeRepository
+from app.services.trade_service import TradeService
 
 
 class FakeTradeRepository:

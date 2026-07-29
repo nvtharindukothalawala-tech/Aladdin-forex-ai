@@ -10,8 +10,8 @@ Author: Tharindu Kothalwala
 Project: Aladdin
 """
 
-from app.json_manager import JSONManager
-from app.trade import Trade
+from app.models.trade import Trade
+from app.repositories.json_manager import JSONManager
 
 
 class TradeRepository:

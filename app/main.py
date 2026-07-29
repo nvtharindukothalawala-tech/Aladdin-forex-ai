@@ -12,10 +12,10 @@ Author: Tharindu Kothalwala
 Project: Aladdin
 """
 
-from app.account import Account
-from app.account_manager import AccountManager
-from app.trade_repository import TradeRepository
-from app.trade_service import TradeService
+from app.models.account import Account
+from app.services.account_manager import AccountManager
+from app.repositories.trade_repository import TradeRepository
+from app.services.trade_service import TradeService
 
 
 def create_accounts():

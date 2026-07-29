@@ -1,6 +1,6 @@
 import pytest
 
-from app.risk_manager import RiskManager
+from app.risk.risk_manager import RiskManager
 
 
 def test_calculate_risk_amount():

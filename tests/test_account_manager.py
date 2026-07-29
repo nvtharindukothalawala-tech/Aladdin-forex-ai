@@ -1,5 +1,5 @@
-from app.account import Account
-from app.account_manager import AccountManager
+from app.models.account import Account
+from app.services.account_manager import AccountManager
 
 
 def test_create_account_manager():

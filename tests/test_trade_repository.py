@@ -1,5 +1,5 @@
-from app.trade import Trade
-from app.trade_repository import TradeRepository
+from app.models.trade import Trade
+from app.repositories.trade_repository import TradeRepository
 
 
 def test_save_and_load_trades(tmp_path):

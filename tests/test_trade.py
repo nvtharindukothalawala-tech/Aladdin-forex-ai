@@ -1,6 +1,6 @@
 import pytest
 
-from app.trade import Trade
+from app.models.trade import Trade
 
 
 def test_create_trade():

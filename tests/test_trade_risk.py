@@ -1,5 +1,5 @@
-from app.trade import Trade
-from app.trade_risk import TradeRisk
+from app.models.trade import Trade
+from app.services.trade_risk import TradeRisk
 
 
 def create_risk_sample_trades():

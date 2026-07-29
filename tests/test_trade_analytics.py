@@ -1,5 +1,5 @@
-from app.trade import Trade
-from app.trade_analytics import TradeAnalytics
+from app.models.trade import Trade
+from app.services.trade_analytics import TradeAnalytics
 
 
 def create_sample_trades():
