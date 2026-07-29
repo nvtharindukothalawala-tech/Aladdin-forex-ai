@@ -15,17 +15,51 @@ class Settings:
 
     Keeping settings in one place makes the
     application easier to maintain and expand.
+
+    Future improvements:
+    - Environment variables
+    - Database configuration
+    - Cloud deployment settings
     """
 
-    # Application information
+    # ==========================================
+    # Application Information
+    # ==========================================
+
     APP_NAME = "Aladdin Forex AI"
+
     VERSION = "1.0.0"
 
-    # Data storage paths
+    ENVIRONMENT = "development"
+
+    # ==========================================
+    # Logging Configuration
+    # ==========================================
+
+    LOG_LEVEL = "INFO"
+
+    # ==========================================
+    # Data Storage Configuration
+    # ==========================================
+
+    DATA_FOLDER = "data"
+
     TRADES_FILE = "data/trades.json"
 
-    # Default trading settings
+    # ==========================================
+    # Trading Defaults
+    # ==========================================
+
     DEFAULT_CURRENCY = "USD"
+
+    DEFAULT_RISK_PERCENT = 1.0
+
+    # ==========================================
+    # Database Configuration
+    # Future PostgreSQL Integration
+    # ==========================================
+
+    DATABASE_URL = None
 
 
 # Create one shared settings object.
