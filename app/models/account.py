@@ -7,6 +7,8 @@ Author: Tharindu Kothalwala
 Project: Aladdin
 """
 
+from app.core.exceptions import AccountError
+
 
 class Account:
     """
@@ -14,6 +16,8 @@ class Account:
 
     This class stores account information and
     provides methods to deposit and withdraw money.
+
+    Account-related validation errors use AccountError.
     """
 
     # ==========================================
@@ -21,17 +25,19 @@ class Account:
     # ==========================================
 
     def __init__(self, account_id, balance, currency, leverage):
-        """Create a new trading account."""
+        """
+        Create a new trading account.
+        """
 
         # Validate account information.
         if not isinstance(account_id, str) or not account_id.strip():
-            raise ValueError("Account ID cannot be empty.")
+            raise AccountError("Account ID cannot be empty.")
 
         if balance < 0:
-            raise ValueError("Balance cannot be negative.")
+            raise AccountError("Balance cannot be negative.")
 
         if leverage <= 0:
-            raise ValueError("Leverage must be greater than zero.")
+            raise AccountError("Leverage must be greater than zero.")
 
         # Store account details.
         self.account_id = account_id
@@ -50,7 +56,7 @@ class Account:
 
         # Deposit amount must be positive.
         if amount <= 0:
-            raise ValueError("Deposit amount must be greater than zero.")
+            raise AccountError("Deposit amount must be greater than zero.")
 
         self.balance += amount
 
@@ -61,10 +67,10 @@ class Account:
 
         # Withdrawal amount must be positive.
         if amount <= 0:
-            raise ValueError("Withdrawal amount must be greater than zero.")
+            raise AccountError("Withdrawal amount must be greater than zero.")
 
         # Prevent the balance from becoming negative.
         if amount > self.balance:
-            raise ValueError("Insufficient balance.")
+            raise AccountError("Insufficient balance.")
 
         self.balance -= amount

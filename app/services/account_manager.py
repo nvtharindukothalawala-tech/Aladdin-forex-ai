@@ -4,11 +4,14 @@ account_manager.py
 Contains the AccountManager class used by the
 Aladdin Forex Trading Assistant.
 
-This class manages trading account objects in memory.
+This class manages trading account objects in memory
+and records important events using the logging system.
 
 Author: Tharindu Kothalwala
 Project: Aladdin
 """
+
+from app.core.logger import get_logger
 
 
 class AccountManager:
@@ -16,8 +19,16 @@ class AccountManager:
     Manage a collection of trading accounts.
 
     The manager can add, find, return, and remove accounts.
-    Each account is identified using a unique account ID.
+
+    Logging is used to record important actions and errors
+    instead of directly printing messages.
     """
+
+    # ==========================================
+    # Logger
+    # ==========================================
+
+    logger = get_logger(__name__)
 
     # ==========================================
     # Constructor
@@ -28,7 +39,7 @@ class AccountManager:
         Create an empty account manager.
         """
 
-        # Store all Account objects in this list.
+        # Store all Account objects in memory.
         self.accounts = []
 
     # ==========================================
@@ -40,17 +51,30 @@ class AccountManager:
         Add a new account to the manager.
 
         Args:
-            account: Account object to add.
+            account:
+                Account object to add.
 
         Raises:
-            ValueError: If the account ID already exists.
+            ValueError:
+                If the account ID already exists.
         """
 
         # Account IDs must be unique.
         if self.find_account(account.account_id):
+
+            self.logger.warning(
+                "Account ID already exists: %s",
+                account.account_id,
+            )
+
             raise ValueError("Account ID already exists.")
 
         self.accounts.append(account)
+
+        self.logger.info(
+            "Account added successfully: %s",
+            account.account_id,
+        )
 
     def find_account(self, account_id):
         """
@@ -59,15 +83,21 @@ class AccountManager:
         The comparison is case-insensitive.
 
         Args:
-            account_id (str): ID of the account to find.
+            account_id:
+                ID of the account to search.
 
         Returns:
-            Account: Matching account object.
-            None: If no matching account exists.
+            Account object:
+                When the account exists.
+
+            None:
+                When no account is found.
         """
 
         for account in self.accounts:
+
             if account.account_id.lower() == account_id.lower():
+
                 return account
 
         return None
@@ -77,7 +107,8 @@ class AccountManager:
         Return all accounts currently stored.
 
         Returns:
-            list: List of Account objects.
+            list:
+                List of Account objects.
         """
 
         return self.accounts
@@ -87,17 +118,33 @@ class AccountManager:
         Remove an account using its account ID.
 
         Args:
-            account_id (str): ID of the account to remove.
+            account_id:
+                ID of the account to remove.
 
         Returns:
-            bool: True if the account was removed.
-            bool: False if the account was not found.
+            True:
+                When the account was removed.
+
+            False:
+                When the account does not exist.
         """
 
         account = self.find_account(account_id)
 
         if account:
+
             self.accounts.remove(account)
+
+            self.logger.info(
+                "Account removed successfully: %s",
+                account_id,
+            )
+
             return True
+
+        self.logger.warning(
+            "Account not found: %s",
+            account_id,
+        )
 
         return False

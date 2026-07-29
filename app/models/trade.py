@@ -9,6 +9,8 @@ Project: Aladdin
 
 from datetime import datetime
 
+from app.core.exceptions import TradeError
+
 
 class Trade:
     """
@@ -17,6 +19,8 @@ class Trade:
     This class stores trade information,
     calculates profit, risk, reward,
     and manages journal entries.
+
+    Trade validation errors use TradeError.
     """
 
     # Used to generate unique trade IDs.
@@ -41,49 +45,51 @@ class Trade:
 
         # Validate symbol.
         if not isinstance(symbol, str) or not symbol.strip():
-            raise ValueError("Symbol cannot be empty.")
+            raise TradeError("Symbol cannot be empty.")
 
         # Validate prices.
         if entry_price <= 0:
-            raise ValueError("Entry price must be greater than zero.")
+            raise TradeError("Entry price must be greater than zero.")
 
         if stop_loss <= 0:
-            raise ValueError("Stop loss must be greater than zero.")
+            raise TradeError("Stop loss must be greater than zero.")
 
         if take_profit <= 0:
-            raise ValueError("Take profit must be greater than zero.")
+            raise TradeError("Take profit must be greater than zero.")
 
         # Validate lot size.
         if lot_size <= 0:
-            raise ValueError("Lot size must be greater than zero.")
+            raise TradeError("Lot size must be greater than zero.")
 
         # Standardize direction.
         direction = direction.capitalize()
 
         if direction not in ["Buy", "Sell"]:
-            raise ValueError("Direction must be either 'Buy' or 'Sell'.")
+            raise TradeError("Direction must be either 'Buy' or 'Sell'.")
 
         # Validate Buy trade.
         if direction == "Buy":
+
             if stop_loss >= entry_price:
-                raise ValueError(
+                raise TradeError(
                     "For a Buy trade, stop loss must be below the entry price."
                 )
 
             if take_profit <= entry_price:
-                raise ValueError(
+                raise TradeError(
                     "For a Buy trade, take profit must be above the entry price."
                 )
 
         # Validate Sell trade.
         if direction == "Sell":
+
             if stop_loss <= entry_price:
-                raise ValueError(
+                raise TradeError(
                     "For a Sell trade, stop loss must be above the entry price."
                 )
 
             if take_profit >= entry_price:
-                raise ValueError(
+                raise TradeError(
                     "For a Sell trade, take profit must be below the entry price."
                 )
 
@@ -134,7 +140,6 @@ class Trade:
 
         trade.trade_id = data["trade_id"]
 
-        # Update the trade counter.
         number = int(trade.trade_id.replace("TRD", ""))
 
         if number >= cls.trade_counter:
@@ -148,8 +153,6 @@ class Trade:
 
         close_time = data.get("close_time")
 
-        # Support both old saved files ("None")
-        # and new files (None).
         if close_time and close_time != "None":
             trade.close_time = datetime.fromisoformat(close_time)
         else:
@@ -172,10 +175,10 @@ class Trade:
         """
 
         if self.status == "Closed":
-            raise ValueError("Trade is already closed.")
+            raise TradeError("Trade is already closed.")
 
         if exit_price <= 0:
-            raise ValueError("Exit price must be greater than zero.")
+            raise TradeError("Exit price must be greater than zero.")
 
         self.exit_price = exit_price
         self.status = "Closed"
@@ -195,12 +198,14 @@ class Trade:
         """Return True if the trade is profitable."""
 
         profit = self.calculate_profit()
+
         return profit is not None and profit > 0
 
     def is_losing(self):
         """Return True if the trade is losing."""
 
         profit = self.calculate_profit()
+
         return profit is not None and profit < 0
 
     # ==========================================
@@ -210,10 +215,6 @@ class Trade:
     def calculate_profit(self):
         """
         Calculate the trade profit.
-
-        Returns:
-            Profit if the trade is closed.
-            None if the trade is still open.
         """
 
         if self.exit_price is None:
@@ -221,6 +222,7 @@ class Trade:
 
         if self.direction == "Buy":
             profit = (self.exit_price - self.entry_price) * self.lot_size
+
         else:
             profit = (self.entry_price - self.exit_price) * self.lot_size
 
@@ -238,23 +240,21 @@ class Trade:
 
     def calculate_risk_distance(self):
         """
-        Calculate the distance between
-        entry price and stop loss.
+        Calculate distance between entry price and stop loss.
         """
 
         return abs(self.entry_price - self.stop_loss)
 
     def calculate_reward_distance(self):
         """
-        Calculate the distance between
-        entry price and take profit.
+        Calculate distance between entry price and take profit.
         """
 
         return abs(self.take_profit - self.entry_price)
 
     def calculate_risk_reward_ratio(self):
         """
-        Calculate the risk-to-reward ratio.
+        Calculate risk-to-reward ratio.
         """
 
         risk = self.calculate_risk_distance()
@@ -268,9 +268,6 @@ class Trade:
     def get_trade_result(self):
         """
         Return the trade result.
-
-        Returns:
-            Open, Win, Loss or Breakeven.
         """
 
         if self.status != "Closed":

@@ -11,6 +11,9 @@ Author: Tharindu Kothalwala
 Project: Aladdin
 """
 
+from app.core.exceptions import RiskError
+from app.core.logger import get_logger
+
 
 class RiskManager:
     """
@@ -18,7 +21,11 @@ class RiskManager:
 
     All methods are static because the class does not need
     to store account or trade information inside an object.
+
+    Risk validation errors use RiskError.
     """
+
+    logger = get_logger(__name__)
 
     # ==========================================
     # Risk Amount
@@ -30,26 +37,47 @@ class RiskManager:
         Calculate the amount of money allowed to risk on a trade.
 
         Args:
-            account_balance (float): Current trading account balance.
-            risk_percent (float): Percentage of the balance to risk.
+            account_balance:
+                Current trading account balance.
+
+            risk_percent:
+                Percentage of the balance to risk.
 
         Returns:
-            float: Amount of money allowed to risk.
+            float:
+                Amount of money allowed to risk.
 
         Raises:
-            ValueError: If the account balance is zero or negative.
-            ValueError: If the risk percentage is outside 0 to 100.
+            RiskError:
+                If the account balance or risk percentage is invalid.
         """
 
         # A valid account balance must be greater than zero.
         if account_balance <= 0:
-            raise ValueError("Account balance must be greater than zero.")
+            RiskManager.logger.warning(
+                "Invalid account balance: %s",
+                account_balance,
+            )
+
+            raise RiskError("Account balance must be greater than zero.")
 
         # Risk percentage must be positive and cannot exceed 100%.
         if risk_percent <= 0 or risk_percent > 100:
-            raise ValueError("Risk percentage must be between 0 and 100.")
+            RiskManager.logger.warning(
+                "Invalid risk percentage: %s",
+                risk_percent,
+            )
 
-        return account_balance * risk_percent / 100
+            raise RiskError("Risk percentage must be between 0 and 100.")
+
+        risk_amount = account_balance * risk_percent / 100
+
+        RiskManager.logger.info(
+            "Risk amount calculated successfully: %s",
+            risk_amount,
+        )
+
+        return risk_amount
 
     # ==========================================
     # Position Size
@@ -63,22 +91,28 @@ class RiskManager:
         Formula:
             position size = risk amount / stop-loss distance
 
-        Args:
-            risk_amount (float): Maximum amount of money to risk.
-            stop_loss_distance (float): Distance between entry and stop loss.
-
-        Returns:
-            float: Calculated position size.
-
         Raises:
-            ValueError: If the stop-loss distance is zero or negative.
+            RiskError:
+                If the stop-loss distance is invalid.
         """
 
-        # Division by zero or a negative distance is not valid.
+        # Division by zero or negative distance is not valid.
         if stop_loss_distance <= 0:
-            raise ValueError("Stop loss distance must be greater than zero.")
+            RiskManager.logger.warning(
+                "Invalid stop loss distance: %s",
+                stop_loss_distance,
+            )
 
-        return risk_amount / stop_loss_distance
+            raise RiskError("Stop loss distance must be greater than zero.")
+
+        position_size = risk_amount / stop_loss_distance
+
+        RiskManager.logger.info(
+            "Position size calculated successfully: %s",
+            position_size,
+        )
+
+        return position_size
 
     # ==========================================
     # Pip Calculations
@@ -91,22 +125,12 @@ class RiskManager:
 
         Most Forex pairs use 0.0001 as one pip.
         Japanese yen pairs normally use 0.01 as one pip.
-
-        Examples:
-            EUR/USD -> 0.0001
-            USD/JPY -> 0.01
-
-        Args:
-            symbol (str): Forex pair such as EUR/USD or USDJPY.
-
-        Returns:
-            float: Pip size for the symbol.
         """
 
-        # Remove the slash and use uppercase for consistent checking.
+        # Remove slash and convert to uppercase.
         normalized_symbol = symbol.replace("/", "").upper()
 
-        # Yen pairs use two decimal places for a standard pip.
+        # Yen pairs use two decimal places.
         if normalized_symbol.endswith("JPY"):
             return 0.01
 
@@ -115,16 +139,17 @@ class RiskManager:
     @staticmethod
     def calculate_pips(symbol, price_distance):
         """
-        Convert a price distance into pips.
-
-        Args:
-            symbol (str): Forex pair such as EUR/USD or USD/JPY.
-            price_distance (float): Difference between two prices.
-
-        Returns:
-            float: Price distance measured in pips.
+        Convert price distance into pips.
         """
 
         pip_size = RiskManager.get_pip_size(symbol)
 
-        return price_distance / pip_size
+        pips = price_distance / pip_size
+
+        RiskManager.logger.info(
+            "Pip calculation completed: %s pips for %s",
+            pips,
+            symbol,
+        )
+
+        return pips

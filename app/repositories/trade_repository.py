@@ -4,12 +4,14 @@ trade_repository.py
 Contains the TradeRepository class used by the
 Aladdin Forex Trading Assistant.
 
-The repository connects the trade service with JSON storage.
+The repository connects the trade service with JSON storage
+and records storage operations using logging.
 
 Author: Tharindu Kothalwala
 Project: Aladdin
 """
 
+from app.core.logger import get_logger
 from app.models.trade import Trade
 from app.repositories.json_manager import JSONManager
 
@@ -19,8 +21,16 @@ class TradeRepository:
     Handle saving and loading Trade objects.
 
     This class uses JSONManager for file operations.
-    It also converts between Trade objects and dictionaries.
+    It converts between Trade objects and dictionaries.
+
+    Logging is used to record storage activities.
     """
+
+    # ==========================================
+    # Logger
+    # ==========================================
+
+    logger = get_logger(__name__)
 
     # ==========================================
     # Constructor
@@ -31,10 +41,11 @@ class TradeRepository:
         Create a trade repository.
 
         Args:
-            file_path: Path of the JSON file used to store trades.
+            file_path:
+                Path of the JSON file used to store trades.
         """
 
-        # JSONManager handles the actual file reading and writing.
+        # JSONManager handles file reading and writing.
         self.json_manager = JSONManager(file_path)
 
     # ==========================================
@@ -43,20 +54,26 @@ class TradeRepository:
 
     def save_trades(self, trades):
         """
-        Save a list of Trade objects into the JSON file.
+        Save a list of Trade objects into JSON storage.
 
         Args:
-            trades: List of Trade objects that should be saved.
+            trades:
+                List of Trade objects that should be saved.
         """
 
-        # Convert every Trade object into a dictionary.
+        # Convert Trade objects into dictionaries.
         trade_data = []
 
         for trade in trades:
             trade_data.append(trade.to_dict())
 
-        # Send the converted data to JSONManager.
+        # Save converted data.
         self.json_manager.save_data(trade_data)
+
+        self.logger.info(
+            "Saved %s trades to storage.",
+            len(trades),
+        )
 
     # ==========================================
     # Load Trades
@@ -64,36 +81,26 @@ class TradeRepository:
 
     def load_trades(self):
         """
-        Load trade data from the JSON file.
+        Load trade data from JSON storage.
 
         Returns:
-            list: Trade objects created from the saved JSON data.
+            list:
+                Trade objects created from saved data.
         """
 
-        # Load saved dictionaries from the JSON file.
+        # Load saved dictionaries.
         saved_data = self.json_manager.load_trades()
 
         trades = []
 
-        # Convert each saved dictionary into a Trade object.
+        # Convert dictionaries into Trade objects.
         for data in saved_data:
             trade = Trade.from_dict(data)
             trades.append(trade)
 
+        self.logger.info(
+            "Loaded %s trades from storage.",
+            len(trades),
+        )
+
         return trades
-
-
-# ==========================================
-# Manual Repository Test
-# ==========================================
-
-if __name__ == "__main__":
-    # This code runs only when this file is executed directly.
-    repository = TradeRepository("data/trades.json")
-
-    trades = repository.load_trades()
-
-    print("\n===== Repository Test =====")
-
-    for trade in trades:
-        print(trade.trade_id, trade.symbol, trade.status)
