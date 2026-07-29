@@ -59,21 +59,36 @@ class TradeRepository:
         Args:
             trades:
                 List of Trade objects that should be saved.
+
+        Raises:
+            Exception:
+                If saving fails.
         """
 
-        # Convert Trade objects into dictionaries.
-        trade_data = []
+        try:
 
-        for trade in trades:
-            trade_data.append(trade.to_dict())
+            # Convert Trade objects into dictionaries.
+            trade_data = []
 
-        # Save converted data.
-        self.json_manager.save_data(trade_data)
+            for trade in trades:
+                trade_data.append(trade.to_dict())
 
-        self.logger.info(
-            "Saved %s trades to storage.",
-            len(trades),
-        )
+            # Save converted data.
+            self.json_manager.save_data(trade_data)
+
+            self.logger.info(
+                "Saved %s trades to storage.",
+                len(trades),
+            )
+
+        except Exception as error:
+
+            self.logger.error(
+                "Failed to save trades: %s",
+                error,
+            )
+
+            raise
 
     # ==========================================
     # Load Trades
@@ -86,21 +101,38 @@ class TradeRepository:
         Returns:
             list:
                 Trade objects created from saved data.
+
+        Raises:
+            Exception:
+                If loading fails.
         """
 
-        # Load saved dictionaries.
-        saved_data = self.json_manager.load_trades()
+        try:
 
-        trades = []
+            # Load saved dictionaries.
+            saved_data = self.json_manager.load_trades()
 
-        # Convert dictionaries into Trade objects.
-        for data in saved_data:
-            trade = Trade.from_dict(data)
-            trades.append(trade)
+            trades = []
 
-        self.logger.info(
-            "Loaded %s trades from storage.",
-            len(trades),
-        )
+            # Convert dictionaries into Trade objects.
+            for data in saved_data:
 
-        return trades
+                trade = Trade.from_dict(data)
+
+                trades.append(trade)
+
+            self.logger.info(
+                "Loaded %s trades from storage.",
+                len(trades),
+            )
+
+            return trades
+
+        except Exception as error:
+
+            self.logger.error(
+                "Failed to load trades: %s",
+                error,
+            )
+
+            raise
