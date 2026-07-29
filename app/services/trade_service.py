@@ -43,7 +43,6 @@ class TradeService:
                 Repository used to load and save trade data.
         """
 
-        # Store repository dependency.
         self.repository = repository
 
         # Store trades currently loaded into memory.
@@ -89,9 +88,10 @@ class TradeService:
 
     def add_trade(self, trade):
         """
-        Add a new trade to the in-memory trade list.
+        Add a new trade to the trade list.
 
-        Duplicate trade IDs are not allowed.
+        The trade is stored in memory and
+        permanently saved into JSON storage.
 
         Args:
             trade:
@@ -116,6 +116,9 @@ class TradeService:
 
         # Add new trade to memory.
         self.trades.append(trade)
+
+        # Save updated trades permanently.
+        self.save_trades()
 
         self.logger.info(
             "Trade added successfully: %s",

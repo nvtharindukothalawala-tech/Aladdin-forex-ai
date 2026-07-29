@@ -10,6 +10,8 @@ Author: Tharindu Kothalwala
 Project: Aladdin
 """
 
+from datetime import datetime
+
 from pydantic import BaseModel, Field
 
 
@@ -21,42 +23,75 @@ class TradeCreateSchema(BaseModel):
     before creating a Trade object.
     """
 
-    # Forex pair name
     symbol: str = Field(
         ...,
         example="EUR/USD",
     )
 
-    # Trade direction
     direction: str = Field(
         ...,
         example="Buy",
     )
 
-    # Entry price of the trade
     entry_price: float = Field(
         ...,
         gt=0,
         example=1.0800,
     )
 
-    # Trading volume
     lot_size: float = Field(
         ...,
         gt=0,
         example=0.10,
     )
 
-    # Stop loss price
     stop_loss: float = Field(
         ...,
         gt=0,
         example=1.0750,
     )
 
-    # Take profit price
     take_profit: float = Field(
         ...,
         gt=0,
         example=1.0900,
     )
+
+
+class TradeResponseSchema(BaseModel):
+    """
+    Schema used when returning trade information
+    through the API.
+
+    This controls what data is visible to clients.
+    """
+
+    trade_id: str
+
+    symbol: str
+
+    direction: str
+
+    entry_price: float
+
+    exit_price: float | None
+
+    lot_size: float
+
+    stop_loss: float
+
+    take_profit: float
+
+    status: str
+
+    open_time: datetime
+
+    close_time: datetime | None
+
+    strategy: str
+
+    reason: str
+
+    emotion: str
+
+    lesson_learned: str

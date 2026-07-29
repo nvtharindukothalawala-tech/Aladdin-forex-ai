@@ -1,0 +1,65 @@
+"""
+main.py
+
+FastAPI application entry point for
+the Aladdin Forex Trading Assistant.
+
+Author: Tharindu Kothalwala
+Project: Aladdin
+"""
+
+from fastapi import FastAPI
+
+from app.core.config import settings
+
+from app.api.routes import (
+    trade_routes,
+    analytics_routes,
+)
+
+
+# Create FastAPI application
+app = FastAPI(
+    title=settings.APP_NAME,
+    version=settings.VERSION,
+    description=(
+        "AI-powered Forex Trading Assistant "
+        "for trade analysis, risk management, "
+        "and decision support."
+    ),
+)
+
+
+# ==========================================
+# Register API Routes
+# ==========================================
+
+# Trade management APIs
+app.include_router(
+    trade_routes.router
+)
+
+
+# Analytics APIs
+app.include_router(
+    analytics_routes.router
+)
+
+
+# ==========================================
+# Root Endpoint
+# ==========================================
+
+@app.get("/")
+def home():
+    """
+    Root API endpoint.
+
+    Returns basic application information.
+    """
+
+    return {
+        "application": settings.APP_NAME,
+        "version": settings.VERSION,
+        "status": "running",
+    }
