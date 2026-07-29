@@ -46,7 +46,7 @@ class JSONManager:
                 Location of the JSON file.
         """
 
-        # Store the file location for future operations.
+        # Store the file location.
         self.file_path = file_path
 
     # ==========================================
@@ -63,21 +63,54 @@ class JSONManager:
                 such as a list or dictionary.
         """
 
-        # Get the folder part of the file path.
-        directory = os.path.dirname(self.file_path)
+        try:
 
-        # Create the folder if it does not exist.
-        if directory:
-            os.makedirs(directory, exist_ok=True)
+            # Get folder part of the file path.
+            directory = os.path.dirname(self.file_path)
 
-        # Open the file and save JSON data.
-        with open(self.file_path, "w", encoding="utf-8") as file:
-            json.dump(data, file, indent=4)
+            # Create folder if it does not exist.
+            if directory:
+                os.makedirs(
+                    directory,
+                    exist_ok=True,
+                )
 
-        self.logger.info(
-            "JSON data saved successfully: %s",
-            self.file_path,
-        )
+            # Open file and save JSON data.
+            with open(
+                self.file_path,
+                "w",
+                encoding="utf-8",
+            ) as file:
+
+                json.dump(
+                    data,
+                    file,
+                    indent=4,
+                )
+
+            self.logger.info(
+                "JSON data saved successfully: %s",
+                self.file_path,
+            )
+
+        except PermissionError as error:
+
+            self.logger.error(
+                "Permission denied while saving JSON file %s: %s",
+                self.file_path,
+                error,
+            )
+
+            raise
+
+        except Exception as error:
+
+            self.logger.error(
+                "Unexpected JSON saving error: %s",
+                error,
+            )
+
+            raise
 
     # ==========================================
     # Load Data
@@ -91,7 +124,8 @@ class JSONManager:
             Saved JSON data.
 
             Empty list:
-                When the file does not exist.
+                When file does not exist
+                or JSON data is invalid.
         """
 
         # Check whether the file exists.
@@ -104,16 +138,52 @@ class JSONManager:
 
             return []
 
-        # Open the file and load JSON data.
-        with open(self.file_path, "r", encoding="utf-8") as file:
-            data = json.load(file)
+        try:
 
-        self.logger.info(
-            "JSON data loaded successfully: %s",
-            self.file_path,
-        )
+            # Open file and read JSON data.
+            with open(
+                self.file_path,
+                "r",
+                encoding="utf-8",
+            ) as file:
 
-        return data
+                data = json.load(file)
+
+            self.logger.info(
+                "JSON data loaded successfully: %s",
+                self.file_path,
+            )
+
+            return data
+
+        except json.JSONDecodeError as error:
+
+            self.logger.error(
+                "Invalid JSON format in file %s: %s",
+                self.file_path,
+                error,
+            )
+
+            return []
+
+        except PermissionError as error:
+
+            self.logger.error(
+                "Permission denied while reading JSON file %s: %s",
+                self.file_path,
+                error,
+            )
+
+            return []
+
+        except Exception as error:
+
+            self.logger.error(
+                "Unexpected JSON loading error: %s",
+                error,
+            )
+
+            return []
 
     # ==========================================
     # Trade Data Loading
