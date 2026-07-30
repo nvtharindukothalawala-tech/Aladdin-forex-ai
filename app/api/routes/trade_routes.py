@@ -30,7 +30,6 @@ from app.schemas import (
 from app.services.trade_service import TradeService
 from app.services.trade_analytics import TradeAnalytics
 
-
 # Create trade router
 router = APIRouter(
     prefix="/trades",
@@ -50,7 +49,6 @@ def get_trades(
     """
 
     return trade_service.load_trades()
-
 
 
 @router.post(
@@ -82,7 +80,6 @@ def create_trade(
     return trade
 
 
-
 @router.put(
     "/{trade_id}/close",
     response_model=TradeResponseSchema,
@@ -106,14 +103,11 @@ def close_trade(
             detail="Trade not found.",
         )
 
-    trade.close_trade(
-        close_data.exit_price
-    )
+    trade.close_trade(close_data.exit_price)
 
     trade_service.save_trades()
 
     return trade
-
 
 
 @router.get(
@@ -129,24 +123,15 @@ def get_trade_statistics(
 
     trades = trade_service.load_trades()
 
-    analytics = TradeAnalytics(
-        trades
-    )
+    analytics = TradeAnalytics(trades)
 
     return {
         "total_trades": analytics.total_trades(),
-
         "open_trades": analytics.open_trades(),
-
         "winning_trades": analytics.winning_trades(),
-
         "losing_trades": analytics.losing_trades(),
-
         "win_rate": analytics.win_rate(),
-
         "total_profit": analytics.total_profit(),
-
         "average_profit": analytics.average_profit(),
-
         "profit_factor": analytics.profit_factor(),
     }

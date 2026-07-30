@@ -17,7 +17,8 @@ class TradeAnalytics:
 
     The class receives a list of Trade objects and calculates
     values such as win rate, total profit, average profit,
-    gross profit, gross loss, and profit factor.
+    gross profit, gross loss, profit factor,
+    best trade, and worst trade.
     """
 
     # ==========================================
@@ -59,7 +60,6 @@ class TradeAnalytics:
         for trade in self.trades:
             profit = trade.calculate_profit()
 
-            # An open trade returns None, so it is not counted.
             if profit is not None and profit > 0:
                 count += 1
 
@@ -78,7 +78,6 @@ class TradeAnalytics:
         for trade in self.trades:
             profit = trade.calculate_profit()
 
-            # An open trade returns None, so it is not counted.
             if profit is not None and profit < 0:
                 count += 1
 
@@ -119,7 +118,6 @@ class TradeAnalytics:
         losing_count = self.losing_trades()
         closed_trades = winning_count + losing_count
 
-        # Avoid division by zero when there are no completed results.
         if closed_trades == 0:
             return 0
 
@@ -142,7 +140,6 @@ class TradeAnalytics:
         for trade in self.trades:
             profit = trade.calculate_profit()
 
-            # Open trades are ignored because their profit is None.
             if profit is not None:
                 total += profit
 
@@ -222,8 +219,53 @@ class TradeAnalytics:
 
         gross_loss = self.gross_loss()
 
-        # Avoid division by zero when there are no losing trades.
         if gross_loss == 0:
             return 0
 
         return self.gross_profit() / gross_loss
+
+    # ==========================================
+    # Best and Worst Trades
+    # ==========================================
+
+    def best_trade(self):
+        """
+        Return the trade with the highest profit.
+
+        Returns:
+            Trade | None: Best trade or None if there are
+            no closed trades.
+        """
+
+        closed_trades = [
+            trade for trade in self.trades if trade.calculate_profit() is not None
+        ]
+
+        if not closed_trades:
+            return None
+
+        return max(
+            closed_trades,
+            key=lambda trade: trade.calculate_profit(),
+        )
+
+    def worst_trade(self):
+        """
+        Return the trade with the lowest profit.
+
+        Returns:
+            Trade | None: Worst trade or None if there are
+            no closed trades.
+        """
+
+        closed_trades = [
+            trade for trade in self.trades if trade.calculate_profit() is not None
+        ]
+
+        if not closed_trades:
+            return None
+
+        return min(
+            closed_trades,
+            key=lambda trade: trade.calculate_profit(),
+        )

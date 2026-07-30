@@ -1,7 +1,7 @@
 """
-analytics_schema.py
+performance_schema.py
 
-Contains Pydantic schemas for trade analytics API responses.
+Schema for trade performance analytics.
 
 Author: Tharindu Kothalwala
 Project: Aladdin
@@ -10,14 +10,12 @@ Project: Aladdin
 from pydantic import BaseModel
 
 
-class TradeStatisticsSchema(BaseModel):
+class PerformanceSchema(BaseModel):
     """
-    Schema used for trade performance statistics.
+    Response model for trade performance.
     """
 
     total_trades: int
-
-    open_trades: int
 
     winning_trades: int
 
@@ -29,4 +27,6 @@ class TradeStatisticsSchema(BaseModel):
 
     average_profit: float
 
-    profit_factor: float
+    best_trade: str | None
+
+    worst_trade: str | None
