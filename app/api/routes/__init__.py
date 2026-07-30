@@ -7,6 +7,7 @@ Author: Tharindu Kothalwala
 Project: Aladdin
 """
 
+
 from app.api.routes import (
     trade_routes,
     analytics_routes,
@@ -14,7 +15,9 @@ from app.api.routes import (
     analysis_routes,
     decision_routes,
     trading_routes,
+    journal_routes,
 )
+
 
 __all__ = [
     "trade_routes",
@@ -23,4 +26,5 @@ __all__ = [
     "analysis_routes",
     "decision_routes",
     "trading_routes",
+    "journal_routes",
 ]

@@ -20,6 +20,7 @@ from app.api.routes import (
     analysis_routes,
     decision_routes,
     trading_routes,
+    journal_routes,
 )
 
 
@@ -78,6 +79,10 @@ app.include_router(
     trading_routes.router
 )
 
+# Journal APIs
+app.include_router(
+    journal_routes.router
+)
 
 # ==========================================
 # Root Endpoint
