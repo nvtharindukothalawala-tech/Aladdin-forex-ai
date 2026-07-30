@@ -18,6 +18,7 @@ from app.api.routes import (
     analytics_routes,
     risk_routes,
     analysis_routes,
+    decision_routes,
 )
 
 
@@ -62,6 +63,12 @@ app.include_router(
 # Market analysis APIs
 app.include_router(
     analysis_routes.router
+)
+
+
+# Decision engine APIs
+app.include_router(
+    decision_routes.router
 )
 
 
