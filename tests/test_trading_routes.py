@@ -30,7 +30,8 @@ def test_trading_workflow_api():
             "account_balance": 10000,
             "risk_percent": 1,
             "trade_risk_amount": 100,
-        }
+            "lot_size": 0.10,
+        },
     )
 
     assert response.status_code == 200

@@ -2,23 +2,28 @@
 trading_service.py
 
 Combines decision making,
-trade planning, and risk validation.
+trade planning, risk validation,
+and execution preparation.
 
 Author: Tharindu Kothalwala
 Project: Aladdin
 """
 
-
 from app.decision.decision_engine import DecisionEngine
+
 from app.planning.trade_planner import TradePlanner
+
 from app.risk.risk_validator import RiskValidator
+
+from app.execution.execution_manager import (
+    ExecutionManager,
+)
 
 
 class TradingService:
     """
     Coordinates the complete trading workflow.
     """
-
 
     @staticmethod
     def generate_trade_setup(
@@ -32,18 +37,18 @@ class TradingService:
         account_balance,
         risk_percent,
         trade_risk_amount,
+        lot_size,
     ):
         """
-        Generate complete trade setup.
+        Generate complete trading workflow.
 
-        Workflow:
+        Steps:
 
-        1. Generate trading decision.
-        2. Create trade plan.
-        3. Validate risk.
-        4. Return final result.
+        1. Decision generation
+        2. Trade planning
+        3. Risk validation
+        4. Execution preparation
         """
-
 
         decision = DecisionEngine.make_decision(
             trend=trend,
@@ -51,13 +56,10 @@ class TradingService:
             risk_reward=risk_reward,
         )
 
-
         result = {
             "decision": decision,
         }
 
-
-        # Only create trade plan for BUY or SELL.
         if decision.action != "HOLD":
 
             trade_plan = TradePlanner.create_plan(
@@ -68,17 +70,25 @@ class TradingService:
                 take_profit=take_profit,
             )
 
-
             risk_validation = RiskValidator.validate(
                 account_balance=account_balance,
                 risk_percent=risk_percent,
                 trade_risk_amount=trade_risk_amount,
             )
 
-
             result["trade_plan"] = trade_plan
 
             result["risk_validation"] = risk_validation
 
+            if risk_validation.approved:
+
+                execution = ExecutionManager.prepare_execution(
+                    symbol=symbol,
+                    direction=decision.action,
+                    lot_size=lot_size,
+                    approved=True,
+                )
+
+                result["execution"] = execution
 
         return result

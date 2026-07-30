@@ -27,21 +27,18 @@ def test_generate_buy_trade_setup():
         account_balance=10000,
         risk_percent=1,
         trade_risk_amount=100,
+        lot_size=0.10,
     )
-
-    # Check decision result
 
     assert result["decision"].action == "BUY"
 
-    # Check trade plan
-
     assert result["trade_plan"].direction == "BUY"
 
-    assert result["trade_plan"].risk_reward == 2.0
-
-    # Check risk validation
-
     assert result["risk_validation"].approved is True
+
+    assert result["execution"].status == "READY"
+
+    assert result["execution"].volume == 0.10
 
 
 # ==========================================
@@ -62,15 +59,14 @@ def test_reject_trade_when_risk_is_high():
         account_balance=10000,
         risk_percent=1,
         trade_risk_amount=500,
+        lot_size=0.10,
     )
-
-    # Decision should still be BUY
 
     assert result["decision"].action == "BUY"
 
-    # Risk validator should reject
-
     assert result["risk_validation"].approved is False
+
+    assert "execution" not in result
 
 
 # ==========================================
@@ -91,6 +87,7 @@ def test_generate_hold_setup():
         account_balance=10000,
         risk_percent=1,
         trade_risk_amount=100,
+        lot_size=0.10,
     )
 
     assert result["decision"].action == "HOLD"

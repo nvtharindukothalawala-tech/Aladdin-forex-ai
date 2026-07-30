@@ -55,6 +55,8 @@ def analyze_trade(
         risk_percent=data.risk_percent,
 
         trade_risk_amount=data.trade_risk_amount,
+
+        lot_size=data.lot_size,
     )
 
 

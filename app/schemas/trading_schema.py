@@ -75,3 +75,9 @@ class TradingRequest(BaseModel):
         gt=0,
         example=100,
     )
+
+    lot_size: float = Field(
+        ...,
+        gt=0,
+        example=0.10,
+    )
