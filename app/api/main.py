@@ -17,7 +17,6 @@ from app.api.routes import (
     analytics_routes,
 )
 
-
 # Create FastAPI application
 app = FastAPI(
     title=settings.APP_NAME,
@@ -35,20 +34,17 @@ app = FastAPI(
 # ==========================================
 
 # Trade management APIs
-app.include_router(
-    trade_routes.router
-)
+app.include_router(trade_routes.router)
 
 
 # Analytics APIs
-app.include_router(
-    analytics_routes.router
-)
+app.include_router(analytics_routes.router)
 
 
 # ==========================================
 # Root Endpoint
 # ==========================================
+
 
 @app.get("/")
 def home():

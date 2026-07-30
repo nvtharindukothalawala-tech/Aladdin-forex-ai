@@ -36,6 +36,4 @@ def format_datetime(value):
             Formatted date and time.
     """
 
-    return value.strftime(
-        "%Y-%m-%d %H:%M:%S"
-    )
+    return value.strftime("%Y-%m-%d %H:%M:%S")

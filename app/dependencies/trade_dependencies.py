@@ -24,9 +24,7 @@ def get_trade_repository():
             Repository used for trade storage.
     """
 
-    return TradeRepository(
-        settings.TRADES_FILE
-    )
+    return TradeRepository(settings.TRADES_FILE)
 
 
 def get_trade_service():

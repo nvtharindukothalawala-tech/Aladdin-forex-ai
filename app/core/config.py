@@ -14,7 +14,6 @@ import os
 
 from dotenv import load_dotenv
 
-
 # Load values from .env file.
 load_dotenv()
 
