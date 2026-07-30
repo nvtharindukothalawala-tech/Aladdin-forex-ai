@@ -223,3 +223,78 @@ class RiskManager:
         )
 
         return pips
+
+        # ==========================================
+
+    # Forex Lot Size Calculation
+    # ==========================================
+
+    @staticmethod
+    def calculate_forex_lot_size(
+        risk_amount,
+        stop_loss_pips,
+        pip_value,
+    ):
+        """
+        Calculate Forex lot size using professional
+        position sizing formula.
+
+        Formula:
+
+            lot size =
+            risk amount / (stop loss pips × pip value)
+
+        Args:
+            risk_amount:
+                Amount of money willing to lose.
+
+            stop_loss_pips:
+                Distance between entry and stop loss.
+
+            pip_value:
+                Value of one pip for one standard lot.
+
+        Returns:
+            float:
+                Recommended lot size.
+
+        Raises:
+            RiskError:
+                If input values are invalid.
+        """
+
+        # Validate risk amount.
+        if risk_amount <= 0:
+            RiskManager.logger.warning(
+                "Invalid risk amount: %s",
+                risk_amount,
+            )
+
+            raise RiskError("Risk amount must be greater than zero.")
+
+        # Validate stop loss distance.
+        if stop_loss_pips <= 0:
+            RiskManager.logger.warning(
+                "Invalid stop loss pips: %s",
+                stop_loss_pips,
+            )
+
+            raise RiskError("Stop loss pips must be greater than zero.")
+
+        # Validate pip value.
+        if pip_value <= 0:
+            RiskManager.logger.warning(
+                "Invalid pip value: %s",
+                pip_value,
+            )
+
+            raise RiskError("Pip value must be greater than zero.")
+
+        lot_size = risk_amount / (stop_loss_pips * pip_value)
+
+        RiskManager.logger.info(
+            "Forex lot size calculated successfully: %s",
+            lot_size,
+        )
+
+        return lot_size

@@ -198,3 +198,70 @@ def test_calculate_risk_reward_ratio_rejects_zero_risk():
             stop_loss_price=1.1000,
             take_profit_price=1.1060,
         )
+
+
+# ==========================================
+# Forex Lot Size Tests
+# ==========================================
+
+
+def test_calculate_forex_lot_size():
+    """
+    Test professional Forex lot size calculation.
+    """
+
+    lot_size = RiskManager.calculate_forex_lot_size(
+        risk_amount=200,
+        stop_loss_pips=20,
+        pip_value=10,
+    )
+
+    assert lot_size == pytest.approx(1.0)
+
+
+def test_calculate_forex_lot_size_rejects_invalid_risk_amount():
+    """
+    Test that zero risk amount is rejected.
+    """
+
+    with pytest.raises(
+        RiskError,
+        match="Risk amount must be greater than zero.",
+    ):
+        RiskManager.calculate_forex_lot_size(
+            risk_amount=0,
+            stop_loss_pips=20,
+            pip_value=10,
+        )
+
+
+def test_calculate_forex_lot_size_rejects_invalid_stop_loss():
+    """
+    Test that zero stop loss pips are rejected.
+    """
+
+    with pytest.raises(
+        RiskError,
+        match="Stop loss pips must be greater than zero.",
+    ):
+        RiskManager.calculate_forex_lot_size(
+            risk_amount=200,
+            stop_loss_pips=0,
+            pip_value=10,
+        )
+
+
+def test_calculate_forex_lot_size_rejects_invalid_pip_value():
+    """
+    Test that zero pip value is rejected.
+    """
+
+    with pytest.raises(
+        RiskError,
+        match="Pip value must be greater than zero.",
+    ):
+        RiskManager.calculate_forex_lot_size(
+            risk_amount=200,
+            stop_loss_pips=20,
+            pip_value=0,
+        )
