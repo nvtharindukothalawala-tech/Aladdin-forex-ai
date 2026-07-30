@@ -19,6 +19,7 @@ from app.api.routes import (
     risk_routes,
     analysis_routes,
     decision_routes,
+    trading_routes,
 )
 
 
@@ -69,6 +70,12 @@ app.include_router(
 # Decision engine APIs
 app.include_router(
     decision_routes.router
+)
+
+
+# Trading APIs
+app.include_router(
+    trading_routes.router
 )
 
 

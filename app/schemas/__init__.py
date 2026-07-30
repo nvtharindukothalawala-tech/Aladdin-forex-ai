@@ -22,6 +22,9 @@ from app.schemas.analysis_schema import (
 from app.schemas.decision_schema import (
     DecisionRequest,
 )
+from app.schemas.trading_schema import (
+    TradingRequest,
+)
 
 __all__ = [
     "AccountCreateSchema",
@@ -32,4 +35,5 @@ __all__ = [
     "PerformanceSchema",
     "MarketAnalysisRequest",
     "DecisionRequest",
+    "TradingRequest",
 ]
