@@ -9,10 +9,10 @@ Project: Aladdin
 
 from pydantic import BaseModel, Field
 
-
 # ==========================================
 # Risk Amount Schema
 # ==========================================
+
 
 class RiskCalculateSchema(BaseModel):
     """
@@ -36,6 +36,7 @@ class RiskCalculateSchema(BaseModel):
 # ==========================================
 # Forex Lot Size Schema
 # ==========================================
+
 
 class LotSizeSchema(BaseModel):
     """
@@ -64,6 +65,7 @@ class LotSizeSchema(BaseModel):
 # ==========================================
 # Risk Reward Schema
 # ==========================================
+
 
 class RiskRewardSchema(BaseModel):
     """

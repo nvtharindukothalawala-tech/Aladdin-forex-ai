@@ -11,10 +11,12 @@ from app.api.routes import (
     trade_routes,
     analytics_routes,
     risk_routes,
+    analysis_routes,
 )
 
 __all__ = [
     "trade_routes",
     "analytics_routes",
     "risk_routes",
+    "analysis_routes",
 ]
