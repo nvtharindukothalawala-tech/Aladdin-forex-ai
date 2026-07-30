@@ -1,21 +1,24 @@
 """
 trading_service.py
 
-Combines market analysis,
-decision making, and trade planning.
+Combines decision making,
+trade planning, and risk validation.
 
 Author: Tharindu Kothalwala
 Project: Aladdin
 """
 
+
 from app.decision.decision_engine import DecisionEngine
 from app.planning.trade_planner import TradePlanner
+from app.risk.risk_validator import RiskValidator
 
 
 class TradingService:
     """
     Coordinates the complete trading workflow.
     """
+
 
     @staticmethod
     def generate_trade_setup(
@@ -26,16 +29,21 @@ class TradingService:
         entry_price,
         stop_loss,
         take_profit,
+        account_balance,
+        risk_percent,
+        trade_risk_amount,
     ):
         """
-        Generate a complete trade setup.
+        Generate complete trade setup.
 
         Workflow:
 
-        1. Generate decision
-        2. Create trade plan if decision is BUY/SELL
-        3. Return final result
+        1. Generate trading decision.
+        2. Create trade plan.
+        3. Validate risk.
+        4. Return final result.
         """
+
 
         decision = DecisionEngine.make_decision(
             trend=trend,
@@ -43,10 +51,13 @@ class TradingService:
             risk_reward=risk_reward,
         )
 
+
         result = {
             "decision": decision,
         }
 
+
+        # Only create trade plan for BUY or SELL.
         if decision.action != "HOLD":
 
             trade_plan = TradePlanner.create_plan(
@@ -57,6 +68,17 @@ class TradingService:
                 take_profit=take_profit,
             )
 
+
+            risk_validation = RiskValidator.validate(
+                account_balance=account_balance,
+                risk_percent=risk_percent,
+                trade_risk_amount=trade_risk_amount,
+            )
+
+
             result["trade_plan"] = trade_plan
+
+            result["risk_validation"] = risk_validation
+
 
         return result

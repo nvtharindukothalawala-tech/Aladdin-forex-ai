@@ -54,3 +54,24 @@ class TradingRequest(BaseModel):
         gt=0,
         example=1.1100,
     )
+
+    account_balance: float = Field(
+        ...,
+        gt=0,
+        example=10000,
+    )
+
+
+    risk_percent: float = Field(
+        ...,
+        gt=0,
+        le=100,
+        example=1,
+    )
+
+
+    trade_risk_amount: float = Field(
+        ...,
+        gt=0,
+        example=100,
+    )

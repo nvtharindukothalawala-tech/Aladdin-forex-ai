@@ -27,7 +27,10 @@ def test_trading_workflow_api():
             "entry_price": 1.1000,
             "stop_loss": 1.0950,
             "take_profit": 1.1100,
-        },
+            "account_balance": 10000,
+            "risk_percent": 1,
+            "trade_risk_amount": 100,
+        }
     )
 
     assert response.status_code == 200
