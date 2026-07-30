@@ -5,7 +5,8 @@ Contains the RiskManager class used by the
 Aladdin Forex Trading Assistant.
 
 This class provides reusable calculations for trade risk,
-position sizing, pip size, and pip distance.
+position sizing, pip size, pip distance,
+and risk-to-reward ratio.
 
 Author: Tharindu Kothalwala
 Project: Aladdin
@@ -52,7 +53,6 @@ class RiskManager:
                 If the account balance or risk percentage is invalid.
         """
 
-        # A valid account balance must be greater than zero.
         if account_balance <= 0:
             RiskManager.logger.warning(
                 "Invalid account balance: %s",
@@ -61,7 +61,6 @@ class RiskManager:
 
             raise RiskError("Account balance must be greater than zero.")
 
-        # Risk percentage must be positive and cannot exceed 100%.
         if risk_percent <= 0 or risk_percent > 100:
             RiskManager.logger.warning(
                 "Invalid risk percentage: %s",
@@ -84,9 +83,13 @@ class RiskManager:
     # ==========================================
 
     @staticmethod
-    def calculate_position_size(risk_amount, stop_loss_distance):
+    def calculate_position_size(
+        risk_amount,
+        stop_loss_distance,
+    ):
         """
-        Calculate position size using risk amount and stop-loss distance.
+        Calculate position size using risk amount and
+        stop-loss distance.
 
         Formula:
             position size = risk amount / stop-loss distance
@@ -96,7 +99,6 @@ class RiskManager:
                 If the stop-loss distance is invalid.
         """
 
-        # Division by zero or negative distance is not valid.
         if stop_loss_distance <= 0:
             RiskManager.logger.warning(
                 "Invalid stop loss distance: %s",
@@ -115,6 +117,62 @@ class RiskManager:
         return position_size
 
     # ==========================================
+    # Risk-to-Reward Ratio
+    # ==========================================
+
+    @staticmethod
+    def calculate_risk_reward_ratio(
+        entry_price,
+        stop_loss_price,
+        take_profit_price,
+    ):
+        """
+        Calculate the risk-to-reward ratio.
+
+        Formula:
+            risk = |entry - stop loss|
+            reward = |take profit - entry|
+
+            ratio = reward / risk
+
+        Args:
+            entry_price:
+                Trade entry price.
+
+            stop_loss_price:
+                Stop-loss price.
+
+            take_profit_price:
+                Take-profit price.
+
+        Returns:
+            float:
+                Risk-to-reward ratio.
+
+        Raises:
+            RiskError:
+                If the risk distance is zero.
+        """
+
+        risk_distance = abs(entry_price - stop_loss_price)
+
+        reward_distance = abs(take_profit_price - entry_price)
+
+        if risk_distance == 0:
+            RiskManager.logger.warning("Entry price equals stop loss price.")
+
+            raise RiskError("Entry price and stop loss cannot be equal.")
+
+        ratio = reward_distance / risk_distance
+
+        RiskManager.logger.info(
+            "Risk reward ratio calculated successfully: %s",
+            ratio,
+        )
+
+        return ratio
+
+    # ==========================================
     # Pip Calculations
     # ==========================================
 
@@ -123,23 +181,35 @@ class RiskManager:
         """
         Return the standard pip size for a Forex symbol.
 
-        Most Forex pairs use 0.0001 as one pip.
-        Japanese yen pairs normally use 0.01 as one pip.
+        Most Forex pairs use 0.0001.
+        Japanese Yen pairs use 0.01.
         """
 
-        # Remove slash and convert to uppercase.
         normalized_symbol = symbol.replace("/", "").upper()
 
-        # Yen pairs use two decimal places.
         if normalized_symbol.endswith("JPY"):
             return 0.01
 
         return 0.0001
 
     @staticmethod
-    def calculate_pips(symbol, price_distance):
+    def calculate_pips(
+        symbol,
+        price_distance,
+    ):
         """
-        Convert price distance into pips.
+        Convert a price movement into pips.
+
+        Args:
+            symbol:
+                Forex pair.
+
+            price_distance:
+                Difference between two prices.
+
+        Returns:
+            float:
+                Number of pips.
         """
 
         pip_size = RiskManager.get_pip_size(symbol)
