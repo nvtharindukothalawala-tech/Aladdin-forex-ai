@@ -15,6 +15,7 @@ from app.core.config import settings
 from app.api.routes import (
     trade_routes,
     analytics_routes,
+    risk_routes,
 )
 
 # Create FastAPI application
@@ -39,6 +40,10 @@ app.include_router(trade_routes.router)
 
 # Analytics APIs
 app.include_router(analytics_routes.router)
+
+
+# Risk management APIs
+app.include_router(risk_routes.router)
 
 
 # ==========================================
