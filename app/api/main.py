@@ -22,6 +22,7 @@ from app.api.routes import (
     trading_routes,
     journal_routes,
     performance_routes,
+    coaching_routes,
 )
 
 
@@ -89,6 +90,12 @@ app.include_router(
 app.include_router(
     performance_routes.router
 )
+
+# Coaching APIs
+app.include_router(
+    coaching_routes.router
+)
+
 # ==========================================
 # Root Endpoint
 # ==========================================
