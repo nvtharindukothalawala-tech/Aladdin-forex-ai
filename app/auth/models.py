@@ -7,7 +7,6 @@ Author: Tharindu Kothalwala
 Project: Aladdin
 """
 
-
 from datetime import datetime
 
 
@@ -22,15 +21,12 @@ from sqlalchemy import (
 from app.database.models import Base
 
 
-
 class UserModel(Base):
     """
     User database table.
     """
 
-
     __tablename__ = "users"
-
 
     id = Column(
         Integer,
@@ -38,13 +34,11 @@ class UserModel(Base):
         index=True,
     )
 
-
     username = Column(
         String,
         unique=True,
         nullable=False,
     )
-
 
     email = Column(
         String,
@@ -52,12 +46,10 @@ class UserModel(Base):
         nullable=False,
     )
 
-
     password_hash = Column(
         String,
         nullable=False,
     )
-
 
     created_at = Column(
         DateTime,

@@ -25,6 +25,7 @@ from app.api.routes import (
     coaching_routes,
 )
 
+from app.auth import routes as auth_routes
 
 # ==========================================
 # Create FastAPI Application
@@ -96,6 +97,10 @@ app.include_router(
     coaching_routes.router
 )
 
+# Authentication APIs
+app.include_router(
+    auth_routes.router
+)
 # ==========================================
 # Root Endpoint
 # ==========================================
