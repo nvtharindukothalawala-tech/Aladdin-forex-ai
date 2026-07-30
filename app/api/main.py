@@ -21,6 +21,7 @@ from app.api.routes import (
     decision_routes,
     trading_routes,
     journal_routes,
+    performance_routes,
 )
 
 
@@ -84,6 +85,10 @@ app.include_router(
     journal_routes.router
 )
 
+# Performance APIs
+app.include_router(
+    performance_routes.router
+)
 # ==========================================
 # Root Endpoint
 # ==========================================

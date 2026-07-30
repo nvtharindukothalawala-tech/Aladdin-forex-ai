@@ -16,6 +16,7 @@ from app.api.routes import (
     decision_routes,
     trading_routes,
     journal_routes,
+    performance_routes,
 )
 
 
@@ -27,4 +28,5 @@ __all__ = [
     "decision_routes",
     "trading_routes",
     "journal_routes",
+    performance_routes,
 ]
