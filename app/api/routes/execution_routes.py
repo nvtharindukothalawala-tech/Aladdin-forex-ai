@@ -30,10 +30,16 @@ from app.services.execution_service import (
 )
 
 
+from app.services.execution_analytics_service import (
+    ExecutionAnalyticsService,
+)
+
+
 from app.schemas.execution_schema import (
     ExecutionRequestSchema,
     ExecutionResponseSchema,
     ExecutionHistoryResponseSchema,
+    ExecutionStatisticsResponseSchema,
 )
 
 router = APIRouter(
@@ -103,3 +109,22 @@ def get_execution_history(
     executions = repository.get_user_executions(user_id)
 
     return executions
+
+
+@router.get(
+    "/statistics/{user_id}",
+    response_model=ExecutionStatisticsResponseSchema,
+)
+def get_execution_statistics(
+    user_id: int,
+    database: Session = Depends(get_database),
+):
+    """
+    Return execution statistics for a user.
+    """
+
+    repository = ExecutionRepository(database)
+
+    service = ExecutionAnalyticsService(repository)
+
+    return service.get_statistics(user_id)

@@ -60,3 +60,17 @@ class ExecutionHistoryResponseSchema(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class ExecutionStatisticsResponseSchema(BaseModel):
+    """
+    Response schema for execution statistics.
+    """
+
+    total_executions: int
+
+    successful_executions: int
+
+    failed_executions: int
+
+    success_rate: float
