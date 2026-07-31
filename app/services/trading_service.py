@@ -3,17 +3,32 @@ trading_service.py
 
 Combines decision making,
 trade planning, risk validation,
+approval,
 and execution preparation.
 
 Author: Tharindu Kothalwala
 Project: Aladdin
 """
 
-from app.decision.decision_engine import DecisionEngine
+from app.decision.decision_engine import (
+    DecisionEngine,
+)
 
-from app.planning.trade_planner import TradePlanner
 
-from app.risk.risk_validator import RiskValidator
+from app.planning.trade_planner import (
+    TradePlanner,
+)
+
+
+from app.risk.risk_validator import (
+    RiskValidator,
+)
+
+
+from app.approval.approval_manager import (
+    ApprovalManager,
+)
+
 
 from app.execution.execution_manager import (
     ExecutionManager,
@@ -47,7 +62,8 @@ class TradingService:
         1. Decision generation
         2. Trade planning
         3. Risk validation
-        4. Execution preparation
+        4. Trade approval
+        5. Execution preparation
         """
 
         decision = DecisionEngine.make_decision(
@@ -80,7 +96,11 @@ class TradingService:
 
             result["risk_validation"] = risk_validation
 
-            if risk_validation.approved:
+            approval = ApprovalManager.approve_trade(risk_validation)
+
+            result["approval"] = approval
+
+            if approval.approved:
 
                 execution = ExecutionManager.prepare_execution(
                     symbol=symbol,
