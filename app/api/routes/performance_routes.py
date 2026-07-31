@@ -7,12 +7,21 @@ Author: Tharindu Kothalwala
 Project: Aladdin
 """
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+
+from sqlalchemy.orm import Session
 
 
-from app.database.connection import SessionLocal
+from app.auth.dependencies import (
+    get_database,
+    get_current_user,
+)
+
+from app.auth.models import UserModel
+
 
 from app.database.repository import TradeRepository
+
 
 from app.services.performance_service import (
     PerformanceService,
@@ -29,21 +38,21 @@ router = APIRouter(
 )
 
 
-def get_service():
-
-    session = SessionLocal()
-
-    repository = TradeRepository(session)
-
-    return PerformanceService(repository)
-
-
 @router.get(
     "/performance",
     response_model=PerformanceResponse,
 )
-def get_performance():
+def get_performance(
+    database: Session = Depends(get_database),
+    current_user: UserModel = Depends(get_current_user),
+):
+    """
+    Return trading performance analytics
+    for authenticated users.
+    """
 
-    service = get_service()
+    repository = TradeRepository(database)
+
+    service = PerformanceService(repository)
 
     return service.get_performance()
