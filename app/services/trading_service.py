@@ -4,7 +4,7 @@ trading_service.py
 Combines decision making,
 trade planning, risk validation,
 approval,
-and execution preparation.
+and optional execution.
 
 Author: Tharindu Kothalwala
 Project: Aladdin
@@ -35,6 +35,11 @@ from app.execution.execution_manager import (
 )
 
 
+from app.services.execution_service import (
+    ExecutionService,
+)
+
+
 class TradingService:
     """
     Coordinates the complete trading workflow.
@@ -53,6 +58,9 @@ class TradingService:
         risk_percent,
         trade_risk_amount,
         lot_size,
+        execute=False,
+        execution_service=None,
+        user_id=None,
     ):
         """
         Generate complete trading workflow.
@@ -64,6 +72,7 @@ class TradingService:
         3. Risk validation
         4. Trade approval
         5. Execution preparation
+        6. Optional MT5 execution
         """
 
         decision = DecisionEngine.make_decision(
@@ -102,13 +111,30 @@ class TradingService:
 
             if approval.approved:
 
-                execution = ExecutionManager.prepare_execution(
+                execution_request = ExecutionManager.prepare_execution(
                     symbol=symbol,
                     direction=decision.action,
                     lot_size=lot_size,
                     approved=True,
                 )
 
-                result["execution"] = execution
+                result["execution"] = execution_request
+
+                if execute:
+
+                    if execution_service is None:
+
+                        raise ValueError("Execution service required.")
+
+                    if user_id is None:
+
+                        raise ValueError("User ID required for execution.")
+
+                    execution_result = execution_service.execute_trade(
+                        user_id=user_id,
+                        execution_request=execution_request,
+                    )
+
+                    result["execution_result"] = execution_result
 
         return result
