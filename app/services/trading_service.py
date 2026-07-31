@@ -1,10 +1,12 @@
 """
 trading_service.py
 
-Combines decision making,
-trade planning, risk validation,
+Combines AI intelligence,
+decision making,
+trade planning,
+risk validation,
 approval,
-and optional execution.
+and execution.
 
 Author: Tharindu Kothalwala
 Project: Aladdin
@@ -35,14 +37,14 @@ from app.execution.execution_manager import (
 )
 
 
-from app.services.execution_service import (
-    ExecutionService,
+from app.intelligence.intelligence_service import (
+    IntelligenceService,
 )
 
 
 class TradingService:
     """
-    Coordinates the complete trading workflow.
+    Coordinates complete trading workflow.
     """
 
     @staticmethod
@@ -62,18 +64,6 @@ class TradingService:
         execution_service=None,
         user_id=None,
     ):
-        """
-        Generate complete trading workflow.
-
-        Steps:
-
-        1. Decision generation
-        2. Trade planning
-        3. Risk validation
-        4. Trade approval
-        5. Execution preparation
-        6. Optional MT5 execution
-        """
 
         decision = DecisionEngine.make_decision(
             trend=trend,
@@ -101,11 +91,11 @@ class TradingService:
                 trade_risk_amount=trade_risk_amount,
             )
 
+            approval = ApprovalManager.approve_trade(risk_validation)
+
             result["trade_plan"] = trade_plan
 
             result["risk_validation"] = risk_validation
-
-            approval = ApprovalManager.approve_trade(risk_validation)
 
             result["approval"] = approval
 
@@ -123,12 +113,10 @@ class TradingService:
                 if execute:
 
                     if execution_service is None:
-
                         raise ValueError("Execution service required.")
 
                     if user_id is None:
-
-                        raise ValueError("User ID required for execution.")
+                        raise ValueError("User ID required.")
 
                     execution_result = execution_service.execute_trade(
                         user_id=user_id,
@@ -136,5 +124,194 @@ class TradingService:
                     )
 
                     result["execution_result"] = execution_result
+
+        return result
+
+    @staticmethod
+    def generate_intelligent_trade_setup(
+        ema_signal,
+        rsi_value,
+        adx_value,
+        volatility,
+        currency,
+        event_type,
+        importance,
+        sentiment,
+        price_structure="BOS_BULLISH",
+        liquidity_sweep=True,
+        order_block="BULLISH",
+        fair_value_gap=True,
+    ):
+
+        market_intelligence = IntelligenceService.analyze_market(
+            ema_signal=ema_signal,
+            rsi_value=rsi_value,
+            adx_value=adx_value,
+            volatility=volatility,
+            currency=currency,
+            event_type=event_type,
+            importance=importance,
+            sentiment=sentiment,
+            price_structure=price_structure,
+            liquidity_sweep=liquidity_sweep,
+            order_block=order_block,
+            fair_value_gap=fair_value_gap,
+        )
+
+        decision = DecisionEngine.make_intelligent_decision(market_intelligence)
+
+        return {
+            "market_intelligence": market_intelligence,
+            "decision": decision,
+        }
+
+    @staticmethod
+    def generate_ai_trade_setup(
+        symbol,
+        ema_signal,
+        rsi_value,
+        adx_value,
+        volatility,
+        currency,
+        event_type,
+        importance,
+        sentiment,
+        entry_price,
+        stop_loss,
+        take_profit,
+        account_balance,
+        risk_percent,
+        trade_risk_amount,
+        lot_size,
+        price_structure="BOS_BULLISH",
+        liquidity_sweep=True,
+        order_block="BULLISH",
+        fair_value_gap=True,
+    ):
+
+        intelligence_result = TradingService.generate_intelligent_trade_setup(
+            ema_signal,
+            rsi_value,
+            adx_value,
+            volatility,
+            currency,
+            event_type,
+            importance,
+            sentiment,
+            price_structure,
+            liquidity_sweep,
+            order_block,
+            fair_value_gap,
+        )
+
+        result = intelligence_result.copy()
+
+        decision = result["decision"]
+
+        if decision.action == "HOLD":
+
+            return result
+
+        trade_plan = TradePlanner.create_plan(
+            symbol=symbol,
+            direction=decision.action,
+            entry_price=entry_price,
+            stop_loss=stop_loss,
+            take_profit=take_profit,
+        )
+
+        risk_validation = RiskValidator.validate(
+            account_balance=account_balance,
+            risk_percent=risk_percent,
+            trade_risk_amount=trade_risk_amount,
+        )
+
+        approval = ApprovalManager.approve_trade(risk_validation)
+
+        result["trade_plan"] = trade_plan
+
+        result["risk_validation"] = risk_validation
+
+        result["approval"] = approval
+
+        return result
+
+    @staticmethod
+    def generate_ai_execution_workflow(
+        symbol,
+        ema_signal,
+        rsi_value,
+        adx_value,
+        volatility,
+        currency,
+        event_type,
+        importance,
+        sentiment,
+        entry_price,
+        stop_loss,
+        take_profit,
+        account_balance,
+        risk_percent,
+        trade_risk_amount,
+        lot_size,
+        execute=False,
+        execution_service=None,
+        user_id=None,
+        price_structure="BOS_BULLISH",
+        liquidity_sweep=True,
+        order_block="BULLISH",
+        fair_value_gap=True,
+    ):
+
+        result = TradingService.generate_ai_trade_setup(
+            symbol=symbol,
+            ema_signal=ema_signal,
+            rsi_value=rsi_value,
+            adx_value=adx_value,
+            volatility=volatility,
+            currency=currency,
+            event_type=event_type,
+            importance=importance,
+            sentiment=sentiment,
+            price_structure=price_structure,
+            liquidity_sweep=liquidity_sweep,
+            order_block=order_block,
+            fair_value_gap=fair_value_gap,
+            entry_price=entry_price,
+            stop_loss=stop_loss,
+            take_profit=take_profit,
+            account_balance=account_balance,
+            risk_percent=risk_percent,
+            trade_risk_amount=trade_risk_amount,
+            lot_size=lot_size,
+        )
+
+        if "approval" not in result:
+
+            return result
+
+        if result["approval"].approved and execute:
+
+            if execution_service is None:
+                raise ValueError("Execution service required.")
+
+            if user_id is None:
+                raise ValueError("User ID required.")
+
+            execution_request = ExecutionManager.prepare_execution(
+                symbol=symbol,
+                direction=result["decision"].action,
+                lot_size=lot_size,
+                approved=True,
+            )
+
+            execution_result = execution_service.execute_trade(
+                user_id=user_id,
+                execution_request=execution_request,
+            )
+
+            result["execution"] = execution_request
+
+            result["execution_result"] = execution_result
 
         return result
