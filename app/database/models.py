@@ -16,10 +16,14 @@ from sqlalchemy import (
     String,
     Float,
     DateTime,
+    ForeignKey,
 )
 
 
-from sqlalchemy.orm import declarative_base
+from sqlalchemy.orm import (
+    declarative_base,
+    relationship,
+)
 
 Base = declarative_base()
 
@@ -35,6 +39,12 @@ class TradeModel(Base):
         Integer,
         primary_key=True,
         index=True,
+    )
+
+    user_id = Column(
+        Integer,
+        ForeignKey("users.id"),
+        nullable=False,
     )
 
     symbol = Column(
@@ -65,4 +75,10 @@ class TradeModel(Base):
     created_at = Column(
         DateTime,
         default=datetime.utcnow,
+    )
+
+    # Relationship with UserModel
+    user = relationship(
+        "UserModel",
+        back_populates="trades",
     )

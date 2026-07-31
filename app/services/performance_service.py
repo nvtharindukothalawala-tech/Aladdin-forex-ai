@@ -24,9 +24,16 @@ class PerformanceService:
 
         self.repository = repository
 
-    def get_performance(self):
+    def get_performance(
+        self,
+        user_id: int,
+    ):
+        """
+        Generate performance report
+        for a specific user.
+        """
 
-        trades = self.repository.get_all_trades()
+        trades = self.repository.get_user_trades(user_id)
 
         analyzer = PerformanceAnalyzer(trades)
 

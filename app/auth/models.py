@@ -18,6 +18,9 @@ from sqlalchemy import (
 )
 
 
+from sqlalchemy.orm import relationship
+
+
 from app.database.models import Base
 
 
@@ -54,4 +57,10 @@ class UserModel(Base):
     created_at = Column(
         DateTime,
         default=datetime.utcnow,
+    )
+
+    # Relationship with TradeModel
+    trades = relationship(
+        "TradeModel",
+        back_populates="user",
     )

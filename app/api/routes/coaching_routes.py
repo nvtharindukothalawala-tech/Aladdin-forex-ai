@@ -48,11 +48,11 @@ def get_coaching_report(
 ):
     """
     Return AI coaching report
-    for authenticated users.
+    for authenticated user.
     """
 
     repository = TradeRepository(database)
 
     service = CoachingService(repository)
 
-    return service.generate_report()
+    return service.generate_report(current_user.id)

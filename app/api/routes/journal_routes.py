@@ -8,16 +8,22 @@ Project: Aladdin
 """
 
 from fastapi import APIRouter, Depends
+
 from sqlalchemy.orm import Session
+
 
 from app.auth.dependencies import (
     get_database,
     get_current_user,
 )
+
 from app.auth.models import UserModel
 
+
 from app.database.repository import TradeRepository
+
 from app.services.journal_service import JournalService
+
 
 from app.schemas.journal_schema import JournalTradeResponse
 
@@ -36,14 +42,15 @@ def get_trades(
     current_user: UserModel = Depends(get_current_user),
 ):
     """
-    Return all journal trades for authenticated users.
+    Return journal trades
+    for the authenticated user.
     """
 
     repository = TradeRepository(database)
 
     service = JournalService(repository)
 
-    return service.get_trades()
+    return service.get_trades(current_user.id)
 
 
 @router.get("/count")
@@ -52,11 +59,12 @@ def get_trade_count(
     current_user: UserModel = Depends(get_current_user),
 ):
     """
-    Return total number of journal trades.
+    Return total trades
+    for the authenticated user.
     """
 
     repository = TradeRepository(database)
 
     service = JournalService(repository)
 
-    return {"total_trades": service.get_trade_count()}
+    return {"total_trades": service.get_trade_count(current_user.id)}
