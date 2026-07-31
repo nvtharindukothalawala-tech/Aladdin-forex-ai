@@ -8,10 +8,11 @@ Author: Tharindu Kothalwala
 Project: Aladdin
 """
 
-
 from fastapi import FastAPI
 
+
 from app.core.config import settings
+
 
 from app.api.routes import (
     trade_routes,
@@ -23,13 +24,16 @@ from app.api.routes import (
     journal_routes,
     performance_routes,
     coaching_routes,
+    execution_routes,
 )
+
 
 from app.auth import routes as auth_routes
 
 # ==========================================
 # Create FastAPI Application
 # ==========================================
+
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -48,59 +52,60 @@ app = FastAPI(
 
 
 # Trade management APIs
-app.include_router(
-    trade_routes.router
-)
+
+app.include_router(trade_routes.router)
 
 
 # Analytics APIs
-app.include_router(
-    analytics_routes.router
-)
+
+app.include_router(analytics_routes.router)
 
 
 # Risk management APIs
-app.include_router(
-    risk_routes.router
-)
+
+app.include_router(risk_routes.router)
 
 
 # Market analysis APIs
-app.include_router(
-    analysis_routes.router
-)
+
+app.include_router(analysis_routes.router)
 
 
 # Decision engine APIs
-app.include_router(
-    decision_routes.router
-)
+
+app.include_router(decision_routes.router)
 
 
 # Trading APIs
-app.include_router(
-    trading_routes.router
-)
+
+app.include_router(trading_routes.router)
+
 
 # Journal APIs
-app.include_router(
-    journal_routes.router
-)
+
+app.include_router(journal_routes.router)
+
 
 # Performance APIs
-app.include_router(
-    performance_routes.router
-)
+
+app.include_router(performance_routes.router)
+
 
 # Coaching APIs
-app.include_router(
-    coaching_routes.router
-)
+
+app.include_router(coaching_routes.router)
+
+
+# Execution APIs ⭐ NEW
+
+app.include_router(execution_routes.router)
+
 
 # Authentication APIs
-app.include_router(
-    auth_routes.router
-)
+
+app.include_router(auth_routes.router)
+
+
 # ==========================================
 # Root Endpoint
 # ==========================================
