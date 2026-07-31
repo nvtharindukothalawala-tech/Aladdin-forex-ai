@@ -7,19 +7,19 @@ Author: Tharindu Kothalwala
 Project: Aladdin
 """
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
 
-
-from app.database.connection import SessionLocal
+from app.auth.dependencies import (
+    get_database,
+    get_current_user,
+)
+from app.auth.models import UserModel
 
 from app.database.repository import TradeRepository
-
 from app.services.journal_service import JournalService
 
-
-from app.schemas.journal_schema import (
-    JournalTradeResponse,
-)
+from app.schemas.journal_schema import JournalTradeResponse
 
 router = APIRouter(
     prefix="/journal",
@@ -27,29 +27,36 @@ router = APIRouter(
 )
 
 
-def get_service():
-
-    session = SessionLocal()
-
-    repository = TradeRepository(session)
-
-    return JournalService(repository)
-
-
 @router.get(
     "/trades",
     response_model=list[JournalTradeResponse],
 )
-def get_trades():
+def get_trades(
+    database: Session = Depends(get_database),
+    current_user: UserModel = Depends(get_current_user),
+):
+    """
+    Return all journal trades for authenticated users.
+    """
 
-    service = get_service()
+    repository = TradeRepository(database)
+
+    service = JournalService(repository)
 
     return service.get_trades()
 
 
 @router.get("/count")
-def get_trade_count():
+def get_trade_count(
+    database: Session = Depends(get_database),
+    current_user: UserModel = Depends(get_current_user),
+):
+    """
+    Return total number of journal trades.
+    """
 
-    service = get_service()
+    repository = TradeRepository(database)
+
+    service = JournalService(repository)
 
     return {"total_trades": service.get_trade_count()}
