@@ -10,6 +10,11 @@ Project: Aladdin
 from dataclasses import dataclass
 
 
+from app.mt5.mt5_connector import (
+    MT5Connector,
+)
+
+
 @dataclass
 class ExecutionRequest:
     """
@@ -54,3 +59,28 @@ class ExecutionManager:
             volume=lot_size,
             status="READY",
         )
+
+    @staticmethod
+    def execute_with_mt5(
+        execution_request,
+    ):
+        """
+        Execute prepared trade through MT5 connector.
+
+        This is currently a mock execution layer.
+        Real broker execution will be added later.
+        """
+
+        connector = MT5Connector()
+
+        connector.connect()
+
+        order = connector.prepare_order(
+            symbol=execution_request.symbol,
+            order_type=execution_request.order_type,
+            volume=execution_request.volume,
+        )
+
+        result = connector.send_order(order)
+
+        return result

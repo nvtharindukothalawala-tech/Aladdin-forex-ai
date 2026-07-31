@@ -7,42 +7,50 @@ Author: Tharindu Kothalwala
 Project: Aladdin
 """
 
-from app.broker.mt5_connector import (
+from app.mt5.mt5_connector import (
     MT5Connector,
 )
 
 
 def test_mt5_connection():
 
-    broker = MT5Connector()
+    connector = MT5Connector()
 
-    result = broker.connect()
+    result = connector.connect()
 
-    assert result["status"] == "connected"
+    assert result is True
+
+    assert connector.connected is True
 
 
 def test_prepare_order():
 
-    broker = MT5Connector()
+    connector = MT5Connector()
 
-    broker.connect()
+    connector.connect()
 
-    order = broker.place_order(
+    order = connector.prepare_order(
         symbol="EUR/USD",
         order_type="BUY",
         volume=0.10,
     )
 
-    assert order["status"] == "ORDER_READY"
+    assert order.symbol == "EUR/USD"
+
+    assert order.order_type == "BUY"
+
+    assert order.volume == 0.10
+
+    assert order.status == "READY"
 
 
 def test_order_requires_connection():
 
-    broker = MT5Connector()
+    connector = MT5Connector()
 
     try:
 
-        broker.place_order(
+        connector.prepare_order(
             symbol="EUR/USD",
             order_type="BUY",
             volume=0.10,
