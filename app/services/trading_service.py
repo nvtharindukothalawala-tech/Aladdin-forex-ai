@@ -6,7 +6,8 @@ decision making,
 trade planning,
 risk validation,
 approval,
-and execution.
+execution,
+and AI reasoning.
 
 Author: Tharindu Kothalwala
 Project: Aladdin
@@ -39,6 +40,11 @@ from app.execution.execution_manager import (
 
 from app.intelligence.intelligence_service import (
     IntelligenceService,
+)
+
+
+from app.journal.ai_trade_reason import (
+    AITradeReasonGenerator,
 )
 
 
@@ -113,9 +119,11 @@ class TradingService:
                 if execute:
 
                     if execution_service is None:
+
                         raise ValueError("Execution service required.")
 
                     if user_id is None:
+
                         raise ValueError("User ID required.")
 
                     execution_result = execution_service.execute_trade(
@@ -228,11 +236,19 @@ class TradingService:
 
         approval = ApprovalManager.approve_trade(risk_validation)
 
+        reasoning = AITradeReasonGenerator.generate(
+            decision=decision,
+            market_intelligence=(result["market_intelligence"]),
+            risk_validation=risk_validation,
+        )
+
         result["trade_plan"] = trade_plan
 
         result["risk_validation"] = risk_validation
 
         result["approval"] = approval
+
+        result["reasoning"] = reasoning
 
         return result
 
@@ -293,9 +309,11 @@ class TradingService:
         if result["approval"].approved and execute:
 
             if execution_service is None:
+
                 raise ValueError("Execution service required.")
 
             if user_id is None:
+
                 raise ValueError("User ID required.")
 
             execution_request = ExecutionManager.prepare_execution(
