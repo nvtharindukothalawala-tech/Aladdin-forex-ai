@@ -274,3 +274,28 @@ def home():
         ),
 
     }
+
+# ==========================================
+# Health Check Endpoint
+# ==========================================
+
+
+@app.get("/health")
+def health_check():
+
+    """
+    Health check endpoint.
+
+    Used by Docker, monitoring tools,
+    and deployment platforms.
+    """
+
+    return {
+
+        "status": "healthy",
+
+        "service": settings.APP_NAME,
+
+        "version": "1.1.0",
+
+    }
