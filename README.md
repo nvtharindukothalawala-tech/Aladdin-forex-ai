@@ -1,77 +1,159 @@
-# Aladdin Forex AI
+# Aladdin Forex AI 🚀
 
-An AI-powered Forex Trading Assistant designed to help traders analyze trades, manage risk, maintain trading journals, and improve decision-making.
+An AI-powered multi-agent Forex Trading Assistant designed to support market analysis, risk management, trade decision-making, execution workflows, journaling, and AI-based trading improvement.
+
+> Aladdin is an assistant system, not a guaranteed profit trading bot.
 
 ---
 
-## Project Overview
+# Project Overview
 
-Aladdin Forex AI is a portfolio-quality Forex Trading Assistant developed using Python.
+Aladdin Forex AI is a portfolio-quality final-year project developed using Python.
 
-The system focuses on:
+The system combines:
 
-- Trade management
+- Artificial Intelligence
+- Financial market analysis
 - Risk management
-- Trading analytics
-- Trade journaling
-- Data storage
-- Future AI-based market analysis
+- Trading automation concepts
+- Explainable decision support
+- Performance improvement
 
-The project is designed as an assistant system, not a guaranteed profit trading bot.
+The goal is to help traders make structured and data-driven decisions.
 
 ---
 
-# Features
+# System Features
 
-## Account Management
+## 🧠 Multi-Agent Market Intelligence
 
-- Create trading accounts
-- Store account details
-- Deposit and withdraw balance
-- Manage multiple accounts
+Aladdin analyzes market conditions using specialized agents:
 
+- Technical Analysis Agent
+- News Analysis Agent
+- Market Structure Agent
 
-## Trade Management
+The intelligence layer evaluates:
 
-- Create Forex trades
-- Support Buy and Sell positions
-- Validate trade conditions
-- Track open and closed trades
-- Calculate trade profit
-
-
-## Risk Management
-
-- Calculate risk amount
-- Calculate position size
-- Calculate pip distance
-- Support Forex risk calculations
+- Trend direction
+- Momentum
+- Market structure
+- Liquidity concepts
+- News sentiment
 
 
-## Trade Analytics
+---
 
-- Count total trades
-- Identify winning and losing trades
-- Calculate total profit
-- Analyze trading performance
+## 📊 AI Decision Engine
+
+The decision engine generates trading decisions:
+
+- BUY
+- SELL
+- HOLD
+
+Based on:
+
+- Market intelligence
+- Confidence score
+- Trading conditions
 
 
-## Trade Journal
+---
 
-Each trade can store:
+## 🛡 Risk Management
 
-- Trading strategy
-- Entry reason
-- Trader emotion
+Features:
+
+- Risk percentage calculation
+- Position sizing
+- Risk validation
+- Risk approval workflow
+
+
+---
+
+## 📋 Trade Planning
+
+Supports:
+
+- Entry price
+- Stop loss
+- Take profit
+- Risk reward calculation
+
+
+---
+
+## ⚡ Execution Workflow
+
+Includes:
+
+- Trade approval
+- Execution preparation
+- Broker integration structure
+- MT5 integration support
+
+
+---
+
+## 📖 AI Trade Journal
+
+The journal stores:
+
+- Trade reasons
+- Strategy information
 - Lessons learned
+- Trading performance
+
+
+---
+
+## 🤖 Explainable AI & Coaching
+
+Aladdin provides:
+
+- AI trade explanations
+- Performance feedback
+- Trading improvement suggestions
+
 
 ---
 
 # Technology Stack
 
-## Programming Language
+## Backend
 
 - Python
+- FastAPI
+- SQLAlchemy
+- Pydantic
+
+
+## AI & Analytics
+
+- Multi-agent architecture
+- Technical analysis logic
+- Performance analytics
+
+
+## Database
+
+Current:
+
+- SQLite
+- JSON storage
+
+Future:
+
+- PostgreSQL
+
+
+## DevOps
+
+- Docker
+- Docker Compose
+- GitHub Actions CI/CD
 
 
 ## Testing
@@ -79,19 +161,6 @@ Each trade can store:
 - Pytest
 
 
-## Data Storage
-
-- JSON (Current)
-- PostgreSQL (Future)
-
-
-## Development Tools
-
-- Git
-- GitHub
-- Virtual Environment
-
-
 ---
 
-# Project Structure
+# System Architecture
