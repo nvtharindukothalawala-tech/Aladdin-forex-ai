@@ -1,4 +1,5 @@
 services:
+
   aladdin-api:
 
     build: .
@@ -19,6 +20,7 @@ services:
 
 
     healthcheck:
+
       test:
         [
           "CMD",
