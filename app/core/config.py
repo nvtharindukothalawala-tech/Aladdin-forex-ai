@@ -14,7 +14,8 @@ import os
 
 from dotenv import load_dotenv
 
-# Load values from .env file.
+
+# Load values from .env file
 load_dotenv()
 
 
@@ -25,11 +26,6 @@ class Settings:
     Values are loaded from environment variables.
     This keeps sensitive and changeable settings
     outside the source code.
-
-    Future improvements:
-    - Database configuration
-    - Cloud deployment settings
-    - Secret management
     """
 
     # ==========================================
@@ -41,15 +37,34 @@ class Settings:
         "Aladdin Forex AI",
     )
 
-    VERSION = os.getenv(
-        "VERSION",
+    APP_VERSION = os.getenv(
+        "APP_VERSION",
         "1.1.0",
     )
+
+    # Backward compatibility
+    VERSION = APP_VERSION
 
     ENVIRONMENT = os.getenv(
         "ENVIRONMENT",
         "development",
     )
+
+    DEBUG = os.getenv(
+        "DEBUG",
+        "false",
+    ).lower() == "true"
+
+
+    # ==========================================
+    # Security Configuration
+    # ==========================================
+
+    SECRET_KEY = os.getenv(
+        "SECRET_KEY",
+        "development-secret-key",
+    )
+
 
     # ==========================================
     # Logging Configuration
@@ -59,6 +74,7 @@ class Settings:
         "LOG_LEVEL",
         "INFO",
     )
+
 
     # ==========================================
     # Data Storage Configuration
@@ -73,6 +89,7 @@ class Settings:
         "TRADES_FILE",
         "data/trades.json",
     )
+
 
     # ==========================================
     # Trading Defaults
@@ -90,16 +107,27 @@ class Settings:
         )
     )
 
+
     # ==========================================
     # Database Configuration
-    # Future PostgreSQL Integration
     # ==========================================
 
     DATABASE_URL = os.getenv(
         "DATABASE_URL",
-        None,
+        "sqlite:///./aladdin.db",
     )
 
 
-# Create one shared settings object.
+    # ==========================================
+    # API Configuration
+    # ==========================================
+
+    CORS_ORIGINS = os.getenv(
+        "CORS_ORIGINS",
+        "*",
+    )
+
+
+# Create shared settings object
+
 settings = Settings()
