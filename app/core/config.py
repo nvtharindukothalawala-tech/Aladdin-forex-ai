@@ -43,7 +43,7 @@ class Settings:
 
     VERSION = os.getenv(
         "VERSION",
-        "1.0.0",
+        "1.1.0",
     )
 
     ENVIRONMENT = os.getenv(
