@@ -7,7 +7,7 @@ Author: Tharindu Kothalwala
 Project: Aladdin
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 from sqlalchemy import (
@@ -24,6 +24,7 @@ from sqlalchemy.orm import (
     declarative_base,
     relationship,
 )
+
 
 Base = declarative_base()
 
@@ -74,7 +75,7 @@ class TradeModel(Base):
 
     created_at = Column(
         DateTime,
-        default=datetime.utcnow,
+        default=lambda: datetime.now(timezone.utc),
     )
 
     # Relationship with UserModel

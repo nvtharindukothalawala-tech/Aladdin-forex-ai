@@ -7,13 +7,17 @@ Author: Tharindu Kothalwala
 Project: Aladdin
 """
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class JournalTradeResponse(BaseModel):
     """
     Response schema for journal trades.
     """
+
+    model_config = ConfigDict(
+        from_attributes=True
+    )
 
     symbol: str
 
@@ -24,6 +28,3 @@ class JournalTradeResponse(BaseModel):
     profit_loss: float
 
     risk_reward: float
-
-    class Config:
-        from_attributes = True

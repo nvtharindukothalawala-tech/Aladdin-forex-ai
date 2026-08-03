@@ -17,30 +17,40 @@ class MarketAnalysisRequest(BaseModel):
 
     symbol: str = Field(
         ...,
-        example="EUR/USD",
+        json_schema_extra={
+            "example": "EUR/USD"
+        },
     )
 
     current_price: float = Field(
         ...,
         gt=0,
-        example=1.0850,
+        json_schema_extra={
+            "example": 1.0850
+        },
     )
 
     sma: float = Field(
         ...,
         gt=0,
-        example=1.0800,
+        json_schema_extra={
+            "example": 1.0800
+        },
     )
 
     rsi: float = Field(
         ...,
         ge=0,
         le=100,
-        example=60,
+        json_schema_extra={
+            "example": 60
+        },
     )
 
     atr: float = Field(
         ...,
         gt=0,
-        example=0.0015,
+        json_schema_extra={
+            "example": 0.0015
+        },
     )

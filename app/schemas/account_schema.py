@@ -25,26 +25,34 @@ class AccountCreateSchema(BaseModel):
     account_id: str = Field(
         ...,
         min_length=1,
-        example="ACC001",
+        json_schema_extra={
+            "example": "ACC001"
+        },
     )
 
     # Current account balance
     balance: float = Field(
         ...,
         ge=0,
-        example=5000,
+        json_schema_extra={
+            "example": 5000
+        },
     )
 
     # Account currency
     currency: str = Field(
         ...,
         min_length=3,
-        example="USD",
+        json_schema_extra={
+            "example": "USD"
+        },
     )
 
     # Trading leverage
     leverage: int = Field(
         ...,
         gt=0,
-        example=100,
+        json_schema_extra={
+            "example": 100
+        },
     )

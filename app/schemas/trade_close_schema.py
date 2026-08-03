@@ -20,5 +20,7 @@ class TradeCloseSchema(BaseModel):
     exit_price: float = Field(
         ...,
         gt=0,
-        example=1.0850,
+        json_schema_extra={
+            "example": 1.0850
+        },
     )

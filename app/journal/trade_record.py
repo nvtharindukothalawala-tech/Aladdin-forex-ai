@@ -9,7 +9,7 @@ Project: Aladdin
 """
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 @dataclass
@@ -32,4 +32,4 @@ class TradeRecord:
 
     reasoning: str
 
-    created_at: datetime = datetime.utcnow()
+    created_at: datetime = datetime.now(timezone.utc)

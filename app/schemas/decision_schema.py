@@ -18,16 +18,22 @@ class DecisionRequest(BaseModel):
 
     trend: str = Field(
         ...,
-        example="Bullish",
+        json_schema_extra={
+            "example": "Bullish"
+        },
     )
 
     momentum: str = Field(
         ...,
-        example="Positive",
+        json_schema_extra={
+            "example": "Positive"
+        },
     )
 
     risk_reward: float = Field(
         ...,
         gt=0,
-        example=3.0,
+        json_schema_extra={
+            "example": 3.0
+        },
     )

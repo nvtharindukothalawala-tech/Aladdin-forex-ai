@@ -7,7 +7,7 @@ Author: Tharindu Kothalwala
 Project: Aladdin
 """
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class ExecutionRequestSchema(BaseModel):
@@ -29,6 +29,10 @@ class ExecutionResponseSchema(BaseModel):
     Response schema after execution.
     """
 
+    model_config = ConfigDict(
+        from_attributes=True
+    )
+
     symbol: str
 
     direction: str
@@ -38,9 +42,6 @@ class ExecutionResponseSchema(BaseModel):
     status: str
 
     broker_order_id: str | None
-
-    class Config:
-        from_attributes = True
 
 
 class ExecutionHistoryResponseSchema(BaseModel):
@@ -48,6 +49,10 @@ class ExecutionHistoryResponseSchema(BaseModel):
     Response schema for execution history.
     """
 
+    model_config = ConfigDict(
+        from_attributes=True
+    )
+
     symbol: str
 
     direction: str
@@ -57,9 +62,6 @@ class ExecutionHistoryResponseSchema(BaseModel):
     status: str
 
     broker_order_id: str | None
-
-    class Config:
-        from_attributes = True
 
 
 class ExecutionStatisticsResponseSchema(BaseModel):

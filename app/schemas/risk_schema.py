@@ -9,6 +9,7 @@ Project: Aladdin
 
 from pydantic import BaseModel, Field
 
+
 # ==========================================
 # Risk Amount Schema
 # ==========================================
@@ -22,14 +23,18 @@ class RiskCalculateSchema(BaseModel):
     account_balance: float = Field(
         ...,
         gt=0,
-        example=10000,
+        json_schema_extra={
+            "example": 10000
+        },
     )
 
     risk_percent: float = Field(
         ...,
         gt=0,
         le=100,
-        example=2,
+        json_schema_extra={
+            "example": 2
+        },
     )
 
 
@@ -46,19 +51,25 @@ class LotSizeSchema(BaseModel):
     risk_amount: float = Field(
         ...,
         gt=0,
-        example=200,
+        json_schema_extra={
+            "example": 200
+        },
     )
 
     stop_loss_pips: float = Field(
         ...,
         gt=0,
-        example=20,
+        json_schema_extra={
+            "example": 20
+        },
     )
 
     pip_value: float = Field(
         ...,
         gt=0,
-        example=10,
+        json_schema_extra={
+            "example": 10
+        },
     )
 
 
@@ -75,17 +86,23 @@ class RiskRewardSchema(BaseModel):
     entry_price: float = Field(
         ...,
         gt=0,
-        example=1.1000,
+        json_schema_extra={
+            "example": 1.1000
+        },
     )
 
     stop_loss: float = Field(
         ...,
         gt=0,
-        example=1.0980,
+        json_schema_extra={
+            "example": 1.0980
+        },
     )
 
     take_profit: float = Field(
         ...,
         gt=0,
-        example=1.1060,
+        json_schema_extra={
+            "example": 1.1060
+        },
     )

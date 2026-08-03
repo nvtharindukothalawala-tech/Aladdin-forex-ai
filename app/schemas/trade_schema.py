@@ -25,36 +25,48 @@ class TradeCreateSchema(BaseModel):
 
     symbol: str = Field(
         ...,
-        example="EUR/USD",
+        json_schema_extra={
+            "example": "EUR/USD"
+        },
     )
 
     direction: str = Field(
         ...,
-        example="Buy",
+        json_schema_extra={
+            "example": "Buy"
+        },
     )
 
     entry_price: float = Field(
         ...,
         gt=0,
-        example=1.0800,
+        json_schema_extra={
+            "example": 1.0800
+        },
     )
 
     lot_size: float = Field(
         ...,
         gt=0,
-        example=0.10,
+        json_schema_extra={
+            "example": 0.10
+        },
     )
 
     stop_loss: float = Field(
         ...,
         gt=0,
-        example=1.0750,
+        json_schema_extra={
+            "example": 1.0750
+        },
     )
 
     take_profit: float = Field(
         ...,
         gt=0,
-        example=1.0900,
+        json_schema_extra={
+            "example": 1.0900
+        },
     )
 
 
