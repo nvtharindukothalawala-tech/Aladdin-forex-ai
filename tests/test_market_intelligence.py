@@ -11,16 +11,13 @@ from app.intelligence.market_intelligence import (
     MarketIntelligenceAgent,
 )
 
-
 from app.intelligence.technical_result import (
     TechnicalAnalysisResult,
 )
 
-
 from app.intelligence.news_result import (
     NewsAnalysisResult,
 )
-
 
 from app.intelligence.market_structure_result import (
     MarketStructureResult,
@@ -28,6 +25,12 @@ from app.intelligence.market_structure_result import (
 
 
 def test_bullish_market_intelligence():
+    """
+    Test bullish market intelligence.
+
+    Technical analysis and market structure
+    have higher importance than news analysis.
+    """
 
     technical = TechnicalAnalysisResult(
         trend="BULLISH",
@@ -67,10 +70,21 @@ def test_bullish_market_intelligence():
 
     assert result.risk_level == "LOW"
 
-    assert result.confidence == 83.33
+    # Weighted confidence:
+    # Technical = 85 * 0.40
+    # Structure = 85 * 0.40
+    # News = 80 * 0.20
+    # Total = 84.0
+    assert result.confidence == 84.0
 
 
 def test_bearish_market_intelligence():
+    """
+    Test bearish market intelligence.
+
+    All three intelligence sources support
+    a bearish market direction.
+    """
 
     technical = TechnicalAnalysisResult(
         trend="BEARISH",
@@ -110,4 +124,9 @@ def test_bearish_market_intelligence():
 
     assert result.risk_level == "MEDIUM"
 
-    assert result.confidence == 73.33
+    # Weighted confidence:
+    # Technical = 75 * 0.40
+    # Structure = 75 * 0.40
+    # News = 70 * 0.20
+    # Total = 74.0
+    assert result.confidence == 74.0
