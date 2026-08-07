@@ -7,9 +7,7 @@ Author: Tharindu Kothalwala
 Project: Aladdin
 """
 
-
 from dataclasses import dataclass
-
 
 
 @dataclass
@@ -23,29 +21,28 @@ class MarketIntelligenceResult:
     - Market Structure Agent
     """
 
-
     market_bias: str
-
 
     confidence: float
 
-
     technical_summary: str
 
-
     news_summary: str
-
 
     structure_summary: str = (
         "No market structure analysis available"
     )
 
-
     risk_level: str = (
         "UNKNOWN"
     )
 
-
     recommendation: str = (
         "Wait for stronger confirmation"
+    )
+
+    conflict_detected: bool = False
+
+    conflict_summary: str = (
+        "No significant agent conflict detected"
     )

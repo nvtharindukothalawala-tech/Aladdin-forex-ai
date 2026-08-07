@@ -130,3 +130,50 @@ def test_bearish_market_intelligence():
     # News = 70 * 0.20
     # Total = 74.0
     assert result.confidence == 74.0
+
+def test_market_intelligence_detects_agent_conflict():
+    """
+    Test that Aladdin detects disagreement
+    between intelligence agents.
+    """
+
+    technical = TechnicalAnalysisResult(
+        trend="BULLISH",
+        momentum="STRONG",
+        volatility="NORMAL",
+        confidence=85,
+        signals=["Bullish technical trend"],
+    )
+
+    news = NewsAnalysisResult(
+        currency="USD",
+        impact="HIGH",
+        sentiment="BEARISH",
+        market_effect="Negative news pressure",
+        confidence=80,
+    )
+
+    structure = MarketStructureResult(
+        structure="BOS",
+        trend_direction="BULLISH",
+        liquidity_status="SWEEP_COMPLETED",
+        order_block="BULLISH",
+        fair_value_gap=True,
+        confidence=90,
+        signals=["Bullish market structure"],
+    )
+
+    result = MarketIntelligenceAgent.analyze(
+        technical_result=technical,
+        news_result=news,
+        structure_result=structure,
+    )
+
+    assert result.market_bias == "BULLISH"
+
+    assert result.conflict_detected is True
+
+    assert result.conflict_summary == (
+        "News analysis disagrees with technical "
+        "and market structure analysis"
+    )

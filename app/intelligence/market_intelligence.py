@@ -80,6 +80,58 @@ class MarketIntelligenceAgent:
             recommendation = "Wait for stronger confirmation"
 
         # ==========================================
+        # Detect Agent Conflict
+        # ==========================================
+
+        conflict_detected = False
+
+        conflict_summary = (
+            "No significant agent conflict detected"
+        )
+
+        technical_direction = technical_result.trend
+        news_direction = news_result.sentiment
+        structure_direction = (
+            structure_result.trend_direction
+        )
+
+        if (
+            technical_direction == structure_direction
+            and news_direction != technical_direction
+            and news_direction in {"BULLISH", "BEARISH"}
+        ):
+            conflict_detected = True
+
+            conflict_summary = (
+                "News analysis disagrees with technical "
+                "and market structure analysis"
+            )
+
+        elif (
+            technical_direction == news_direction
+            and structure_direction != technical_direction
+            and structure_direction in {"BULLISH", "BEARISH"}
+        ):
+            conflict_detected = True
+
+            conflict_summary = (
+                "Market structure analysis disagrees with "
+                "technical and news analysis"
+            )
+
+        elif (
+            news_direction == structure_direction
+            and technical_direction != news_direction
+            and technical_direction in {"BULLISH", "BEARISH"}
+        ):
+            conflict_detected = True
+
+            conflict_summary = (
+                "Technical analysis disagrees with news "
+                "and market structure analysis"
+            )
+
+        # ==========================================
         # Determine Risk Level
         # ==========================================
 
@@ -118,4 +170,6 @@ class MarketIntelligenceAgent:
             ),
             risk_level=risk_level,
             recommendation=recommendation,
+            conflict_detected=conflict_detected,
+            conflict_summary=conflict_summary,
         )
