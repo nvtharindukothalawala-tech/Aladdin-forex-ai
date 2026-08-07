@@ -46,3 +46,7 @@ class MarketIntelligenceResult:
     conflict_summary: str = (
         "No significant agent conflict detected"
     )
+
+    confidence_summary: str = (
+        "Confidence explanation not available"
+    )

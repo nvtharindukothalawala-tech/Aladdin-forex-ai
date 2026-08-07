@@ -77,6 +77,13 @@ def test_bullish_market_intelligence():
     # Total = 84.0
     assert result.confidence == 84.0
 
+    assert result.confidence_summary == (
+        "Technical: 85 x 40%, "
+        "Structure: 85 x 40%, "
+        "News: 80 x 20%, "
+        "Final confidence: 84.0%"
+    )
+
 
 def test_bearish_market_intelligence():
     """
@@ -130,6 +137,7 @@ def test_bearish_market_intelligence():
     # News = 70 * 0.20
     # Total = 74.0
     assert result.confidence == 74.0
+
 
 def test_market_intelligence_detects_agent_conflict():
     """

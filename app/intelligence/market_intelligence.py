@@ -42,6 +42,13 @@ class MarketIntelligenceAgent:
             + news_result.confidence * news_weight
         )
 
+        confidence_summary = (
+            f"Technical: {technical_result.confidence:g} x 40%, "
+            f"Structure: {structure_result.confidence:g} x 40%, "
+            f"News: {news_result.confidence:g} x 20%, "
+            f"Final confidence: {round(confidence, 2)}%"
+        )
+
         # ==========================================
         # Determine Market Bias
         # ==========================================
@@ -184,4 +191,5 @@ class MarketIntelligenceAgent:
             recommendation=recommendation,
             conflict_detected=conflict_detected,
             conflict_summary=conflict_summary,
+            confidence_summary=confidence_summary,
         )
