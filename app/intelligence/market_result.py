@@ -50,3 +50,11 @@ class MarketIntelligenceResult:
     confidence_summary: str = (
         "Confidence explanation not available"
     )
+
+    timeframe_alignment: str = "NOT_ANALYZED"
+
+    timeframe_confidence: float = 0.0
+
+    timeframe_summary: str = (
+        "Multi-timeframe analysis not available"
+    )

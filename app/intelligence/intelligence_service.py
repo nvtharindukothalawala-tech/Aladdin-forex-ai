@@ -11,19 +11,20 @@ from app.intelligence.technical_agent import (
     TechnicalAgent,
 )
 
-
 from app.intelligence.news_agent import (
     NewsAgent,
 )
-
 
 from app.intelligence.market_structure_agent import (
     MarketStructureAgent,
 )
 
-
 from app.intelligence.market_intelligence import (
     MarketIntelligenceAgent,
+)
+
+from app.intelligence.multi_timeframe_agent import (
+    MultiTimeframeAgent,
 )
 
 
@@ -46,6 +47,9 @@ class IntelligenceService:
         liquidity_sweep,
         order_block,
         fair_value_gap,
+        higher_timeframe_bias=None,
+        middle_timeframe_bias=None,
+        entry_timeframe_bias=None,
     ):
         """
         Generate complete market intelligence.
@@ -55,8 +59,13 @@ class IntelligenceService:
         1. Technical Agent
         2. News Agent
         3. Market Structure Agent
-        4. Market Intelligence Agent
+        4. Multi-Timeframe Agent
+        5. Market Intelligence Agent
         """
+
+        # ==========================================
+        # Technical Analysis
+        # ==========================================
 
         technical_result = TechnicalAgent.analyze(
             ema_signal=ema_signal,
@@ -65,12 +74,20 @@ class IntelligenceService:
             volatility=volatility,
         )
 
+        # ==========================================
+        # News Analysis
+        # ==========================================
+
         news_result = NewsAgent.analyze(
             currency=currency,
             event_type=event_type,
             importance=importance,
             sentiment=sentiment,
         )
+
+        # ==========================================
+        # Market Structure Analysis
+        # ==========================================
 
         structure_result = MarketStructureAgent.analyze(
             price_structure=price_structure,
@@ -79,10 +96,41 @@ class IntelligenceService:
             fair_value_gap=fair_value_gap,
         )
 
+        # ==========================================
+        # Combined Market Intelligence
+        # ==========================================
+
         market_result = MarketIntelligenceAgent.analyze(
             technical_result=technical_result,
             news_result=news_result,
             structure_result=structure_result,
         )
+
+        # ==========================================
+        # Multi-Timeframe Analysis
+        # ==========================================
+
+        if (
+            higher_timeframe_bias is not None
+            and middle_timeframe_bias is not None
+            and entry_timeframe_bias is not None
+        ):
+            timeframe_result = MultiTimeframeAgent.analyze(
+                higher_timeframe_bias=higher_timeframe_bias,
+                middle_timeframe_bias=middle_timeframe_bias,
+                entry_timeframe_bias=entry_timeframe_bias,
+            )
+
+            market_result.timeframe_alignment = (
+                timeframe_result.alignment
+            )
+
+            market_result.timeframe_confidence = (
+                timeframe_result.confidence
+            )
+
+            market_result.timeframe_summary = (
+                timeframe_result.summary
+            )
 
         return market_result
