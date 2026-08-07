@@ -81,36 +81,79 @@ class DecisionEngine:
         """
         Generate trading decision
         using AI market intelligence.
+
+        Multi-timeframe rules:
+
+        - FULL: Trading decision may continue.
+        - PARTIAL: Trading decision may continue.
+        - WEAK: Block trade and HOLD.
+        - NONE: Block trade and HOLD.
+        - NOT_ANALYZED: Keep backward compatibility.
         """
 
         action = "HOLD"
 
         confidence = market_intelligence.confidence
 
-        reason = "Market intelligence does not " "provide enough confirmation."
+        reason = (
+            "Market intelligence does not "
+            "provide enough confirmation."
+        )
+
+        # ==========================================
+        # Multi-Timeframe Decision Gate
+        # ==========================================
+
+        blocked_timeframe_alignments = {
+            "WEAK",
+            "NONE",
+        }
+
+        if (
+            market_intelligence.timeframe_alignment
+            in blocked_timeframe_alignments
+        ):
+            reason = (
+                "Trade blocked because multi-timeframe "
+                "analysis is not aligned."
+            )
+
+            return DecisionResult(
+                action=action,
+                confidence=confidence,
+                reason=reason,
+            )
+
+        # ==========================================
+        # BUY Decision
+        # ==========================================
 
         if (
             market_intelligence.market_bias == "BULLISH"
             and market_intelligence.risk_level == "LOW"
             and market_intelligence.confidence >= 70
         ):
-
             action = "BUY"
 
             reason = (
-                "Bullish technical and news " "intelligence confirms BUY opportunity."
+                "Bullish technical and news "
+                "intelligence confirms BUY opportunity."
             )
+
+        # ==========================================
+        # SELL Decision
+        # ==========================================
 
         elif (
             market_intelligence.market_bias == "BEARISH"
             and market_intelligence.risk_level == "LOW"
             and market_intelligence.confidence >= 70
         ):
-
             action = "SELL"
 
             reason = (
-                "Bearish technical and news " "intelligence confirms SELL opportunity."
+                "Bearish technical and news "
+                "intelligence confirms SELL opportunity."
             )
 
         return DecisionResult(
