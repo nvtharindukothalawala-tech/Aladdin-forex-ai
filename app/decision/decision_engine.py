@@ -48,24 +48,32 @@ class DecisionEngine:
 
         reason = "Market conditions are not strong enough."
 
-        if trend == "Bullish" and momentum == "Positive" and risk_reward >= 2:
-
+        if (
+            trend == "Bullish"
+            and momentum == "Positive"
+            and risk_reward >= 2
+        ):
             action = "BUY"
 
             confidence = 75
 
             reason = (
-                "Bullish trend with positive momentum " "and acceptable risk reward."
+                "Bullish trend with positive momentum "
+                "and acceptable risk reward."
             )
 
-        elif trend == "Bearish" and momentum == "Negative" and risk_reward >= 2:
-
+        elif (
+            trend == "Bearish"
+            and momentum == "Negative"
+            and risk_reward >= 2
+        ):
             action = "SELL"
 
             confidence = 75
 
             reason = (
-                "Bearish trend with negative momentum " "and acceptable risk reward."
+                "Bearish trend with negative momentum "
+                "and acceptable risk reward."
             )
 
         return DecisionResult(
@@ -122,6 +130,29 @@ class DecisionEngine:
                 action=action,
                 confidence=confidence,
                 reason=reason,
+            )
+
+        # ==========================================
+        # Timeframe-Aware Confidence Adjustment
+        # ==========================================
+
+        if (
+            market_intelligence.timeframe_alignment
+            != "NOT_ANALYZED"
+        ):
+            market_weight = 0.70
+            timeframe_weight = 0.30
+
+            confidence = (
+                market_intelligence.confidence
+                * market_weight
+                + market_intelligence.timeframe_confidence
+                * timeframe_weight
+            )
+
+            confidence = round(
+                confidence,
+                2,
             )
 
         # ==========================================

@@ -100,3 +100,32 @@ def test_intelligent_decision_holds_when_timeframes_not_aligned():
         "Trade blocked because multi-timeframe "
         "analysis is not aligned."
     )
+
+def test_intelligent_decision_adjusts_confidence_with_timeframes():
+    """
+    Test that timeframe confidence influences
+    the final intelligent decision confidence.
+    """
+
+    intelligence = MarketIntelligenceResult(
+        market_bias="BULLISH",
+        confidence=85,
+        technical_summary="Bullish EMA trend",
+        news_summary="USD strength expected",
+        risk_level="LOW",
+        recommendation="Consider BUY opportunities",
+        timeframe_alignment="PARTIAL",
+        timeframe_confidence=75.0,
+        timeframe_summary=(
+            "Higher and middle timeframes agree, "
+            "but entry timeframe differs"
+        ),
+    )
+
+    result = DecisionEngine.make_intelligent_decision(
+        intelligence
+    )
+
+    assert result.action == "BUY"
+
+    assert result.confidence == 82.0
