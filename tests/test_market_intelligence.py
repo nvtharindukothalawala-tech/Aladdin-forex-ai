@@ -177,3 +177,5 @@ def test_market_intelligence_detects_agent_conflict():
         "News analysis disagrees with technical "
         "and market structure analysis"
     )
+
+    assert result.risk_level == "MEDIUM"

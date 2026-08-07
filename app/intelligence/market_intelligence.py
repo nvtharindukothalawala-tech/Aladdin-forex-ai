@@ -144,6 +144,18 @@ class MarketIntelligenceAgent:
         else:
             risk_level = "HIGH"
 
+
+        # ==========================================
+        # Increase Risk When Agents Disagree
+        # ==========================================
+
+        if conflict_detected:
+
+            if risk_level == "LOW":
+                risk_level = "MEDIUM"
+
+            elif risk_level == "MEDIUM":
+                risk_level = "HIGH"
         # ==========================================
         # Return Combined Result
         # ==========================================
