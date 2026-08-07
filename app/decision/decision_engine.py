@@ -190,10 +190,22 @@ class DecisionEngine:
         ):
             action = "SELL"
 
-            reason = (
-                "Bearish technical and news "
-                "intelligence confirms SELL opportunity."
-            )
+            if (
+                market_intelligence.timeframe_alignment
+                != "NOT_ANALYZED"
+            ):
+                reason = (
+                    "Bearish market intelligence supports SELL. "
+                    f"Timeframe alignment: "
+                    f"{market_intelligence.timeframe_alignment}. "
+                    f"Decision confidence: {confidence}%."
+                )
+
+            else:
+                reason = (
+                    "Bearish technical and news "
+                    "intelligence confirms SELL opportunity."
+                )
 
         return DecisionResult(
             action=action,

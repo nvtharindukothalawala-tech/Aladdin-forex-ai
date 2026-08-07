@@ -151,3 +151,40 @@ def test_intelligent_decision_adjusts_confidence_with_timeframes():
         "Timeframe alignment: PARTIAL. "
         "Decision confidence: 82.0%."
     )
+
+def test_intelligent_sell_decision_explains_timeframe_alignment():
+    """
+    Test that an intelligent SELL decision
+    explains multi-timeframe alignment
+    and adjusted confidence.
+    """
+
+    intelligence = MarketIntelligenceResult(
+        market_bias="BEARISH",
+        confidence=80,
+        technical_summary="Bearish EMA trend",
+        news_summary="EUR weakness expected",
+        risk_level="LOW",
+        recommendation="Consider SELL opportunities",
+        timeframe_alignment="PARTIAL",
+        timeframe_confidence=70.0,
+        timeframe_summary=(
+            "Higher and middle timeframes agree, "
+            "but entry timeframe differs"
+        ),
+    )
+
+    result = DecisionEngine.make_intelligent_decision(
+        intelligence
+    )
+
+    assert result.action == "SELL"
+
+    # 80 * 0.70 + 70 * 0.30 = 77.0
+    assert result.confidence == 77.0
+
+    assert result.reason == (
+        "Bearish market intelligence supports SELL. "
+        "Timeframe alignment: PARTIAL. "
+        "Decision confidence: 77.0%."
+    )
