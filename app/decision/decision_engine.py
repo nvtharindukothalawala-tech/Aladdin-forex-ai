@@ -43,9 +43,7 @@ class DecisionEngine:
         """
 
         action = "HOLD"
-
         confidence = 50
-
         reason = "Market conditions are not strong enough."
 
         if (
@@ -54,7 +52,6 @@ class DecisionEngine:
             and risk_reward >= 2
         ):
             action = "BUY"
-
             confidence = 75
 
             reason = (
@@ -68,7 +65,6 @@ class DecisionEngine:
             and risk_reward >= 2
         ):
             action = "SELL"
-
             confidence = 75
 
             reason = (
@@ -166,10 +162,22 @@ class DecisionEngine:
         ):
             action = "BUY"
 
-            reason = (
-                "Bullish technical and news "
-                "intelligence confirms BUY opportunity."
-            )
+            if (
+                market_intelligence.timeframe_alignment
+                != "NOT_ANALYZED"
+            ):
+                reason = (
+                    "Bullish market intelligence supports BUY. "
+                    f"Timeframe alignment: "
+                    f"{market_intelligence.timeframe_alignment}. "
+                    f"Decision confidence: {confidence}%."
+                )
+
+            else:
+                reason = (
+                    "Bullish technical and news "
+                    "intelligence confirms BUY opportunity."
+                )
 
         # ==========================================
         # SELL Decision

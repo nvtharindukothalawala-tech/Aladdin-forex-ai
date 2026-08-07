@@ -11,24 +11,28 @@ from app.decision.decision_engine import (
     DecisionEngine,
 )
 
-
 from app.intelligence.market_result import (
     MarketIntelligenceResult,
 )
 
 
 def test_intelligent_buy_decision():
+    """
+    Test intelligent BUY decision.
+    """
 
     intelligence = MarketIntelligenceResult(
         market_bias="BULLISH",
         confidence=85,
-        technical_summary=("Bullish EMA trend"),
-        news_summary=("USD strength expected"),
+        technical_summary="Bullish EMA trend",
+        news_summary="USD strength expected",
         risk_level="LOW",
-        recommendation=("Consider BUY opportunities"),
+        recommendation="Consider BUY opportunities",
     )
 
-    result = DecisionEngine.make_intelligent_decision(intelligence)
+    result = DecisionEngine.make_intelligent_decision(
+        intelligence
+    )
 
     assert result.action == "BUY"
 
@@ -38,17 +42,22 @@ def test_intelligent_buy_decision():
 
 
 def test_intelligent_sell_decision():
+    """
+    Test intelligent SELL decision.
+    """
 
     intelligence = MarketIntelligenceResult(
         market_bias="BEARISH",
         confidence=80,
-        technical_summary=("Bearish EMA trend"),
-        news_summary=("EUR weakness expected"),
+        technical_summary="Bearish EMA trend",
+        news_summary="EUR weakness expected",
         risk_level="LOW",
-        recommendation=("Consider SELL opportunities"),
+        recommendation="Consider SELL opportunities",
     )
 
-    result = DecisionEngine.make_intelligent_decision(intelligence)
+    result = DecisionEngine.make_intelligent_decision(
+        intelligence
+    )
 
     assert result.action == "SELL"
 
@@ -56,19 +65,25 @@ def test_intelligent_sell_decision():
 
 
 def test_intelligent_hold_decision():
+    """
+    Test intelligent HOLD decision.
+    """
 
     intelligence = MarketIntelligenceResult(
         market_bias="BULLISH",
         confidence=60,
-        technical_summary=("Weak confirmation"),
-        news_summary=("Unclear news impact"),
+        technical_summary="Weak confirmation",
+        news_summary="Unclear news impact",
         risk_level="HIGH",
-        recommendation=("Wait"),
+        recommendation="Wait",
     )
 
-    result = DecisionEngine.make_intelligent_decision(intelligence)
+    result = DecisionEngine.make_intelligent_decision(
+        intelligence
+    )
 
     assert result.action == "HOLD"
+
 
 def test_intelligent_decision_holds_when_timeframes_not_aligned():
     """
@@ -101,6 +116,7 @@ def test_intelligent_decision_holds_when_timeframes_not_aligned():
         "analysis is not aligned."
     )
 
+
 def test_intelligent_decision_adjusts_confidence_with_timeframes():
     """
     Test that timeframe confidence influences
@@ -129,3 +145,9 @@ def test_intelligent_decision_adjusts_confidence_with_timeframes():
     assert result.action == "BUY"
 
     assert result.confidence == 82.0
+
+    assert result.reason == (
+        "Bullish market intelligence supports BUY. "
+        "Timeframe alignment: PARTIAL. "
+        "Decision confidence: 82.0%."
+    )
