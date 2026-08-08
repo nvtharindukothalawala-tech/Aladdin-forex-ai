@@ -34,13 +34,7 @@ class AITradeReasonGenerator:
 
         structure_reason = market_intelligence.structure_summary
 
-        if risk_validation.approved:
-
-            risk_reason = "Trade risk is within allowed limit."
-
-        else:
-
-            risk_reason = "Trade risk exceeds maximum allowed risk."
+        risk_reason = risk_validation.reason
 
         final_reason = (
             "Decision generated using "

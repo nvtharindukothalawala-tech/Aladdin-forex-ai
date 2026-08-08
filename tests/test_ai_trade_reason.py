@@ -69,3 +69,44 @@ def test_ai_trade_reason_generation():
     assert result.risk_reason == "Trade risk is within allowed limit."
 
     assert "technical analysis" in result.final_reason
+
+def test_ai_trade_reason_uses_actual_risk_rejection_reason():
+    """
+    Test that AI reasoning uses the real
+    risk validation rejection reason.
+    """
+
+    decision = DecisionResult(
+        action="BUY",
+        confidence=85,
+        reason="Bullish conditions confirmed",
+    )
+
+    market_intelligence = MarketIntelligenceResult(
+        market_bias="BULLISH",
+        confidence=85,
+        technical_summary="EMA and RSI confirm bullish momentum",
+        news_summary="USD news sentiment is positive",
+        structure_summary="Bullish BOS with liquidity sweep",
+        risk_level="LOW",
+        recommendation="Consider BUY opportunities",
+    )
+
+    risk_validation = RiskValidationResult(
+        approved=False,
+        reason=(
+            "Trade risk reward is below "
+            "minimum required ratio."
+        ),
+    )
+
+    result = AITradeReasonGenerator.generate(
+        decision=decision,
+        market_intelligence=market_intelligence,
+        risk_validation=risk_validation,
+    )
+
+    assert result.risk_reason == (
+        "Trade risk reward is below "
+        "minimum required ratio."
+    )
