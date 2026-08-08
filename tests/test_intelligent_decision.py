@@ -301,3 +301,46 @@ def test_intelligent_decision_confidence_never_exceeds_100():
     assert result.action == "BUY"
 
     assert result.confidence == 100.0
+
+def test_intelligent_buy_decision_explains_high_opportunity_session():
+    """
+    Test that a BUY decision explains
+    the high-opportunity market session.
+    """
+
+    intelligence = MarketIntelligenceResult(
+        market_bias="BULLISH",
+        confidence=85,
+        technical_summary="Bullish EMA trend",
+        news_summary="USD strength expected",
+        risk_level="LOW",
+        recommendation="Consider BUY opportunities",
+        timeframe_alignment="FULL",
+        timeframe_confidence=100.0,
+        timeframe_summary=(
+            "All monitored timeframes are aligned BULLISH"
+        ),
+        market_session="LONDON_NEW_YORK_OVERLAP",
+        session_activity="VERY_HIGH",
+        session_condition="HIGH_OPPORTUNITY",
+        session_summary=(
+            "London and New York sessions overlap "
+            "with very high market activity."
+        ),
+    )
+
+    result = DecisionEngine.make_intelligent_decision(
+        intelligence
+    )
+
+    assert result.action == "BUY"
+
+    assert result.confidence == 94.5
+
+    assert result.reason == (
+        "Bullish market intelligence supports BUY. "
+        "Timeframe alignment: FULL. "
+        "Market session: LONDON_NEW_YORK_OVERLAP. "
+        "Session condition: HIGH_OPPORTUNITY. "
+        "Decision confidence: 94.5%."
+    )
