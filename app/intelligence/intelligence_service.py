@@ -27,6 +27,10 @@ from app.intelligence.multi_timeframe_agent import (
     MultiTimeframeAgent,
 )
 
+from app.intelligence.market_session_agent import (
+    MarketSessionAgent,
+)
+
 
 class IntelligenceService:
     """
@@ -50,6 +54,7 @@ class IntelligenceService:
         higher_timeframe_bias=None,
         middle_timeframe_bias=None,
         entry_timeframe_bias=None,
+        hour_utc=None,
     ):
         """
         Generate complete market intelligence.
@@ -60,7 +65,8 @@ class IntelligenceService:
         2. News Agent
         3. Market Structure Agent
         4. Multi-Timeframe Agent
-        5. Market Intelligence Agent
+        5. Market Session Agent
+        6. Market Intelligence Agent
         """
 
         # ==========================================
@@ -132,5 +138,34 @@ class IntelligenceService:
             market_result.timeframe_summary = (
                 timeframe_result.summary
             )
+
+        # ==========================================
+        # Market Session Analysis
+        # ==========================================
+
+        if hour_utc is not None:
+            session_result = MarketSessionAgent.analyze(
+                hour_utc=hour_utc,
+            )
+
+            market_result.market_session = (
+                session_result.session
+            )
+
+            market_result.session_activity = (
+                session_result.activity_level
+            )
+
+            market_result.session_condition = (
+                session_result.trading_condition
+            )
+
+            market_result.session_summary = (
+                session_result.summary
+            )
+
+        # ==========================================
+        # Return Final Intelligence Result
+        # ==========================================
 
         return market_result

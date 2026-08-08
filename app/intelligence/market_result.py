@@ -58,3 +58,13 @@ class MarketIntelligenceResult:
     timeframe_summary: str = (
         "Multi-timeframe analysis not available"
     )
+
+    market_session: str = "NOT_ANALYZED"
+
+    session_activity: str = "UNKNOWN"
+
+    session_condition: str = "UNKNOWN"
+
+    session_summary: str = (
+        "Market session analysis not available"
+    )

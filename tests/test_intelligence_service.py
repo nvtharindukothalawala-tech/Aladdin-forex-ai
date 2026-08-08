@@ -92,3 +92,40 @@ def test_intelligence_service_includes_multi_timeframe_analysis():
     assert result.timeframe_summary == (
         "All monitored timeframes are aligned BULLISH"
     )
+
+def test_intelligence_service_includes_market_session_analysis():
+    """
+    Test that the intelligence service
+    includes Forex market session information.
+    """
+
+    result = IntelligenceService.analyze_market(
+        ema_signal="BULLISH",
+        rsi_value=65,
+        adx_value=30,
+        volatility="NORMAL",
+        currency="USD",
+        event_type="Interest Rate Decision",
+        importance="HIGH",
+        sentiment="BULLISH",
+        price_structure="BOS_BULLISH",
+        liquidity_sweep=True,
+        order_block="BULLISH",
+        fair_value_gap=True,
+        hour_utc=14,
+    )
+
+    assert result.market_session == (
+        "LONDON_NEW_YORK_OVERLAP"
+    )
+
+    assert result.session_activity == "VERY_HIGH"
+
+    assert result.session_condition == (
+        "HIGH_OPPORTUNITY"
+    )
+
+    assert result.session_summary == (
+        "London and New York sessions overlap "
+        "with very high market activity."
+    )
