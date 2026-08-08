@@ -38,7 +38,7 @@ class ApprovalManager:
 
             return ApprovalResult(
                 approved=False,
-                reason="Risk validation failed.",
+                reason=risk_validation.reason,
             )
 
         return ApprovalResult(
