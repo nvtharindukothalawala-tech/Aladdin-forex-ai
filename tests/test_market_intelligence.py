@@ -187,3 +187,49 @@ def test_market_intelligence_detects_agent_conflict():
     )
 
     assert result.risk_level == "MEDIUM"
+
+
+def test_high_volatility_technical_confidence_reduces_market_confidence():
+    """
+    Test that reduced technical confidence
+    lowers the final market confidence.
+    """
+
+    technical = TechnicalAnalysisResult(
+        trend="BULLISH",
+        momentum="STRONG",
+        volatility="HIGH",
+        confidence=75,
+        signals=["High volatility reduces confidence"],
+    )
+
+    news = NewsAnalysisResult(
+        currency="USD",
+        impact="HIGH",
+        sentiment="BULLISH",
+        market_effect="USD strength expected",
+        confidence=80,
+    )
+
+    structure = MarketStructureResult(
+        structure="BOS",
+        trend_direction="BULLISH",
+        liquidity_status="SWEEP_COMPLETED",
+        order_block="BULLISH",
+        fair_value_gap=True,
+        confidence=85,
+        signals=["Bullish BOS detected"],
+    )
+
+    result = MarketIntelligenceAgent.analyze(
+        technical_result=technical,
+        news_result=news,
+        structure_result=structure,
+    )
+
+    # Technical = 75 * 0.40
+    # Structure = 85 * 0.40
+    # News = 80 * 0.20
+    # Final = 80.0
+    assert result.confidence == 80.0
+
