@@ -97,9 +97,9 @@ class TechnicalAgent:
             trend=trend,
             momentum=momentum,
             volatility=volatility,
-            confidence=min(
-                confidence,
-                100,
+            confidence=max(
+                0,
+                min(confidence, 100),
             ),
             signals=signals,
         )
