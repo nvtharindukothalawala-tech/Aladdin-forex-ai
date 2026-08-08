@@ -129,6 +129,25 @@ class DecisionEngine:
             )
 
         # ==========================================
+        # Market Session Decision Gate
+        # ==========================================
+
+        if (
+            market_intelligence.market_session != "NOT_ANALYZED"
+            and market_intelligence.session_activity == "LOW"
+        ):
+            reason = (
+                "Trade blocked because market session "
+                "activity is too low."
+            )
+
+            return DecisionResult(
+                action="HOLD",
+                confidence=confidence,
+                reason=reason,
+            )
+
+        # ==========================================
         # Timeframe-Aware Confidence Adjustment
         # ==========================================
 

@@ -188,3 +188,41 @@ def test_intelligent_sell_decision_explains_timeframe_alignment():
         "Timeframe alignment: PARTIAL. "
         "Decision confidence: 77.0%."
     )
+
+def test_intelligent_decision_holds_during_low_activity_session():
+    """
+    Test that Aladdin blocks a trade
+    during a low-activity market period.
+    """
+
+    intelligence = MarketIntelligenceResult(
+        market_bias="BULLISH",
+        confidence=85,
+        technical_summary="Bullish EMA trend",
+        news_summary="USD strength expected",
+        risk_level="LOW",
+        recommendation="Consider BUY opportunities",
+        timeframe_alignment="FULL",
+        timeframe_confidence=100.0,
+        timeframe_summary=(
+            "All monitored timeframes are aligned BULLISH"
+        ),
+        market_session="OTHER",
+        session_activity="LOW",
+        session_condition="NEUTRAL",
+        session_summary=(
+            "Major Forex trading sessions "
+            "are currently less active."
+        ),
+    )
+
+    result = DecisionEngine.make_intelligent_decision(
+        intelligence
+    )
+
+    assert result.action == "HOLD"
+
+    assert result.reason == (
+        "Trade blocked because market session "
+        "activity is too low."
+    )
