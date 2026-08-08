@@ -344,3 +344,48 @@ def test_intelligent_buy_decision_explains_high_opportunity_session():
         "Session condition: HIGH_OPPORTUNITY. "
         "Decision confidence: 94.5%."
     )
+
+def test_intelligent_sell_decision_explains_high_opportunity_session():
+    """
+    Test that a SELL decision explains
+    the high-opportunity market session.
+    """
+
+    intelligence = MarketIntelligenceResult(
+        market_bias="BEARISH",
+        confidence=80,
+        technical_summary="Bearish EMA trend",
+        news_summary="EUR weakness expected",
+        risk_level="LOW",
+        recommendation="Consider SELL opportunities",
+        timeframe_alignment="FULL",
+        timeframe_confidence=100.0,
+        timeframe_summary=(
+            "All monitored timeframes are aligned BEARISH"
+        ),
+        market_session="LONDON_NEW_YORK_OVERLAP",
+        session_activity="VERY_HIGH",
+        session_condition="HIGH_OPPORTUNITY",
+        session_summary=(
+            "London and New York sessions overlap "
+            "with very high market activity."
+        ),
+    )
+
+    result = DecisionEngine.make_intelligent_decision(
+        intelligence
+    )
+
+    assert result.action == "SELL"
+
+    # 80 * 0.70 + 100 * 0.30 = 86.0
+    # HIGH_OPPORTUNITY bonus = +5
+    assert result.confidence == 91.0
+
+    assert result.reason == (
+        "Bearish market intelligence supports SELL. "
+        "Timeframe alignment: FULL. "
+        "Market session: LONDON_NEW_YORK_OVERLAP. "
+        "Session condition: HIGH_OPPORTUNITY. "
+        "Decision confidence: 91.0%."
+    )

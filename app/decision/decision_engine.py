@@ -257,19 +257,37 @@ class DecisionEngine:
                 market_intelligence.timeframe_alignment
                 != "NOT_ANALYZED"
             ):
-                reason = (
-                    "Bearish market intelligence supports SELL. "
-                    f"Timeframe alignment: "
-                    f"{market_intelligence.timeframe_alignment}. "
-                    f"Decision confidence: {confidence}%."
-                )
+                if (
+                    market_intelligence.market_session
+                    != "NOT_ANALYZED"
+                    and market_intelligence.session_condition
+                    == "HIGH_OPPORTUNITY"
+                ):
+                    reason = (
+                        "Bearish market intelligence supports SELL. "
+                        f"Timeframe alignment: "
+                        f"{market_intelligence.timeframe_alignment}. "
+                        f"Market session: "
+                        f"{market_intelligence.market_session}. "
+                        f"Session condition: "
+                        f"{market_intelligence.session_condition}. "
+                        f"Decision confidence: {confidence}%."
+                    )
+
+                else:
+                    reason = (
+                        "Bearish market intelligence supports SELL. "
+                        f"Timeframe alignment: "
+                        f"{market_intelligence.timeframe_alignment}. "
+                        f"Decision confidence: {confidence}%."
+                    )
 
             else:
                 reason = (
                     "Bearish technical and news "
                     "intelligence confirms SELL opportunity."
                 )
-
+                
         return DecisionResult(
             action=action,
             confidence=confidence,
