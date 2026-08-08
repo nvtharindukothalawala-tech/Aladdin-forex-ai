@@ -66,3 +66,34 @@ def test_ai_trade_setup_hold():
     )
 
     assert result["decision"].action == "HOLD"
+
+def test_ai_trade_setup_rejects_low_risk_reward():
+    """
+    Test that AI trade setup is rejected
+    when planned risk reward is below 2.
+    """
+
+    result = TradingService.generate_ai_trade_setup(
+        symbol="EUR/USD",
+        ema_signal="BULLISH",
+        rsi_value=65,
+        adx_value=30,
+        volatility="NORMAL",
+        currency="USD",
+        event_type="Interest Rate Decision",
+        importance="HIGH",
+        sentiment="BULLISH",
+        entry_price=1.1000,
+        stop_loss=1.0950,
+        take_profit=1.1075,
+        account_balance=10000,
+        risk_percent=1,
+        trade_risk_amount=100,
+        lot_size=0.10,
+    )
+
+    assert result["decision"].action == "BUY"
+
+    assert result["trade_plan"].risk_reward == 1.5
+
+    assert result["risk_validation"].approved is False

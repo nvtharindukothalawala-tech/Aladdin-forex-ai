@@ -232,6 +232,7 @@ class TradingService:
             account_balance=account_balance,
             risk_percent=risk_percent,
             trade_risk_amount=trade_risk_amount,
+            risk_reward=trade_plan.risk_reward,
         )
 
         approval = ApprovalManager.approve_trade(risk_validation)
