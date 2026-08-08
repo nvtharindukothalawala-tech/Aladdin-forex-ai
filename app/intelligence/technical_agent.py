@@ -82,6 +82,17 @@ class TechnicalAgent:
 
             signals.append("ADX confirms strong trend")
 
+        # ==========================================
+        # Volatility Adjustment
+        # ==========================================
+
+        if volatility == "HIGH":
+            confidence -= 10
+
+            signals.append(
+                "High volatility reduces confidence"
+            )
+
         return TechnicalAnalysisResult(
             trend=trend,
             momentum=momentum,
