@@ -61,3 +61,25 @@ def test_order_requires_connection():
     except ConnectionError:
 
         assert True
+
+def test_prepare_order_rejects_invalid_volume():
+    """
+    Test that MT5 order preparation
+    rejects zero or negative volume.
+    """
+
+    connector = MT5Connector()
+
+    connector.connect()
+
+    try:
+        connector.prepare_order(
+            symbol="EUR/USD",
+            order_type="BUY",
+            volume=0,
+        )
+
+        assert False
+
+    except ValueError:
+        assert True

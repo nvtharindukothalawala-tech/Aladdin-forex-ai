@@ -81,6 +81,10 @@ class MT5Connector:
 
             raise ConnectionError("MT5 is not connected.")
 
+        if volume <= 0:
+            
+            raise ValueError("Order volume must be greater than zero.")
+
         return MT5OrderRequest(
             symbol=symbol,
             order_type=order_type,
