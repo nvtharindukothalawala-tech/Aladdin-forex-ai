@@ -419,3 +419,9 @@ def test_intelligent_decision_holds_when_adjusted_confidence_is_too_low():
     assert result.confidence == 65.4
 
     assert result.action == "HOLD"
+
+    assert result.reason == (
+    "Trade held because adjusted decision "
+    "confidence is below 70%. "
+    "Decision confidence: 65.4%."
+)

@@ -194,7 +194,12 @@ class DecisionEngine:
                 2,
             )
 
-    
+        if confidence < 70:
+            reason = (
+                "Trade held because adjusted decision "
+                "confidence is below 70%. "
+                f"Decision confidence: {confidence}%."
+            )
 
         # ==========================================
         # BUY Decision
