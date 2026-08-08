@@ -171,6 +171,32 @@ class DecisionEngine:
             )
 
         # ==========================================
+        # Session-Aware Confidence Adjustment
+        # ==========================================
+
+        if (
+            market_intelligence.market_session
+            != "NOT_ANALYZED"
+            and market_intelligence.session_condition
+            == "HIGH_OPPORTUNITY"
+        ):
+            session_bonus = 5.0
+
+            confidence += session_bonus
+
+            confidence = min(
+                confidence,
+                100.0,
+            )
+
+            confidence = round(
+                confidence,
+                2,
+            )
+
+    
+
+        # ==========================================
         # BUY Decision
         # ==========================================
 

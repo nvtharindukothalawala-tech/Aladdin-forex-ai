@@ -226,3 +226,78 @@ def test_intelligent_decision_holds_during_low_activity_session():
         "Trade blocked because market session "
         "activity is too low."
     )
+
+def test_intelligent_decision_boosts_confidence_during_high_opportunity_session():
+    """
+    Test that a high-opportunity Forex session
+    slightly increases decision confidence.
+    """
+
+    intelligence = MarketIntelligenceResult(
+        market_bias="BULLISH",
+        confidence=85,
+        technical_summary="Bullish EMA trend",
+        news_summary="USD strength expected",
+        risk_level="LOW",
+        recommendation="Consider BUY opportunities",
+        timeframe_alignment="FULL",
+        timeframe_confidence=100.0,
+        timeframe_summary=(
+            "All monitored timeframes are aligned BULLISH"
+        ),
+        market_session="LONDON_NEW_YORK_OVERLAP",
+        session_activity="VERY_HIGH",
+        session_condition="HIGH_OPPORTUNITY",
+        session_summary=(
+            "London and New York sessions overlap "
+            "with very high market activity."
+        ),
+    )
+
+    result = DecisionEngine.make_intelligent_decision(
+        intelligence
+    )
+
+    assert result.action == "BUY"
+
+    # Timeframe-adjusted confidence:
+    # 85 * 0.70 + 100 * 0.30 = 89.5
+    #
+    # High-opportunity session bonus:
+    # 89.5 + 5 = 94.5
+    assert result.confidence == 94.5
+
+def test_intelligent_decision_confidence_never_exceeds_100():
+    """
+    Test that session confidence bonus
+    cannot increase confidence above 100%.
+    """
+
+    intelligence = MarketIntelligenceResult(
+        market_bias="BULLISH",
+        confidence=100,
+        technical_summary="Strong bullish analysis",
+        news_summary="Strong bullish news",
+        risk_level="LOW",
+        recommendation="Consider BUY opportunities",
+        timeframe_alignment="FULL",
+        timeframe_confidence=100.0,
+        timeframe_summary=(
+            "All monitored timeframes are aligned BULLISH"
+        ),
+        market_session="LONDON_NEW_YORK_OVERLAP",
+        session_activity="VERY_HIGH",
+        session_condition="HIGH_OPPORTUNITY",
+        session_summary=(
+            "London and New York sessions overlap "
+            "with very high market activity."
+        ),
+    )
+
+    result = DecisionEngine.make_intelligent_decision(
+        intelligence
+    )
+
+    assert result.action == "BUY"
+
+    assert result.confidence == 100.0
