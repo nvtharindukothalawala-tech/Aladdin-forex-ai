@@ -203,7 +203,7 @@ class DecisionEngine:
         if (
             market_intelligence.market_bias == "BULLISH"
             and market_intelligence.risk_level == "LOW"
-            and market_intelligence.confidence >= 70
+            and confidence >= 70
         ):
             action = "BUY"
 
@@ -249,7 +249,7 @@ class DecisionEngine:
         elif (
             market_intelligence.market_bias == "BEARISH"
             and market_intelligence.risk_level == "LOW"
-            and market_intelligence.confidence >= 70
+            and confidence >= 70
         ):
             action = "SELL"
 
@@ -287,7 +287,7 @@ class DecisionEngine:
                     "Bearish technical and news "
                     "intelligence confirms SELL opportunity."
                 )
-                
+
         return DecisionResult(
             action=action,
             confidence=confidence,

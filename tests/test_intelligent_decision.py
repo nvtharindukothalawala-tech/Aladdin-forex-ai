@@ -389,3 +389,33 @@ def test_intelligent_sell_decision_explains_high_opportunity_session():
         "Session condition: HIGH_OPPORTUNITY. "
         "Decision confidence: 91.0%."
     )
+
+def test_intelligent_decision_holds_when_adjusted_confidence_is_too_low():
+    """
+    Test that adjusted timeframe confidence
+    can block a weak BUY decision.
+    """
+
+    intelligence = MarketIntelligenceResult(
+        market_bias="BULLISH",
+        confidence=72,
+        technical_summary="Bullish EMA trend",
+        news_summary="USD strength expected",
+        risk_level="LOW",
+        recommendation="Consider BUY opportunities",
+        timeframe_alignment="PARTIAL",
+        timeframe_confidence=50.0,
+        timeframe_summary=(
+            "Higher and middle timeframes agree, "
+            "but entry timeframe differs"
+        ),
+    )
+
+    result = DecisionEngine.make_intelligent_decision(
+        intelligence
+    )
+
+    # 72 * 0.70 + 50 * 0.30 = 65.4
+    assert result.confidence == 65.4
+
+    assert result.action == "HOLD"
