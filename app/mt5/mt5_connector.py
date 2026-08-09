@@ -113,6 +113,11 @@ class MT5Connector:
                 "MT5 is not connected."
             )
 
+        if order_request.status != "READY":
+            raise ValueError(
+                "MT5 order is not ready for execution."
+            )
+
         return MT5ExecutionResult(
             success=True,
             message="Order executed successfully.",

@@ -9,6 +9,7 @@ Project: Aladdin
 
 from app.mt5.mt5_connector import (
     MT5Connector,
+    MT5OrderRequest,
 )
 
 
@@ -62,6 +63,7 @@ def test_order_requires_connection():
 
         assert True
 
+
 def test_prepare_order_rejects_invalid_volume():
     """
     Test that MT5 order preparation
@@ -83,6 +85,7 @@ def test_prepare_order_rejects_invalid_volume():
 
     except ValueError:
         assert True
+
 
 def test_prepare_order_rejects_invalid_order_type():
     """
@@ -106,6 +109,7 @@ def test_prepare_order_rejects_invalid_order_type():
     except ValueError:
         assert True
 
+
 def test_prepare_order_rejects_empty_symbol():
     """
     Test that MT5 order preparation
@@ -122,6 +126,32 @@ def test_prepare_order_rejects_empty_symbol():
             order_type="BUY",
             volume=0.10,
         )
+
+        assert False
+
+    except ValueError:
+        assert True
+
+
+def test_send_order_rejects_non_ready_order():
+    """
+    Test that MT5 refuses to send
+    an order that is not ready.
+    """
+
+    connector = MT5Connector()
+
+    connector.connect()
+
+    order = MT5OrderRequest(
+        symbol="EUR/USD",
+        order_type="BUY",
+        volume=0.10,
+        status="CANCELLED",
+    )
+
+    try:
+        connector.send_order(order)
 
         assert False
 
