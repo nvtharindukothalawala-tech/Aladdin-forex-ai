@@ -9,7 +9,6 @@ Project: Aladdin
 
 from dataclasses import dataclass
 
-
 from app.mt5.mt5_connector import (
     MT5Connector,
 )
@@ -22,11 +21,8 @@ class ExecutionRequest:
     """
 
     symbol: str
-
     order_type: str
-
     volume: float
-
     status: str
 
 
@@ -50,8 +46,9 @@ class ExecutionManager:
         """
 
         if not approved:
-
-            raise ValueError("Trade is not approved for execution.")
+            raise ValueError(
+                "Trade is not approved for execution."
+            )
 
         return ExecutionRequest(
             symbol=symbol,
@@ -71,6 +68,11 @@ class ExecutionManager:
         Real broker execution will be added later.
         """
 
+        if execution_request.status != "READY":
+            raise ValueError(
+                "Execution request is not ready."
+            )
+
         connector = MT5Connector()
 
         connector.connect()
@@ -81,6 +83,8 @@ class ExecutionManager:
             volume=execution_request.volume,
         )
 
-        result = connector.send_order(order)
+        result = connector.send_order(
+            order
+        )
 
         return result
