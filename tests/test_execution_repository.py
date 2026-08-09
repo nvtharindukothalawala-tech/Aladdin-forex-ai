@@ -69,3 +69,28 @@ def test_count_user_executions():
     assert count >= 0
 
     session.close()
+
+def test_save_failed_execution():
+    """
+    Test that failed executions
+    can be stored in history.
+    """
+
+    session = SessionLocal()
+
+    repository = ExecutionRepository(session)
+
+    execution = repository.save_execution(
+        user_id=1,
+        symbol="EUR/USD",
+        direction="BUY",
+        volume=0.10,
+        status="FAILED",
+        broker_order_id=None,
+    )
+
+    assert execution.status == "FAILED"
+
+    assert execution.broker_order_id is None
+
+    session.close()
