@@ -83,3 +83,25 @@ def test_prepare_order_rejects_invalid_volume():
 
     except ValueError:
         assert True
+
+def test_prepare_order_rejects_invalid_order_type():
+    """
+    Test that MT5 order preparation
+    rejects invalid order directions.
+    """
+
+    connector = MT5Connector()
+
+    connector.connect()
+
+    try:
+        connector.prepare_order(
+            symbol="EUR/USD",
+            order_type="HOLD",
+            volume=0.10,
+        )
+
+        assert False
+
+    except ValueError:
+        assert True

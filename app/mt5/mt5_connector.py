@@ -18,11 +18,8 @@ class MT5OrderRequest:
     """
 
     symbol: str
-
     order_type: str
-
     volume: float
-
     status: str
 
 
@@ -33,9 +30,7 @@ class MT5ExecutionResult:
     """
 
     success: bool
-
     message: str
-
     order_id: str | None = None
 
 
@@ -48,7 +43,6 @@ class MT5Connector:
     """
 
     def __init__(self):
-
         self.connected = False
 
     def connect(self):
@@ -78,12 +72,19 @@ class MT5Connector:
         """
 
         if not self.connected:
+            raise ConnectionError(
+                "MT5 is not connected."
+            )
 
-            raise ConnectionError("MT5 is not connected.")
+        if order_type not in {"BUY", "SELL"}:
+            raise ValueError(
+                "Order type must be BUY or SELL."
+            )
 
         if volume <= 0:
-            
-            raise ValueError("Order volume must be greater than zero.")
+            raise ValueError(
+                "Order volume must be greater than zero."
+            )
 
         return MT5OrderRequest(
             symbol=symbol,
@@ -103,8 +104,9 @@ class MT5Connector:
         """
 
         if not self.connected:
-
-            raise ConnectionError("MT5 is not connected.")
+            raise ConnectionError(
+                "MT5 is not connected."
+            )
 
         return MT5ExecutionResult(
             success=True,
