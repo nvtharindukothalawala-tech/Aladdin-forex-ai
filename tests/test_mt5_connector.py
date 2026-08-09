@@ -105,3 +105,25 @@ def test_prepare_order_rejects_invalid_order_type():
 
     except ValueError:
         assert True
+
+def test_prepare_order_rejects_empty_symbol():
+    """
+    Test that MT5 order preparation
+    rejects an empty trading symbol.
+    """
+
+    connector = MT5Connector()
+
+    connector.connect()
+
+    try:
+        connector.prepare_order(
+            symbol="",
+            order_type="BUY",
+            volume=0.10,
+        )
+
+        assert False
+
+    except ValueError:
+        assert True

@@ -76,6 +76,11 @@ class MT5Connector:
                 "MT5 is not connected."
             )
 
+        if not symbol or not symbol.strip():
+            raise ValueError(
+                "Order symbol cannot be empty."
+            )
+
         if order_type not in {"BUY", "SELL"}:
             raise ValueError(
                 "Order type must be BUY or SELL."
