@@ -23,6 +23,8 @@ class ExecutionRequestSchema(BaseModel):
 
     volume: float
 
+    approved: bool
+
 
 class ExecutionResponseSchema(BaseModel):
     """

@@ -7,33 +7,31 @@ Author: Tharindu Kothalwala
 Project: Aladdin
 """
 
-from fastapi import APIRouter, Depends
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+)
 
 from sqlalchemy.orm import Session
 
-
 from app.database.connection import SessionLocal
-
 
 from app.execution.execution_manager import (
     ExecutionManager,
 )
 
-
 from app.execution.repository import (
     ExecutionRepository,
 )
-
 
 from app.services.execution_service import (
     ExecutionService,
 )
 
-
 from app.services.execution_analytics_service import (
     ExecutionAnalyticsService,
 )
-
 
 from app.schemas.execution_schema import (
     ExecutionRequestSchema,
@@ -42,6 +40,7 @@ from app.schemas.execution_schema import (
     ExecutionStatisticsResponseSchema,
 )
 
+
 router = APIRouter(
     prefix="/execution",
     tags=["Trade Execution"],
@@ -49,15 +48,16 @@ router = APIRouter(
 
 
 def get_database():
+    """
+    Provide database session.
+    """
 
     session = SessionLocal()
 
     try:
-
         yield session
 
     finally:
-
         session.close()
 
 
@@ -77,12 +77,21 @@ def execute_trade(
 
     service = ExecutionService(repository)
 
-    execution_request = ExecutionManager.prepare_execution(
-        symbol=request.symbol,
-        direction=request.direction,
-        lot_size=request.volume,
-        approved=True,
-    )
+    try:
+        execution_request = (
+            ExecutionManager.prepare_execution(
+                symbol=request.symbol,
+                direction=request.direction,
+                lot_size=request.volume,
+                approved=request.approved,
+            )
+        )
+
+    except ValueError as error:
+        raise HTTPException(
+            status_code=403,
+            detail=str(error),
+        )
 
     result = service.execute_trade(
         user_id=request.user_id,
@@ -106,7 +115,9 @@ def get_execution_history(
 
     repository = ExecutionRepository(database)
 
-    executions = repository.get_user_executions(user_id)
+    executions = repository.get_user_executions(
+        user_id
+    )
 
     return executions
 
@@ -125,6 +136,10 @@ def get_execution_statistics(
 
     repository = ExecutionRepository(database)
 
-    service = ExecutionAnalyticsService(repository)
+    service = ExecutionAnalyticsService(
+        repository
+    )
 
-    return service.get_statistics(user_id)
+    return service.get_statistics(
+        user_id
+    )
