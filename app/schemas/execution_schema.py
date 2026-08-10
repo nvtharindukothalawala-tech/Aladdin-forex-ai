@@ -118,7 +118,10 @@ class AIExecutionRequestSchema(BaseModel):
 
     event_type: str
 
-    importance: str
+    importance: str = Field(
+        ...,
+        pattern="^(HIGH|MEDIUM|LOW)$",
+    )
 
     sentiment: str
 
