@@ -138,7 +138,10 @@ class AIExecutionRequestSchema(BaseModel):
         le=100,
     )
 
-    trade_risk_amount: float
+    trade_risk_amount: float = Field(
+        ...,
+        gt=0,
+    )
 
     lot_size: float = Field(
         ...,
