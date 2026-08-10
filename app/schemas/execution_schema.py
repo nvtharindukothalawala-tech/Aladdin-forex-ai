@@ -95,7 +95,10 @@ class AIExecutionRequestSchema(BaseModel):
 
     user_id: int
 
-    symbol: str
+    symbol: str = Field(
+        ...,
+        min_length=1,
+    )
 
     ema_signal: str
 
@@ -135,6 +138,7 @@ class AIExecutionRequestSchema(BaseModel):
         ...,
         gt=0,
     )
+
     account_balance: float = Field(
         ...,
         gt=0,
