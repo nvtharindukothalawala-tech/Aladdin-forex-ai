@@ -107,3 +107,46 @@ def test_ai_execution_api_runs_server_side_approval_workflow():
     assert data["approval"]["approved"] is True
 
     assert data["execution_result"]["status"] == "EXECUTED"
+
+def test_ai_execution_api_blocks_high_risk_trade():
+    """
+    Test that AI execution does not execute
+    when risk validation rejects the trade.
+    """
+
+    response = client.post(
+        "/execution/ai-execute",
+        json={
+            "user_id": 1,
+            "symbol": "EUR/USD",
+            "ema_signal": "BULLISH",
+            "rsi_value": 65,
+            "adx_value": 30,
+            "volatility": "NORMAL",
+            "currency": "USD",
+            "event_type": "Interest Rate Decision",
+            "importance": "HIGH",
+            "sentiment": "BULLISH",
+            "price_structure": "BOS_BULLISH",
+            "liquidity_sweep": True,
+            "order_block": "BULLISH",
+            "fair_value_gap": True,
+            "entry_price": 1.1000,
+            "stop_loss": 1.0950,
+            "take_profit": 1.1150,
+            "account_balance": 10000,
+            "risk_percent": 1,
+            "trade_risk_amount": 500,
+            "lot_size": 0.10,
+        },
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["decision"]["action"] == "BUY"
+
+    assert data["approval"]["approved"] is False
+
+    assert "execution_result" not in data
