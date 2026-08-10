@@ -3,11 +3,15 @@ execution_schema.py
 
 API schemas for trade execution.
 
-Author: Tharindu Kothalwala
+Author: Tharindu Kothalawala
 Project: Aladdin
 """
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+)
 
 
 class ExecutionRequestSchema(BaseModel):
@@ -79,6 +83,7 @@ class ExecutionStatisticsResponseSchema(BaseModel):
 
     success_rate: float
 
+
 class AIExecutionRequestSchema(BaseModel):
     """
     Input schema for complete AI-controlled
@@ -128,4 +133,7 @@ class AIExecutionRequestSchema(BaseModel):
 
     trade_risk_amount: float
 
-    lot_size: float
+    lot_size: float = Field(
+        ...,
+        gt=0,
+    )
