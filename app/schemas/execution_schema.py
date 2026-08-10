@@ -132,7 +132,11 @@ class AIExecutionRequestSchema(BaseModel):
         gt=0,
     )
 
-    risk_percent: float
+    risk_percent: float = Field(
+        ...,
+        gt=0,
+        le=100,
+    )
 
     trade_risk_amount: float
 
