@@ -105,7 +105,11 @@ class AIExecutionRequestSchema(BaseModel):
         pattern="^(BULLISH|BEARISH|NEUTRAL)$",
     )
 
-    rsi_value: float
+    rsi_value: float = Field(
+        ...,
+        ge=0,
+        le=100,
+    )
 
     adx_value: float
 
