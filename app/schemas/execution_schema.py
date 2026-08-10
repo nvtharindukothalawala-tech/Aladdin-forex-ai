@@ -122,7 +122,10 @@ class AIExecutionRequestSchema(BaseModel):
         pattern="^(NORMAL|HIGH)$",
     )
 
-    currency: str
+    currency: str = Field(
+        ...,
+        min_length=1,
+    )
 
     event_type: str
 
