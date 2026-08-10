@@ -16,16 +16,29 @@ from pydantic import (
 
 class ExecutionRequestSchema(BaseModel):
     """
-    Input schema for execution request.
+    Input schema for direct execution request.
     """
 
-    user_id: int
+    user_id: int = Field(
+        ...,
+        gt=0,
+    )
 
-    symbol: str
+    symbol: str = Field(
+        ...,
+        min_length=1,
+        pattern=r".*\S.*",
+    )
 
-    direction: str
+    direction: str = Field(
+        ...,
+        pattern="^(BUY|SELL)$",
+    )
 
-    volume: float
+    volume: float = Field(
+        ...,
+        gt=0,
+    )
 
     approved: bool
 

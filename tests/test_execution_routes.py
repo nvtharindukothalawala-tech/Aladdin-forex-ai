@@ -965,3 +965,108 @@ def test_ai_execution_api_rejects_whitespace_event_type():
     )
 
     assert response.status_code == 422
+
+def test_execution_api_rejects_invalid_user_id():
+    """
+    Test that direct execution API rejects
+    zero or negative user IDs.
+    """
+
+    response = client.post(
+        "/execution/execute",
+        json={
+            "user_id": 0,
+            "symbol": "EUR/USD",
+            "direction": "BUY",
+            "volume": 0.10,
+            "approved": True,
+        },
+    )
+
+    assert response.status_code == 422
+
+
+def test_execution_api_rejects_whitespace_symbol():
+    """
+    Test that direct execution API rejects
+    a whitespace-only symbol.
+    """
+
+    response = client.post(
+        "/execution/execute",
+        json={
+            "user_id": 1,
+            "symbol": "   ",
+            "direction": "BUY",
+            "volume": 0.10,
+            "approved": True,
+        },
+    )
+
+    assert response.status_code == 422
+
+
+def test_execution_api_rejects_invalid_direction():
+    """
+    Test that direct execution API rejects
+    unsupported trade directions.
+    """
+
+    response = client.post(
+        "/execution/execute",
+        json={
+            "user_id": 1,
+            "symbol": "EUR/USD",
+            "direction": "LONG",
+            "volume": 0.10,
+            "approved": True,
+        },
+    )
+
+    assert response.status_code == 422
+
+
+def test_execution_api_rejects_invalid_volume():
+    """
+    Test that direct execution API rejects
+    zero or negative trade volume.
+    """
+
+    response = client.post(
+        "/execution/execute",
+        json={
+            "user_id": 1,
+            "symbol": "EUR/USD",
+            "direction": "BUY",
+            "volume": 0,
+            "approved": True,
+        },
+    )
+
+    assert response.status_code == 422
+
+
+def test_execution_history_rejects_invalid_user_id():
+    """
+    Test that execution history API rejects
+    invalid user IDs.
+    """
+
+    response = client.get(
+        "/execution/history/0"
+    )
+
+    assert response.status_code == 422
+
+
+def test_execution_statistics_rejects_invalid_user_id():
+    """
+    Test that execution statistics API rejects
+    invalid user IDs.
+    """
+
+    response = client.get(
+        "/execution/statistics/0"
+    )
+
+    assert response.status_code == 422

@@ -3,7 +3,7 @@ execution_routes.py
 
 API endpoints for trade execution.
 
-Author: Tharindu Kothalwala
+Author: Tharindu Kothalawala
 Project: Aladdin
 """
 
@@ -11,6 +11,7 @@ from fastapi import (
     APIRouter,
     Depends,
     HTTPException,
+    Path,
 )
 
 from sqlalchemy.orm import Session
@@ -169,7 +170,10 @@ def execute_ai_trade(
     ],
 )
 def get_execution_history(
-    user_id: int,
+    user_id: int = Path(
+        ...,
+        gt=0,
+    ),
     database: Session = Depends(get_database),
 ):
     """
@@ -192,7 +196,10 @@ def get_execution_history(
     response_model=ExecutionStatisticsResponseSchema,
 )
 def get_execution_statistics(
-    user_id: int,
+    user_id: int = Path(
+        ...,
+        gt=0,
+    ),
     database: Session = Depends(get_database),
 ):
     """
