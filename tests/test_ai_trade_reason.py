@@ -26,6 +26,9 @@ from app.decision.decision_result import (
     DecisionResult,
 )
 
+from app.intelligence.reasoning_engine import (
+    ReasoningEngine,
+)
 
 def test_ai_trade_reason_generation():
 
@@ -109,4 +112,67 @@ def test_ai_trade_reason_uses_actual_risk_rejection_reason():
     assert result.risk_reason == (
         "Trade risk reward is below "
         "minimum required ratio."
+    )
+
+def test_generate_buy_trade_reasoning():
+
+    result = ReasoningEngine.generate(
+        decision="BUY",
+        confidence=85,
+        ema_signal="BULLISH",
+        rsi_value=65,
+        adx_value=30,
+        price_structure="BOS_BULLISH",
+        liquidity_sweep=True,
+        risk_approved=True,
+    )
+
+    assert result.decision == "BUY"
+
+    assert result.confidence == 85
+
+    assert (
+        "EMA trend confirms bullish momentum."
+        in result.technical_reasons
+    )
+
+    assert (
+        "RSI confirms buying momentum."
+        in result.technical_reasons
+    )
+
+    assert (
+        "ADX confirms strong trend strength."
+        in result.technical_reasons
+    )
+
+    assert (
+        "Liquidity sweep detected."
+        in result.structure_reasons
+    )
+
+    assert (
+        "Risk validation passed."
+        in result.risk_reasons
+    )
+
+
+def test_generate_hold_reasoning():
+
+    result = ReasoningEngine.generate(
+        decision="HOLD",
+        confidence=40,
+        ema_signal="NEUTRAL",
+        rsi_value=50,
+        adx_value=10,
+        price_structure="RANGE",
+        liquidity_sweep=False,
+        risk_approved=False,
+    )
+
+    assert result.decision == "HOLD"
+
+    assert (
+        "Risk validation failed."
+        in result.risk_reasons
     )

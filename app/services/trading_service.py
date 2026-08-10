@@ -47,6 +47,10 @@ from app.journal.ai_trade_reason import (
     AITradeReasonGenerator,
 )
 
+from app.intelligence.reasoning_engine import (
+    ReasoningEngine,
+)
+
 
 class TradingService:
     """
@@ -302,6 +306,29 @@ class TradingService:
             trade_risk_amount=trade_risk_amount,
             lot_size=lot_size,
         )
+
+        # ==========================================
+        # Generate Explainable AI Reasoning
+        # ==========================================
+
+        decision = result.get("decision")
+
+        if decision:
+
+            reasoning = ReasoningEngine.generate(
+                decision=decision.action,
+                confidence=decision.confidence,
+                ema_signal=ema_signal,
+                rsi_value=rsi_value,
+                adx_value=adx_value,
+                price_structure=price_structure,
+                liquidity_sweep=liquidity_sweep,
+                risk_approved=(
+                    result["approval"].approved if "approval" in result else False
+                ),
+            )
+
+            result["reasoning"] = reasoning
 
         if "approval" not in result:
 
