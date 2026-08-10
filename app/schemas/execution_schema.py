@@ -135,6 +135,7 @@ class AIExecutionRequestSchema(BaseModel):
     event_type: str = Field(
         ...,
         min_length=1,
+        pattern=r".*\S.*",
     )
 
     importance: str = Field(
