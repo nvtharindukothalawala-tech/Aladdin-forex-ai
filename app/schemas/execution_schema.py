@@ -127,7 +127,10 @@ class AIExecutionRequestSchema(BaseModel):
         min_length=1,
     )
 
-    event_type: str
+    event_type: str = Field(
+        ...,
+        min_length=1,
+    )
 
     importance: str = Field(
         ...,
