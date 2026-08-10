@@ -128,7 +128,10 @@ class AIExecutionRequestSchema(BaseModel):
         pattern="^(BULLISH|BEARISH|NEUTRAL)$",
     )
 
-    price_structure: str = "BOS_BULLISH"
+    price_structure: str = Field(
+        default="BOS_BULLISH",
+        pattern="^(BOS_BULLISH|BOS_BEARISH|CHOCH|RANGE)$",
+    )
 
     liquidity_sweep: bool = True
 
