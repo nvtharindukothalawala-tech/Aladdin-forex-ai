@@ -111,7 +111,11 @@ class AIExecutionRequestSchema(BaseModel):
         le=100,
     )
 
-    adx_value: float
+    adx_value: float = Field(
+        ...,
+        ge=0,
+        le=100,
+    )
 
     volatility: str = Field(
         ...,
