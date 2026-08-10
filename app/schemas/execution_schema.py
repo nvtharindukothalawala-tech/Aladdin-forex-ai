@@ -129,6 +129,7 @@ class AIExecutionRequestSchema(BaseModel):
     currency: str = Field(
         ...,
         min_length=1,
+        pattern=r".*\S.*",
     )
 
     event_type: str = Field(
