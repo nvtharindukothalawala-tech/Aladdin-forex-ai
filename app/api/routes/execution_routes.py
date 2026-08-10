@@ -3,7 +3,7 @@ execution_routes.py
 
 API endpoints for trade execution.
 
-Author: Tharindu Kothalawala
+Author: Tharindu Kothalwala
 Project: Aladdin
 """
 
@@ -46,7 +46,6 @@ from app.schemas.execution_schema import (
     AIExecutionRequestSchema,
 )
 
-
 router = APIRouter(
     prefix="/execution",
     tags=["Trade Execution"],
@@ -67,6 +66,11 @@ def get_database():
         session.close()
 
 
+# ==========================================
+# Direct Trade Execution
+# ==========================================
+
+
 @router.post(
     "/execute",
     response_model=ExecutionResponseSchema,
@@ -79,22 +83,16 @@ def execute_trade(
     Execute approved trade through MT5 layer.
     """
 
-    repository = ExecutionRepository(
-        database
-    )
+    repository = ExecutionRepository(database)
 
-    service = ExecutionService(
-        repository
-    )
+    service = ExecutionService(repository)
 
     try:
-        execution_request = (
-            ExecutionManager.prepare_execution(
-                symbol=request.symbol,
-                direction=request.direction,
-                lot_size=request.volume,
-                approved=request.approved,
-            )
+        execution_request = ExecutionManager.prepare_execution(
+            symbol=request.symbol,
+            direction=request.direction,
+            lot_size=request.volume,
+            approved=request.approved,
         )
 
     except ValueError as error:
@@ -111,6 +109,11 @@ def execute_trade(
     return result
 
 
+# ==========================================
+# AI Trade Execution
+# ==========================================
+
+
 @router.post("/ai-execute")
 def execute_ai_trade(
     request: AIExecutionRequestSchema,
@@ -122,52 +125,47 @@ def execute_ai_trade(
     and execution workflow.
     """
 
-    repository = ExecutionRepository(
-        database
-    )
+    repository = ExecutionRepository(database)
 
-    execution_service = ExecutionService(
-        repository
-    )
+    execution_service = ExecutionService(repository)
 
-    result = (
-        TradingService.generate_ai_execution_workflow(
-            symbol=request.symbol,
-            ema_signal=request.ema_signal,
-            rsi_value=request.rsi_value,
-            adx_value=request.adx_value,
-            volatility=request.volatility,
-            currency=request.currency,
-            event_type=request.event_type,
-            importance=request.importance,
-            sentiment=request.sentiment,
-            price_structure=request.price_structure,
-            liquidity_sweep=request.liquidity_sweep,
-            order_block=request.order_block,
-            fair_value_gap=request.fair_value_gap,
-            entry_price=request.entry_price,
-            stop_loss=request.stop_loss,
-            take_profit=request.take_profit,
-            account_balance=request.account_balance,
-            risk_percent=request.risk_percent,
-            trade_risk_amount=(
-                request.trade_risk_amount
-            ),
-            lot_size=request.lot_size,
-            execute=True,
-            execution_service=execution_service,
-            user_id=request.user_id,
-        )
+    result = TradingService.generate_ai_execution_workflow(
+        symbol=request.symbol,
+        ema_signal=request.ema_signal,
+        rsi_value=request.rsi_value,
+        adx_value=request.adx_value,
+        volatility=request.volatility,
+        currency=request.currency,
+        event_type=request.event_type,
+        importance=request.importance,
+        sentiment=request.sentiment,
+        price_structure=request.price_structure,
+        liquidity_sweep=request.liquidity_sweep,
+        order_block=request.order_block,
+        fair_value_gap=request.fair_value_gap,
+        entry_price=request.entry_price,
+        stop_loss=request.stop_loss,
+        take_profit=request.take_profit,
+        account_balance=request.account_balance,
+        risk_percent=request.risk_percent,
+        trade_risk_amount=(request.trade_risk_amount),
+        lot_size=request.lot_size,
+        execute=True,
+        execution_service=execution_service,
+        user_id=request.user_id,
     )
 
     return result
 
 
+# ==========================================
+# Execution History
+# ==========================================
+
+
 @router.get(
     "/history/{user_id}",
-    response_model=list[
-        ExecutionHistoryResponseSchema
-    ],
+    response_model=list[ExecutionHistoryResponseSchema],
 )
 def get_execution_history(
     user_id: int = Path(
@@ -180,15 +178,16 @@ def get_execution_history(
     Return execution history for a user.
     """
 
-    repository = ExecutionRepository(
-        database
-    )
+    repository = ExecutionRepository(database)
 
-    executions = repository.get_user_executions(
-        user_id
-    )
+    executions = repository.get_user_executions(user_id)
 
     return executions
+
+
+# ==========================================
+# Execution Statistics
+# ==========================================
 
 
 @router.get(
@@ -206,14 +205,8 @@ def get_execution_statistics(
     Return execution statistics for a user.
     """
 
-    repository = ExecutionRepository(
-        database
-    )
+    repository = ExecutionRepository(database)
 
-    service = ExecutionAnalyticsService(
-        repository
-    )
+    service = ExecutionAnalyticsService(repository)
 
-    return service.get_statistics(
-        user_id
-    )
+    return service.get_statistics(user_id)
