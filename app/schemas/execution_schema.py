@@ -123,7 +123,10 @@ class AIExecutionRequestSchema(BaseModel):
         pattern="^(HIGH|MEDIUM|LOW)$",
     )
 
-    sentiment: str
+    sentiment: str = Field(
+        ...,
+        pattern="^(BULLISH|BEARISH|NEUTRAL)$",
+    )
 
     price_structure: str = "BOS_BULLISH"
 
