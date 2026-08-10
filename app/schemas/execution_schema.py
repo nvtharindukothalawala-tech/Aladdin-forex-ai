@@ -127,7 +127,10 @@ class AIExecutionRequestSchema(BaseModel):
 
     take_profit: float
 
-    account_balance: float
+    account_balance: float = Field(
+        ...,
+        gt=0,
+    )
 
     risk_percent: float
 
