@@ -93,7 +93,10 @@ class AIExecutionRequestSchema(BaseModel):
     Aladdin determines approval internally.
     """
 
-    user_id: int
+    user_id: int = Field(
+        ...,
+        gt=0,
+    )
 
     symbol: str = Field(
         ...,
