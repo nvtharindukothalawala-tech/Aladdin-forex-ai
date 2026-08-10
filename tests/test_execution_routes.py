@@ -335,3 +335,108 @@ def test_ai_execution_api_rejects_invalid_trade_risk_amount():
     )
 
     assert response.status_code == 422
+
+def test_ai_execution_api_rejects_invalid_entry_price():
+    """
+    Test that AI execution API rejects
+    zero or negative entry price.
+    """
+
+    response = client.post(
+        "/execution/ai-execute",
+        json={
+            "user_id": 1,
+            "symbol": "EUR/USD",
+            "ema_signal": "BULLISH",
+            "rsi_value": 65,
+            "adx_value": 30,
+            "volatility": "NORMAL",
+            "currency": "USD",
+            "event_type": "Interest Rate Decision",
+            "importance": "HIGH",
+            "sentiment": "BULLISH",
+            "price_structure": "BOS_BULLISH",
+            "liquidity_sweep": True,
+            "order_block": "BULLISH",
+            "fair_value_gap": True,
+            "entry_price": 0,
+            "stop_loss": 1.0950,
+            "take_profit": 1.1150,
+            "account_balance": 10000,
+            "risk_percent": 1,
+            "trade_risk_amount": 100,
+            "lot_size": 0.10,
+        },
+    )
+
+    assert response.status_code == 422
+
+def test_ai_execution_api_rejects_invalid_stop_loss():
+    """
+    Test that AI execution API rejects
+    zero or negative stop loss.
+    """
+
+    response = client.post(
+        "/execution/ai-execute",
+        json={
+            "user_id": 1,
+            "symbol": "EUR/USD",
+            "ema_signal": "BULLISH",
+            "rsi_value": 65,
+            "adx_value": 30,
+            "volatility": "NORMAL",
+            "currency": "USD",
+            "event_type": "Interest Rate Decision",
+            "importance": "HIGH",
+            "sentiment": "BULLISH",
+            "price_structure": "BOS_BULLISH",
+            "liquidity_sweep": True,
+            "order_block": "BULLISH",
+            "fair_value_gap": True,
+            "entry_price": 1.1000,
+            "stop_loss": 0,
+            "take_profit": 1.1150,
+            "account_balance": 10000,
+            "risk_percent": 1,
+            "trade_risk_amount": 100,
+            "lot_size": 0.10,
+        },
+    )
+
+    assert response.status_code == 422
+
+def test_ai_execution_api_rejects_invalid_take_profit():
+    """
+    Test that AI execution API rejects
+    zero or negative take profit.
+    """
+
+    response = client.post(
+        "/execution/ai-execute",
+        json={
+            "user_id": 1,
+            "symbol": "EUR/USD",
+            "ema_signal": "BULLISH",
+            "rsi_value": 65,
+            "adx_value": 30,
+            "volatility": "NORMAL",
+            "currency": "USD",
+            "event_type": "Interest Rate Decision",
+            "importance": "HIGH",
+            "sentiment": "BULLISH",
+            "price_structure": "BOS_BULLISH",
+            "liquidity_sweep": True,
+            "order_block": "BULLISH",
+            "fair_value_gap": True,
+            "entry_price": 1.1000,
+            "stop_loss": 1.0950,
+            "take_profit": 0,
+            "account_balance": 10000,
+            "risk_percent": 1,
+            "trade_risk_amount": 100,
+            "lot_size": 0.10,
+        },
+    )
+
+    assert response.status_code == 422
