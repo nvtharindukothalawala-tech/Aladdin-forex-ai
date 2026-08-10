@@ -30,3 +30,36 @@ def test_trade_is_rejected_when_risk_is_high():
     )
 
     assert result.approved is False
+
+
+def test_reject_negative_balance():
+
+    result = RiskValidator.validate(
+        account_balance=-1000,
+        risk_percent=1,
+        trade_risk_amount=10,
+    )
+
+    assert result.approved is False
+
+
+def test_reject_invalid_risk_percent():
+
+    result = RiskValidator.validate(
+        account_balance=1000,
+        risk_percent=200,
+        trade_risk_amount=10,
+    )
+
+    assert result.approved is False
+
+
+def test_reject_zero_trade_risk():
+
+    result = RiskValidator.validate(
+        account_balance=1000,
+        risk_percent=1,
+        trade_risk_amount=0,
+    )
+
+    assert result.approved is False

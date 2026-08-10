@@ -17,7 +17,6 @@ class ApprovalResult:
     """
 
     approved: bool
-
     reason: str
 
 
@@ -29,10 +28,18 @@ class ApprovalManager:
     @staticmethod
     def approve_trade(
         risk_validation,
+        decision=None,
     ):
         """
-        Approve trade after risk validation.
+        Approve trade after safety checks.
         """
+
+        if risk_validation is None:
+
+            return ApprovalResult(
+                approved=False,
+                reason="Risk validation missing.",
+            )
 
         if not risk_validation.approved:
 
@@ -40,6 +47,18 @@ class ApprovalManager:
                 approved=False,
                 reason=risk_validation.reason,
             )
+
+        if decision is not None:
+
+            if decision not in [
+                "BUY",
+                "SELL",
+            ]:
+
+                return ApprovalResult(
+                    approved=False,
+                    reason=("Invalid trading decision."),
+                )
 
         return ApprovalResult(
             approved=True,

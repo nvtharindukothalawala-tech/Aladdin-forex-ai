@@ -36,57 +36,58 @@ class RiskValidator:
     ):
         """
         Check trade safety.
-
-        Rules:
-
-        1. Risk amount must be within allowed percentage.
-        2. Risk reward must be acceptable when provided.
         """
 
-        allowed_risk = (
-            account_balance
-            * risk_percent
-            / 100
-        )
+        # ==================================
+        # Basic Input Validation
+        # ==================================
 
-        # ==========================================
-        # Check Maximum Risk Amount
-        # ==========================================
+        if account_balance <= 0:
+
+            return RiskValidationResult(
+                approved=False,
+                reason="Account balance must be positive.",
+            )
+
+        if risk_percent <= 0 or risk_percent > 100:
+
+            return RiskValidationResult(
+                approved=False,
+                reason="Risk percentage must be between 0 and 100.",
+            )
+
+        if trade_risk_amount <= 0:
+
+            return RiskValidationResult(
+                approved=False,
+                reason="Trade risk amount must be positive.",
+            )
+
+        allowed_risk = account_balance * risk_percent / 100
+
+        # ==================================
+        # Maximum Risk Check
+        # ==================================
 
         if trade_risk_amount > allowed_risk:
 
             return RiskValidationResult(
                 approved=False,
-                reason=(
-                    "Trade risk exceeds "
-                    "maximum allowed risk."
-                ),
+                reason=("Trade risk exceeds " "maximum allowed risk."),
             )
 
-        # ==========================================
-        # Check Minimum Risk Reward
-        # ==========================================
+        # ==================================
+        # Risk Reward Check
+        # ==================================
 
-        if (
-            risk_reward is not None
-            and risk_reward < minimum_risk_reward
-        ):
+        if risk_reward is not None and risk_reward < minimum_risk_reward:
 
             return RiskValidationResult(
                 approved=False,
-                reason=(
-                    "Trade risk reward is below "
-                    "minimum required ratio."
-                ),
+                reason=("Trade risk reward is below " "minimum required ratio."),
             )
-
-        # ==========================================
-        # Trade Is Safe
-        # ==========================================
 
         return RiskValidationResult(
             approved=True,
-            reason=(
-                "Trade risk is within allowed limit."
-            ),
+            reason=("Trade risk is within allowed limit."),
         )

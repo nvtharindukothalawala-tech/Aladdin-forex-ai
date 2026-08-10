@@ -34,9 +34,18 @@ class ExecutionService:
         and store execution history.
         """
 
-        result = ExecutionManager.execute_with_mt5(execution_request)
+        try:
 
-        status = "EXECUTED" if result.success else "FAILED"
+            result = ExecutionManager.execute_with_mt5(execution_request)
+
+            status = "EXECUTED" if result.success else "FAILED"
+
+            order_id = result.order_id if result.success else None
+
+        except Exception:
+
+            status = "FAILED"
+            order_id = None
 
         execution = self.repository.save_execution(
             user_id=user_id,
@@ -44,7 +53,7 @@ class ExecutionService:
             direction=execution_request.order_type,
             volume=execution_request.volume,
             status=status,
-            broker_order_id=result.order_id,
+            broker_order_id=order_id,
         )
 
         return execution

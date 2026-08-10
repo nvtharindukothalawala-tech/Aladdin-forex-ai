@@ -40,18 +40,29 @@ class ExecutionManager:
     ):
         """
         Create execution request.
-
-        Trade can only be prepared
-        if risk validation is approved.
         """
 
         if not approved:
-            raise ValueError(
-                "Trade is not approved for execution."
-            )
+
+            raise ValueError("Trade is not approved for execution.")
+
+        if not symbol or not symbol.strip():
+
+            raise ValueError("Symbol is required.")
+
+        if direction not in [
+            "BUY",
+            "SELL",
+        ]:
+
+            raise ValueError("Invalid trade direction.")
+
+        if lot_size <= 0:
+
+            raise ValueError("Lot size must be positive.")
 
         return ExecutionRequest(
-            symbol=symbol,
+            symbol=symbol.upper(),
             order_type=direction,
             volume=lot_size,
             status="READY",
@@ -62,16 +73,12 @@ class ExecutionManager:
         execution_request,
     ):
         """
-        Execute prepared trade through MT5 connector.
-
-        This is currently a mock execution layer.
-        Real broker execution will be added later.
+        Execute prepared trade through MT5.
         """
 
         if execution_request.status != "READY":
-            raise ValueError(
-                "Execution request is not ready."
-            )
+
+            raise ValueError("Execution request is not ready.")
 
         connector = MT5Connector()
 
@@ -83,8 +90,4 @@ class ExecutionManager:
             volume=execution_request.volume,
         )
 
-        result = connector.send_order(
-            order
-        )
-
-        return result
+        return connector.send_order(order)
