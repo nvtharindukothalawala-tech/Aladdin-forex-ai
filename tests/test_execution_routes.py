@@ -860,3 +860,38 @@ def test_ai_execution_api_rejects_invalid_user_id():
     )
 
     assert response.status_code == 422
+
+def test_ai_execution_api_rejects_whitespace_symbol():
+    """
+    Test that AI execution API rejects
+    a symbol containing only whitespace.
+    """
+
+    response = client.post(
+        "/execution/ai-execute",
+        json={
+            "user_id": 1,
+            "symbol": "   ",
+            "ema_signal": "BULLISH",
+            "rsi_value": 65,
+            "adx_value": 30,
+            "volatility": "NORMAL",
+            "currency": "USD",
+            "event_type": "Interest Rate Decision",
+            "importance": "HIGH",
+            "sentiment": "BULLISH",
+            "price_structure": "BOS_BULLISH",
+            "liquidity_sweep": True,
+            "order_block": "BULLISH",
+            "fair_value_gap": True,
+            "entry_price": 1.1000,
+            "stop_loss": 1.0950,
+            "take_profit": 1.1150,
+            "account_balance": 10000,
+            "risk_percent": 1,
+            "trade_risk_amount": 100,
+            "lot_size": 0.10,
+        },
+    )
+
+    assert response.status_code == 422

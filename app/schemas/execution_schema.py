@@ -101,6 +101,7 @@ class AIExecutionRequestSchema(BaseModel):
     symbol: str = Field(
         ...,
         min_length=1,
+        pattern=r".*\S.*",
     )
 
     ema_signal: str = Field(
