@@ -100,7 +100,10 @@ class AIExecutionRequestSchema(BaseModel):
         min_length=1,
     )
 
-    ema_signal: str
+    ema_signal: str = Field(
+        ...,
+        pattern="^(BULLISH|BEARISH|NEUTRAL)$",
+    )
 
     rsi_value: float
 
