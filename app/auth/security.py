@@ -7,23 +7,27 @@ Author: Tharindu Kothalwala
 Project: Aladdin
 """
 
-from datetime import datetime, timedelta, timezone
-
+from datetime import (
+    datetime,
+    timedelta,
+    timezone,
+)
 
 from jose import jwt
 
-
 from passlib.context import CryptContext
+
+from app.core.config import settings
 
 # ==========================================
 # JWT Configuration
 # ==========================================
 
-SECRET_KEY = "aladdin-secret-key-change-later"
+SECRET_KEY = settings.SECRET_KEY
 
-ALGORITHM = "HS256"
+ALGORITHM = settings.JWT_ALGORITHM
 
-ACCESS_TOKEN_EXPIRE_MINUTES = 60
+ACCESS_TOKEN_EXPIRE_MINUTES = settings.ACCESS_TOKEN_EXPIRE_MINUTES
 
 
 # ==========================================
@@ -36,7 +40,9 @@ pwd_context = CryptContext(
 )
 
 
-def hash_password(password: str):
+def hash_password(
+    password: str,
+):
     """
     Convert normal password into secure hash.
     """
@@ -80,7 +86,11 @@ def create_access_token(
 
     expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
 
-    to_encode.update({"exp": expire})
+    to_encode.update(
+        {
+            "exp": expire,
+        }
+    )
 
     return jwt.encode(
         to_encode,

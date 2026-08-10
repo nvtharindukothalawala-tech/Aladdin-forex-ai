@@ -6,14 +6,13 @@ for the Aladdin Forex Trading Assistant.
 
 Configuration values are loaded from environment variables.
 
-Author: Tharindu Kothalwala
+Author: Tharindu Kothalawala
 Project: Aladdin
 """
 
 import os
 
 from dotenv import load_dotenv
-
 
 # Load values from .env file
 load_dotenv()
@@ -50,11 +49,13 @@ class Settings:
         "development",
     )
 
-    DEBUG = os.getenv(
-        "DEBUG",
-        "false",
-    ).lower() == "true"
-
+    DEBUG = (
+        os.getenv(
+            "DEBUG",
+            "false",
+        ).lower()
+        == "true"
+    )
 
     # ==========================================
     # Security Configuration
@@ -65,6 +66,17 @@ class Settings:
         "development-secret-key",
     )
 
+    JWT_ALGORITHM = os.getenv(
+        "JWT_ALGORITHM",
+        "HS256",
+    )
+
+    ACCESS_TOKEN_EXPIRE_MINUTES = int(
+        os.getenv(
+            "ACCESS_TOKEN_EXPIRE_MINUTES",
+            "60",
+        )
+    )
 
     # ==========================================
     # Logging Configuration
@@ -74,7 +86,6 @@ class Settings:
         "LOG_LEVEL",
         "INFO",
     )
-
 
     # ==========================================
     # Data Storage Configuration
@@ -89,7 +100,6 @@ class Settings:
         "TRADES_FILE",
         "data/trades.json",
     )
-
 
     # ==========================================
     # Trading Defaults
@@ -107,7 +117,6 @@ class Settings:
         )
     )
 
-
     # ==========================================
     # Database Configuration
     # ==========================================
@@ -116,7 +125,6 @@ class Settings:
         "DATABASE_URL",
         "sqlite:///./aladdin.db",
     )
-
 
     # ==========================================
     # API Configuration
@@ -129,5 +137,4 @@ class Settings:
 
 
 # Create shared settings object
-
 settings = Settings()
