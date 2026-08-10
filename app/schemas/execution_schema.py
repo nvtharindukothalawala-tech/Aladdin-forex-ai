@@ -109,7 +109,10 @@ class AIExecutionRequestSchema(BaseModel):
 
     adx_value: float
 
-    volatility: str
+    volatility: str = Field(
+        ...,
+        pattern="^(NORMAL|HIGH)$",
+    )
 
     currency: str
 
