@@ -135,7 +135,10 @@ class AIExecutionRequestSchema(BaseModel):
 
     liquidity_sweep: bool = True
 
-    order_block: str = "BULLISH"
+    order_block: str = Field(
+        default="BULLISH",
+        pattern="^(BULLISH|BEARISH)$",
+    )
 
     fair_value_gap: bool = True
 
