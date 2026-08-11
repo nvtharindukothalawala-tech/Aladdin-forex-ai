@@ -130,11 +130,29 @@ class Settings:
     # API Configuration
     # ==========================================
 
-    CORS_ORIGINS = os.getenv(
-        "CORS_ORIGINS",
-        "*",
-    )
+    CORS_ORIGINS = [
+        origin.strip()
+        for origin in os.getenv(
+            "CORS_ORIGINS",
+            "*",
+        ).split(",")
+        if origin.strip()
+    ]
 
 
-# Create shared settings object
 settings = Settings()
+
+
+# ==============================================
+# Production Security Validation
+# ==============================================
+
+if settings.ENVIRONMENT.lower() == "production":
+
+    if settings.SECRET_KEY == "development-secret-key":
+        raise RuntimeError(
+            "SECRET_KEY must be configured " "when ENVIRONMENT=production."
+        )
+
+    if settings.DEBUG:
+        raise RuntimeError("DEBUG must be disabled " "when ENVIRONMENT=production.")
