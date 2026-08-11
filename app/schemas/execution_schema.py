@@ -7,6 +7,8 @@ Author: Tharindu Kothalawala
 Project: Aladdin
 """
 
+from typing import Any
+
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -48,9 +50,7 @@ class ExecutionResponseSchema(BaseModel):
     Response schema after execution.
     """
 
-    model_config = ConfigDict(
-        from_attributes=True
-    )
+    model_config = ConfigDict(from_attributes=True)
 
     symbol: str
 
@@ -68,9 +68,7 @@ class ExecutionHistoryResponseSchema(BaseModel):
     Response schema for execution history.
     """
 
-    model_config = ConfigDict(
-        from_attributes=True
-    )
+    model_config = ConfigDict(from_attributes=True)
 
     symbol: str
 
@@ -210,3 +208,47 @@ class AIExecutionRequestSchema(BaseModel):
         ...,
         gt=0,
     )
+
+
+class AIExecutionExecutionSchema(BaseModel):
+    """
+    Prepared execution information returned
+    by the AI execution workflow.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    symbol: str
+    order_type: str
+    volume: float
+    status: str
+
+
+class AIExecutionResponseSchema(BaseModel):
+    """
+    Response schema for the complete AI execution workflow.
+
+    Optional workflow stages are omitted from the
+    JSON response when they are not applicable.
+    """
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        extra="ignore",
+    )
+
+    decision: Any | None = None
+
+    market_intelligence: Any | None = None
+
+    trade_plan: Any | None = None
+
+    risk_validation: Any | None = None
+
+    approval: Any | None = None
+
+    reasoning: Any | None = None
+
+    execution: AIExecutionExecutionSchema | None = None
+
+    execution_result: ExecutionResponseSchema | None = None

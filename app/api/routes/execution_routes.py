@@ -44,6 +44,7 @@ from app.schemas.execution_schema import (
     ExecutionHistoryResponseSchema,
     ExecutionStatisticsResponseSchema,
     AIExecutionRequestSchema,
+    AIExecutionResponseSchema,
 )
 
 router = APIRouter(
@@ -114,7 +115,11 @@ def execute_trade(
 # ==========================================
 
 
-@router.post("/ai-execute")
+@router.post(
+    "/ai-execute",
+    response_model=AIExecutionResponseSchema,
+    response_model_exclude_none=True,
+)
 def execute_ai_trade(
     request: AIExecutionRequestSchema,
     database: Session = Depends(get_database),

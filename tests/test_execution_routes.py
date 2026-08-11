@@ -11,7 +11,6 @@ from fastapi.testclient import TestClient
 
 from app.api.main import app
 
-
 client = TestClient(app)
 
 
@@ -65,6 +64,7 @@ def test_execution_api_rejects_unapproved_trade():
 
     assert response.status_code == 403
 
+
 def test_ai_execution_api_runs_server_side_approval_workflow():
     """
     Test that AI execution uses Aladdin's
@@ -108,6 +108,7 @@ def test_ai_execution_api_runs_server_side_approval_workflow():
 
     assert data["execution_result"]["status"] == "EXECUTED"
 
+
 def test_ai_execution_api_blocks_high_risk_trade():
     """
     Test that AI execution does not execute
@@ -150,6 +151,7 @@ def test_ai_execution_api_blocks_high_risk_trade():
     assert data["approval"]["approved"] is False
 
     assert "execution_result" not in data
+
 
 def test_ai_execution_api_does_not_execute_hold_decision():
     """
@@ -196,6 +198,7 @@ def test_ai_execution_api_does_not_execute_hold_decision():
 
     assert "execution_result" not in data
 
+
 def test_ai_execution_api_rejects_invalid_lot_size():
     """
     Test that AI execution API rejects
@@ -230,6 +233,7 @@ def test_ai_execution_api_rejects_invalid_lot_size():
     )
 
     assert response.status_code == 422
+
 
 def test_ai_execution_api_rejects_invalid_account_balance():
     """
@@ -266,6 +270,7 @@ def test_ai_execution_api_rejects_invalid_account_balance():
 
     assert response.status_code == 422
 
+
 def test_ai_execution_api_rejects_invalid_risk_percent():
     """
     Test that AI execution API rejects
@@ -300,6 +305,7 @@ def test_ai_execution_api_rejects_invalid_risk_percent():
     )
 
     assert response.status_code == 422
+
 
 def test_ai_execution_api_rejects_invalid_trade_risk_amount():
     """
@@ -336,6 +342,7 @@ def test_ai_execution_api_rejects_invalid_trade_risk_amount():
 
     assert response.status_code == 422
 
+
 def test_ai_execution_api_rejects_invalid_entry_price():
     """
     Test that AI execution API rejects
@@ -370,6 +377,7 @@ def test_ai_execution_api_rejects_invalid_entry_price():
     )
 
     assert response.status_code == 422
+
 
 def test_ai_execution_api_rejects_invalid_stop_loss():
     """
@@ -406,6 +414,7 @@ def test_ai_execution_api_rejects_invalid_stop_loss():
 
     assert response.status_code == 422
 
+
 def test_ai_execution_api_rejects_invalid_take_profit():
     """
     Test that AI execution API rejects
@@ -440,6 +449,7 @@ def test_ai_execution_api_rejects_invalid_take_profit():
     )
 
     assert response.status_code == 422
+
 
 def test_ai_execution_api_rejects_empty_symbol():
     """
@@ -476,6 +486,7 @@ def test_ai_execution_api_rejects_empty_symbol():
 
     assert response.status_code == 422
 
+
 def test_ai_execution_api_rejects_invalid_ema_signal():
     """
     Test that AI execution API rejects
@@ -510,6 +521,7 @@ def test_ai_execution_api_rejects_invalid_ema_signal():
     )
 
     assert response.status_code == 422
+
 
 def test_ai_execution_api_rejects_invalid_volatility():
     """
@@ -546,6 +558,7 @@ def test_ai_execution_api_rejects_invalid_volatility():
 
     assert response.status_code == 422
 
+
 def test_ai_execution_api_rejects_invalid_importance():
     """
     Test that AI execution API rejects
@@ -580,6 +593,7 @@ def test_ai_execution_api_rejects_invalid_importance():
     )
 
     assert response.status_code == 422
+
 
 def test_ai_execution_api_rejects_invalid_sentiment():
     """
@@ -616,6 +630,7 @@ def test_ai_execution_api_rejects_invalid_sentiment():
 
     assert response.status_code == 422
 
+
 def test_ai_execution_api_rejects_invalid_price_structure():
     """
     Test that AI execution API rejects
@@ -650,6 +665,7 @@ def test_ai_execution_api_rejects_invalid_price_structure():
     )
 
     assert response.status_code == 422
+
 
 def test_ai_execution_api_rejects_invalid_order_block():
     """
@@ -686,6 +702,7 @@ def test_ai_execution_api_rejects_invalid_order_block():
 
     assert response.status_code == 422
 
+
 def test_ai_execution_api_rejects_invalid_rsi_value():
     """
     Test that AI execution API rejects
@@ -720,6 +737,7 @@ def test_ai_execution_api_rejects_invalid_rsi_value():
     )
 
     assert response.status_code == 422
+
 
 def test_ai_execution_api_rejects_invalid_adx_value():
     """
@@ -756,6 +774,7 @@ def test_ai_execution_api_rejects_invalid_adx_value():
 
     assert response.status_code == 422
 
+
 def test_ai_execution_api_rejects_empty_currency():
     """
     Test that AI execution API rejects
@@ -790,6 +809,7 @@ def test_ai_execution_api_rejects_empty_currency():
     )
 
     assert response.status_code == 422
+
 
 def test_ai_execution_api_rejects_empty_event_type():
     """
@@ -826,6 +846,7 @@ def test_ai_execution_api_rejects_empty_event_type():
 
     assert response.status_code == 422
 
+
 def test_ai_execution_api_rejects_invalid_user_id():
     """
     Test that AI execution API rejects
@@ -860,6 +881,7 @@ def test_ai_execution_api_rejects_invalid_user_id():
     )
 
     assert response.status_code == 422
+
 
 def test_ai_execution_api_rejects_whitespace_symbol():
     """
@@ -896,6 +918,7 @@ def test_ai_execution_api_rejects_whitespace_symbol():
 
     assert response.status_code == 422
 
+
 def test_ai_execution_api_rejects_whitespace_currency():
     """
     Test that AI execution API rejects
@@ -931,6 +954,7 @@ def test_ai_execution_api_rejects_whitespace_currency():
 
     assert response.status_code == 422
 
+
 def test_ai_execution_api_rejects_whitespace_event_type():
     """
     Test that AI execution API rejects
@@ -965,6 +989,7 @@ def test_ai_execution_api_rejects_whitespace_event_type():
     )
 
     assert response.status_code == 422
+
 
 def test_execution_api_rejects_invalid_user_id():
     """
@@ -1052,9 +1077,7 @@ def test_execution_history_rejects_invalid_user_id():
     invalid user IDs.
     """
 
-    response = client.get(
-        "/execution/history/0"
-    )
+    response = client.get("/execution/history/0")
 
     assert response.status_code == 422
 
@@ -1065,8 +1088,77 @@ def test_execution_statistics_rejects_invalid_user_id():
     invalid user IDs.
     """
 
-    response = client.get(
-        "/execution/statistics/0"
-    )
+    response = client.get("/execution/statistics/0")
 
     assert response.status_code == 422
+
+
+def test_ai_execution_response_schema_contains_reasoning():
+    """
+    Verify that the AI execution response
+    supports the explainable reasoning field.
+    """
+
+    from app.schemas.execution_schema import (
+        AIExecutionResponseSchema,
+    )
+
+    response = AIExecutionResponseSchema(
+        decision={
+            "action": "BUY",
+        },
+        reasoning={
+            "decision": "BUY",
+            "confidence": 85,
+            "technical_reasons": ["EMA trend confirms bullish momentum."],
+            "structure_reasons": ["Liquidity sweep detected."],
+            "risk_reasons": ["Risk validation passed."],
+            "final_message": ("BUY decision generated."),
+        },
+    )
+
+    assert response.decision is not None
+    assert response.reasoning is not None
+
+
+def test_ai_execution_response_schema_supports_execution_result():
+    """
+    Verify that execution information can be
+    returned by the AI execution response.
+    """
+
+    from app.schemas.execution_schema import (
+        AIExecutionResponseSchema,
+    )
+
+    response = AIExecutionResponseSchema(
+        decision={
+            "action": "BUY",
+        },
+        approval={
+            "approved": True,
+        },
+        execution={
+            "symbol": "EUR/USD",
+            "order_type": "BUY",
+            "volume": 0.10,
+            "status": "READY",
+        },
+        execution_result={
+            "symbol": "EUR/USD",
+            "direction": "BUY",
+            "volume": 0.10,
+            "status": "EXECUTED",
+            "broker_order_id": "TEST-001",
+        },
+    )
+
+    assert response.approval is not None
+    assert response.execution is not None
+    assert response.execution_result is not None
+
+    assert response.execution_result.symbol == "EUR/USD"
+    assert response.execution_result.direction == "BUY"
+    assert response.execution_result.volume == 0.10
+    assert response.execution_result.status == "EXECUTED"
+    assert response.execution_result.broker_order_id == "TEST-001"
