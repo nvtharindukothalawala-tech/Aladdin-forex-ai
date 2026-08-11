@@ -1,45 +1,62 @@
 FROM python:3.14-slim
 
-
 WORKDIR /app
 
-
+# ==========================================
 # Python production settings
+# ==========================================
+
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
+ENV PIP_NO_CACHE_DIR=1
 
+# ==========================================
+# System dependencies
+# ==========================================
 
-# Install curl for Docker healthcheck
 RUN apt-get update \
-    && apt-get install -y curl \
+    && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 
+# ==========================================
+# Python dependencies
+# ==========================================
 
-# Install Python dependencies
 COPY requirements.txt .
 
+RUN pip install --upgrade pip \
+    && pip install -r requirements.txt
 
-RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir -r requirements.txt
+# ==========================================
+# Application source
+# ==========================================
 
-
-# Copy application source
 COPY . .
 
+# ==========================================
+# Non-root application user
+# ==========================================
 
-# Create non-root application user
-RUN useradd -m aladdin
+RUN useradd --create-home --shell /bin/bash aladdin \
+    && chown -R aladdin:aladdin /app
 
-
-# Change ownership
-RUN chown -R aladdin:aladdin /app
-
-
-# Run container as non-root user
 USER aladdin
 
+# ==========================================
+# Application port
+# ==========================================
 
 EXPOSE 8000
 
+# ==========================================
+# Start FastAPI
+# ==========================================
 
-CMD ["uvicorn", "app.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD [
+    "uvicorn",
+    "app.api.main:app",
+    "--host",
+    "0.0.0.0",
+    "--port",
+    "8000"
+]

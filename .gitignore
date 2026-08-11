@@ -1,18 +1,25 @@
 # Python virtual environment
+
 .venv/
 
 # Python cache
+
 __pycache__/
 *.pyc
 
 # Environment variables
+
 .env
+.env.production
 
 # Local database
+
 aladdin.db
 
 # VS Code settings
+
 .vscode/
 
 # macOS
+
 .DS_Store

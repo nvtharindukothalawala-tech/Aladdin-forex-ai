@@ -6,22 +6,19 @@ services:
 
     container_name: aladdin-forex-ai-prod
 
-
     ports:
       - "8000:8000"
 
-
     env_file:
-      - .env.production.example
-
+      - .env.production
 
     depends_on:
       postgres:
         condition: service_healthy
 
+    restart: unless-stopped
 
     healthcheck:
-
       test:
         [
           "CMD",
@@ -31,20 +28,15 @@ services:
         ]
 
       interval: 30s
-
       timeout: 10s
-
       retries: 3
-
-
+      start_period: 30s
 
   postgres:
 
     image: postgres:16
 
-
     container_name: aladdin-postgres-prod
-
 
     environment:
 
@@ -52,21 +44,14 @@ services:
 
       POSTGRES_USER: aladdin_user
 
-      POSTGRES_PASSWORD: aladdin_password
-
-
-    ports:
-
-      - "5432:5432"
-
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
 
     volumes:
-
       - postgres_prod_data:/var/lib/postgresql/data
 
+    restart: unless-stopped
 
     healthcheck:
-
       test:
         [
           "CMD-SHELL",
@@ -74,11 +59,9 @@ services:
         ]
 
       interval: 10s
-
       timeout: 5s
-
       retries: 5
-
+      start_period: 10s
 
 
 volumes:
