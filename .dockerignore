@@ -20,6 +20,7 @@ tests
 
 *.log
 *.txt
+!requirements.txt
 
 .vscode
 .idea
