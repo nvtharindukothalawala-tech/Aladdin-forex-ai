@@ -64,3 +64,9 @@ class UserModel(Base):
         "TradeModel",
         back_populates="user",
     )
+
+    # Relationship with NotificationModel
+    notifications = relationship(
+        "NotificationModel",
+        back_populates="user",
+    )

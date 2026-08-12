@@ -83,3 +83,65 @@ class TradeModel(Base):
         "UserModel",
         back_populates="trades",
     )
+
+class NotificationModel(Base):
+    """
+    Database model for user notifications.
+    """
+
+    __tablename__ = "notifications"
+
+    id = Column(
+        Integer,
+        primary_key=True,
+        index=True,
+    )
+
+    user_id = Column(
+        Integer,
+        ForeignKey("users.id"),
+        nullable=False,
+    )
+
+    notification_type = Column(
+        String,
+        nullable=False,
+    )
+
+    title = Column(
+        String,
+        nullable=False,
+    )
+
+    message = Column(
+        String,
+        nullable=False,
+    )
+
+    trade_id = Column(
+        String,
+        nullable=True,
+    )
+
+    priority = Column(
+        String,
+        nullable=False,
+        default="INFO",
+    )
+
+    is_read = Column(
+        Integer,
+        nullable=False,
+        default=0,
+    )
+
+    created_at = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc),
+    )
+
+    # Relationship with UserModel
+    user = relationship(
+        "UserModel",
+        back_populates="notifications",
+    )

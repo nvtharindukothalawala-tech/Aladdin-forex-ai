@@ -24,6 +24,7 @@ from app.api.routes import (
     performance_routes,
     coaching_routes,
     execution_routes,
+    notification_routes,
 )
 
 
@@ -97,6 +98,13 @@ tags_metadata = [
         "name": "Execution",
         "description": (
             "Trade execution workflow services."
+        ),
+    },
+
+    {
+        "name": "Notifications",
+        "description": (
+            "User notifications and trade status alerts."
         ),
     },
 
@@ -240,6 +248,11 @@ app.include_router(
     execution_routes.router
 )
 
+# Notification APIs
+
+app.include_router(
+    notification_routes.router
+)
 
 # Authentication APIs
 
