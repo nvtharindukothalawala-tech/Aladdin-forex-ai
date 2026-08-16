@@ -23,6 +23,8 @@ import {
 } from "lucide-react";
 
 import {
+  closeTrade,
+  createTrade,
   getAccessToken,
   getNotifications,
   getTradeStatistics,
@@ -33,6 +35,7 @@ import {
   removeAccessToken,
   type Notification,
   type Trade,
+  type TradeCreateData,
   type TradeStatistics,
 } from "../lib/api";
 
@@ -225,6 +228,25 @@ export default function DashboardPage() {
   const [trades, setTrades] =
     useState<Trade[]>([]);
 
+  const [tradeForm, setTradeForm] =
+    useState<TradeCreateData>({
+      symbol: "EUR/USD",
+      direction: "Buy",
+      entry_price: 1.08,
+      lot_size: 0.1,
+      stop_loss: 1.075,
+      take_profit: 1.09,
+    });
+
+  const [creatingTrade, setCreatingTrade] =
+    useState(false);
+
+  const [tradeActionError, setTradeActionError] =
+    useState("");
+
+  const [tradeActionMessage, setTradeActionMessage] =
+    useState("");
+
   const [notificationCount, setNotificationCount] =
     useState(0);
 
@@ -256,7 +278,6 @@ export default function DashboardPage() {
   /* =======================================================
      LOAD DASHBOARD
      ======================================================= */
-
   async function loadDashboard() {
     try {
       setError("");
@@ -323,6 +344,102 @@ export default function DashboardPage() {
   }
 
 
+  /* =========================================================
+    CREATE TRADE
+    ========================================================= */
+
+  async function handleCreateTrade() {
+    try {
+      setCreatingTrade(true);
+      setTradeActionError("");
+      setTradeActionMessage("");
+
+      if (
+        tradeForm.entry_price <= 0 ||
+        tradeForm.lot_size <= 0 ||
+        tradeForm.stop_loss <= 0 ||
+        tradeForm.take_profit <= 0
+      ) {
+        setTradeActionError(
+          "Please enter valid values for entry price, lot size, stop loss, and take profit.",
+        );
+
+        return;
+      }
+
+      const createdTrade =
+        await createTrade(tradeForm);
+
+      setTradeActionMessage(
+        `${createdTrade.symbol} ${createdTrade.direction} trade created successfully.`,
+      );
+
+      await loadDashboard();
+
+      if (notificationOpen) {
+        await loadNotifications();
+      }
+    } catch (err) {
+      // ...
+    } finally {
+      setCreatingTrade(false);
+    }
+  }
+
+  async function handleCloseTrade(
+    tradeId: string,
+    exitPrice: number,
+  ) {
+    try {
+      setTradeActionError("");
+      setTradeActionMessage("");
+
+      if (exitPrice <= 0) {
+        setTradeActionError(
+          "Please enter a valid exit price.",
+        );
+
+        return;
+      }
+
+      const closedTrade = await closeTrade(
+        tradeId,
+        exitPrice,
+      );
+
+      setTradeActionMessage(
+        `${closedTrade.symbol} ${closedTrade.direction} trade closed successfully.`,
+      );
+
+      await loadDashboard();
+
+      if (notificationOpen) {
+        await loadNotifications();
+      }
+    } catch (err) {
+      console.error(
+        "Close trade error:",
+        err,
+      );
+
+      if (
+        err instanceof Error &&
+        err.message ===
+          "Authentication required."
+      ) {
+        window.location.href =
+          "/login";
+
+        return;
+      }
+
+      setTradeActionError(
+        err instanceof Error
+          ? err.message
+          : "Unable to close trade.",
+      );
+    }
+  }
   /* =======================================================
      LOAD NOTIFICATIONS
      ======================================================= */
@@ -1462,6 +1579,282 @@ export default function DashboardPage() {
 
           </div>
 
+          {/* =================================================
+              CREATE TRADE
+              ================================================= */}
+
+          <div className="mt-8 rounded-2xl border border-white/10 bg-[#0a0e13]">
+
+            <div className="border-b border-white/10 px-5 py-5">
+
+              <h2 className="text-base font-semibold text-white">
+                Create Trade
+              </h2>
+
+              <p className="mt-1 text-xs text-gray-600">
+                Create a new trade through the Aladdin backend.
+              </p>
+
+            </div>
+
+
+            <div className="p-5">
+
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+
+                {/* Symbol */}
+
+                <div>
+
+                  <label className="mb-2 block text-[10px] uppercase tracking-wider text-gray-500">
+                    Symbol
+                  </label>
+
+                  <select
+                    value={tradeForm.symbol}
+                    onChange={(event) =>
+                      setTradeForm({
+                        ...tradeForm,
+                        symbol: event.target.value,
+                      })
+                    }
+                    className="w-full rounded-xl border border-white/10 bg-black px-3 py-3 text-sm text-white outline-none transition focus:border-emerald-400/50"
+                  >
+                    <option value="EUR/USD">
+                      EUR/USD
+                    </option>
+
+                    <option value="GBP/USD">
+                      GBP/USD
+                    </option>
+
+                    <option value="USD/JPY">
+                      USD/JPY
+                    </option>
+
+                    <option value="AUD/USD">
+                      AUD/USD
+                    </option>
+                  </select>
+
+                </div>
+
+
+                {/* Direction */}
+
+                <div>
+
+                  <label className="mb-2 block text-[10px] uppercase tracking-wider text-gray-500">
+                    Direction
+                  </label>
+
+                  <select
+                    value={tradeForm.direction}
+                    onChange={(event) =>
+                      setTradeForm({
+                        ...tradeForm,
+                        direction: event.target.value,
+                      })
+                    }
+                    className="w-full rounded-xl border border-white/10 bg-black px-3 py-3 text-sm text-white outline-none transition focus:border-emerald-400/50"
+                  >
+                    <option value="Buy">
+                      Buy
+                    </option>
+
+                    <option value="Sell">
+                      Sell
+                    </option>
+                  </select>
+
+                </div>
+
+
+                {/* Entry Price */}
+
+                <div>
+
+                  <label className="mb-2 block text-[10px] uppercase tracking-wider text-gray-500">
+                    Entry Price
+                  </label>
+
+                  <input
+                    type="number"
+                    step="0.00001"
+                    min="0"
+                    value={
+                      tradeForm.entry_price || ""
+                    }
+                    onChange={(event) =>
+                      setTradeForm({
+                        ...tradeForm,
+                        entry_price:
+                          Number(
+                            event.target.value,
+                          ),
+                      })
+                    }
+                    placeholder="1.08000"
+                    className="w-full rounded-xl border border-white/10 bg-black px-3 py-3 text-sm text-white outline-none transition placeholder:text-gray-700 focus:border-emerald-400/50"
+                  />
+
+                </div>
+
+
+                {/* Lot Size */}
+
+                <div>
+
+                  <label className="mb-2 block text-[10px] uppercase tracking-wider text-gray-500">
+                    Lot Size
+                  </label>
+
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    value={
+                      tradeForm.lot_size || ""
+                    }
+                    onChange={(event) =>
+                      setTradeForm({
+                        ...tradeForm,
+                        lot_size:
+                          Number(
+                            event.target.value,
+                          ),
+                      })
+                    }
+                    placeholder="0.10"
+                    className="w-full rounded-xl border border-white/10 bg-black px-3 py-3 text-sm text-white outline-none transition placeholder:text-gray-700 focus:border-emerald-400/50"
+                  />
+
+                </div>
+
+
+                {/* Stop Loss */}
+
+                <div>
+
+                  <label className="mb-2 block text-[10px] uppercase tracking-wider text-gray-500">
+                    Stop Loss
+                  </label>
+
+                  <input
+                    type="number"
+                    step="0.00001"
+                    min="0"
+                    value={
+                      tradeForm.stop_loss || ""
+                    }
+                    onChange={(event) =>
+                      setTradeForm({
+                        ...tradeForm,
+                        stop_loss:
+                          Number(
+                            event.target.value,
+                          ),
+                      })
+                    }
+                    placeholder="1.07500"
+                    className="w-full rounded-xl border border-white/10 bg-black px-3 py-3 text-sm text-white outline-none transition placeholder:text-gray-700 focus:border-emerald-400/50"
+                  />
+
+                </div>
+
+
+                {/* Take Profit */}
+
+                <div>
+
+                  <label className="mb-2 block text-[10px] uppercase tracking-wider text-gray-500">
+                    Take Profit
+                  </label>
+
+                  <input
+                    type="number"
+                    step="0.00001"
+                    min="0"
+                    value={
+                      tradeForm.take_profit || ""
+                    }
+                    onChange={(event) =>
+                      setTradeForm({
+                        ...tradeForm,
+                        take_profit:
+                          Number(
+                            event.target.value,
+                          ),
+                      })
+                    }
+                    placeholder="1.09000"
+                    className="w-full rounded-xl border border-white/10 bg-black px-3 py-3 text-sm text-white outline-none transition placeholder:text-gray-700 focus:border-emerald-400/50"
+                  />
+
+                </div>
+
+              </div>
+
+
+              {/* Messages */}
+
+              {tradeActionError && (
+                <div className="mt-4 rounded-xl border border-red-400/20 bg-red-400/5 px-4 py-3 text-xs text-red-400">
+                  {tradeActionError}
+                </div>
+              )}
+
+
+              {tradeActionMessage && (
+                <div className="mt-4 rounded-xl border border-emerald-400/20 bg-emerald-400/5 px-4 py-3 text-xs text-emerald-400">
+                  {tradeActionMessage}
+                </div>
+              )}
+
+
+              {/* Create Button */}
+
+              <div className="mt-5 flex justify-end">
+
+                <button
+                  type="button"
+                  onClick={handleCreateTrade}
+                  disabled={creatingTrade}
+                  className="inline-flex items-center gap-2 rounded-xl bg-emerald-400 px-5 py-3 text-xs font-bold text-black transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+
+                  {creatingTrade ? (
+                    <>
+                      <RefreshCw
+                        size={14}
+                        className="animate-spin"
+                      />
+
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2
+                        size={14}
+                      />
+
+                      Create Trade
+                    </>
+                  )}
+
+                </button>
+
+              </div>
+
+            </div>
+
+          </div>
+
+
+          {/* =================================================
+              RECENT TRADES
+              ================================================= */}
+
 
           {/* =================================================
               RECENT TRADES
@@ -1573,6 +1966,10 @@ export default function DashboardPage() {
                           Open Time
                         </th>
 
+                        <th className="px-5 py-4 font-medium">
+                          Actions
+                        </th>
+
                       </tr>
 
                     </thead>
@@ -1583,10 +1980,9 @@ export default function DashboardPage() {
                       {trades.map(
                         (trade) => (
                           <TradeRow
-                            key={
-                              trade.trade_id
-                            }
+                            key={trade.trade_id}
                             trade={trade}
+                            onClose={handleCloseTrade}
                           />
                         ),
                       )}
@@ -1804,8 +2200,13 @@ function SmallMetric({
 
 function TradeRow({
   trade,
+  onClose,
 }: {
   trade: Trade;
+  onClose: (
+    tradeId: string,
+    exitPrice: number,
+  ) => Promise<void>;
 }) {
   const isBuy =
     trade.direction.toLowerCase() ===
@@ -1925,6 +2326,96 @@ function TradeRow({
         )}
       </td>
 
+      <td className="px-5 py-4">
+        {isOpen ? (
+          <CloseTradeControl
+            trade={trade}
+            onClose={onClose}
+          />
+        ) : (
+          <span className="text-[10px] text-gray-700">
+            —
+          </span>
+        )}
+      </td>
+
     </tr>
+  );
+}
+
+/* =========================================================
+   CLOSE TRADE CONTROL
+   ========================================================= */
+
+function CloseTradeControl({
+  trade,
+  onClose,
+}: {
+  trade: Trade;
+  onClose: (
+    tradeId: string,
+    exitPrice: number,
+  ) => Promise<void>;
+}) {
+  const [exitPrice, setExitPrice] =
+    useState("");
+
+  const [closing, setClosing] =
+    useState(false);
+
+  async function handleClose() {
+    const price =
+      Number(exitPrice);
+
+    if (price <= 0) {
+      return;
+    }
+
+    try {
+      setClosing(true);
+
+      await onClose(
+        trade.trade_id,
+        price,
+      );
+
+      setExitPrice("");
+    } finally {
+      setClosing(false);
+    }
+  }
+
+  return (
+    <div className="flex min-w-[180px] items-center gap-2">
+
+      <input
+        type="number"
+        step="0.00001"
+        min="0"
+        value={exitPrice}
+        onChange={(event) =>
+          setExitPrice(
+            event.target.value,
+          )
+        }
+        placeholder="Exit price"
+        className="w-24 rounded-lg border border-white/10 bg-black px-2.5 py-2 text-[10px] text-white outline-none placeholder:text-gray-700 focus:border-emerald-400/50"
+      />
+
+      <button
+        type="button"
+        onClick={handleClose}
+        disabled={
+          closing ||
+          Number(exitPrice) <= 0
+        }
+        className="rounded-lg bg-emerald-400 px-3 py-2 text-[10px] font-semibold text-black transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        {closing
+          ? "Closing..."
+          : "Close"}
+      </button>
+
+    </div>
   );
 }

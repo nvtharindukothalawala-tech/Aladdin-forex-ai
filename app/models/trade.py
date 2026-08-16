@@ -41,6 +41,7 @@ class Trade:
         lot_size,
         stop_loss,
         take_profit,
+        log_creation=True,
     ):
         """
         Create a new trade and validate the input values.
@@ -158,12 +159,13 @@ class Trade:
         self.emotion = ""
         self.lesson_learned = ""
 
-        self.logger.info(
-            "Trade created: %s %s %s",
-            self.trade_id,
-            self.symbol,
-            self.direction,
-        )
+        if log_creation:
+            self.logger.info(
+                "Trade created: %s %s %s",
+                self.trade_id,
+                self.symbol,
+                self.direction,
+            )
 
     # ==========================================
     # JSON Deserialization
@@ -182,6 +184,7 @@ class Trade:
             data["lot_size"],
             data["stop_loss"],
             data["take_profit"],
+            log_creation=False,
         )
 
         trade.trade_id = data["trade_id"]
