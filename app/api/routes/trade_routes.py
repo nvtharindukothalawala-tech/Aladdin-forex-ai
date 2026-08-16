@@ -92,24 +92,19 @@ def create_trade(
     trade_service: TradeService = Depends(
         get_trade_service
     ),
-    database: Session = Depends(
-        get_database
-    ),
+    database: Session = Depends(get_database),
     current_user: UserModel = Depends(
         get_current_user
     ),
 ):
     """
-    Create a new Forex trade.
-
-    After successfully creating the trade,
-    a notification is created for the
-    authenticated user.
+    Create a new Forex trade and create
+    a notification for the logged-in user.
     """
 
-    # --------------------------------------
+    # ------------------------------------------
     # Create Trade Object
-    # --------------------------------------
+    # ------------------------------------------
 
     trade = Trade(
         symbol=trade_data.symbol,
@@ -120,69 +115,41 @@ def create_trade(
         take_profit=trade_data.take_profit,
     )
 
-    # --------------------------------------
+    # ------------------------------------------
     # Load Existing Trades
-    # --------------------------------------
+    # ------------------------------------------
 
     trade_service.load_trades()
 
-    # --------------------------------------
+    # ------------------------------------------
     # Add New Trade
-    # --------------------------------------
+    # ------------------------------------------
 
-    try:
+    trade_service.add_trade(trade)
 
-        trade_service.add_trade(trade)
-
-    except ValueError as error:
-
-        raise HTTPException(
-            status_code=400,
-            detail=str(error),
-        )
-
-    # --------------------------------------
+    # ------------------------------------------
     # Create Notification
-    # --------------------------------------
+    # ------------------------------------------
 
-    try:
+    notification_repository = (
+        NotificationRepository(database)
+    )
 
-        notification_repository = (
-            NotificationRepository(database)
-        )
+    notification_service = NotificationService(
+        notification_repository
+    )
 
-        notification_service = (
-            NotificationService(
-                notification_repository
-            )
-        )
-
-        notification_service.create_notification(
-            user_id=current_user.id,
-            notification_type="TRADE_CREATED",
-            title="New Trade Created",
-            message=(
-                f"{trade.direction} trade created "
-                f"for {trade.symbol}."
-            ),
-            trade_id=trade.trade_id,
-            priority="INFO",
-        )
-
-    except Exception as error:
-
-        # The trade has already been saved.
-        # Notification failure should not
-        # delete or break the trade.
-
-        print(
-            "Notification creation failed:",
-            error,
-        )
-
-    # --------------------------------------
-    # Return Created Trade
-    # --------------------------------------
+    notification_service.create_notification(
+        user_id=current_user.id,
+        notification_type="TRADE_CREATED",
+        title="New Trade Created",
+        message=(
+            f"{trade.direction} trade created for "
+            f"{trade.symbol}."
+        ),
+        trade_id=trade.trade_id,
+        priority="INFO",
+    )
 
     return trade
 
@@ -201,30 +168,25 @@ def close_trade(
     trade_service: TradeService = Depends(
         get_trade_service
     ),
-    database: Session = Depends(
-        get_database
-    ),
+    database: Session = Depends(get_database),
     current_user: UserModel = Depends(
         get_current_user
     ),
 ):
     """
-    Close an existing trade.
-
-    After successfully closing the trade,
-    a notification is created for the
-    authenticated user.
+    Close an existing trade and create
+    a notification for the logged-in user.
     """
 
-    # --------------------------------------
+    # ------------------------------------------
     # Load Trades
-    # --------------------------------------
+    # ------------------------------------------
 
     trade_service.load_trades()
 
-    # --------------------------------------
+    # ------------------------------------------
     # Find Trade
-    # --------------------------------------
+    # ------------------------------------------
 
     trade = trade_service.find_trade(
         trade_id
@@ -237,62 +199,93 @@ def close_trade(
             detail="Trade not found.",
         )
 
-    # --------------------------------------
+    # ------------------------------------------
     # Close Trade
-    # --------------------------------------
+    # ------------------------------------------
 
     trade.close_trade(
         close_data.exit_price
     )
 
-    # --------------------------------------
+    # ------------------------------------------
     # Save Trade
-    # --------------------------------------
+    # ------------------------------------------
 
     trade_service.save_trades()
 
-    # --------------------------------------
-    # Create Notification
-    # --------------------------------------
+    # ------------------------------------------
+    # Calculate Profit / Loss
+    # ------------------------------------------
 
-    try:
+    profit_loss = 0.0
 
-        notification_repository = (
-            NotificationRepository(database)
+    if (
+        trade.exit_price is not None
+        and trade.entry_price is not None
+    ):
+
+        price_difference = (
+            trade.exit_price
+            - trade.entry_price
         )
 
-        notification_service = (
-            NotificationService(
-                notification_repository
+        if trade.direction.lower() == "sell":
+
+            price_difference = (
+                trade.entry_price
+                - trade.exit_price
             )
+
+        profit_loss = (
+            price_difference
+            * trade.lot_size
         )
 
-        notification_service.create_notification(
-            user_id=current_user.id,
-            notification_type="TRADE_CLOSED",
-            title="Trade Closed",
-            message=(
-                f"{trade.symbol} trade has been "
-                f"closed."
-            ),
-            trade_id=trade.trade_id,
-            priority="INFO",
-        )
+    # ------------------------------------------
+    # Determine Result
+    # ------------------------------------------
 
-    except Exception as error:
+    if profit_loss > 0:
 
-        # The trade has already been saved.
-        # Notification failure should not
-        # break the close operation.
+        result = "Profit"
+        priority = "SUCCESS"
 
-        print(
-            "Notification creation failed:",
-            error,
-        )
+    elif profit_loss < 0:
 
-    # --------------------------------------
-    # Return Closed Trade
-    # --------------------------------------
+        result = "Loss"
+        priority = "WARNING"
+
+    else:
+
+        result = "Break-even"
+        priority = "INFO"
+
+    # ------------------------------------------
+    # Create Notification
+    # ------------------------------------------
+
+    notification_repository = (
+        NotificationRepository(database)
+    )
+
+    notification_service = NotificationService(
+        notification_repository
+    )
+
+    notification_service.create_notification(
+        user_id=current_user.id,
+        notification_type="TRADE_CLOSED",
+        title="Trade Closed",
+        message=(
+            f"{trade.symbol} "
+            f"{trade.direction} trade closed. "
+            f"Result: {result}. "
+            f"Profit/Loss: "
+            f"{profit_loss:.4f}."
+        ),
+        trade_id=trade.trade_id,
+        priority=priority,
+    )
 
     return trade
 
@@ -316,33 +309,15 @@ def get_trade_statistics(
 
     trades = trade_service.load_trades()
 
-    analytics = TradeAnalytics(
-        trades
-    )
+    analytics = TradeAnalytics(trades)
 
     return {
-        "total_trades": (
-            analytics.total_trades()
-        ),
-        "open_trades": (
-            analytics.open_trades()
-        ),
-        "winning_trades": (
-            analytics.winning_trades()
-        ),
-        "losing_trades": (
-            analytics.losing_trades()
-        ),
-        "win_rate": (
-            analytics.win_rate()
-        ),
-        "total_profit": (
-            analytics.total_profit()
-        ),
-        "average_profit": (
-            analytics.average_profit()
-        ),
-        "profit_factor": (
-            analytics.profit_factor()
-        ),
+        "total_trades": analytics.total_trades(),
+        "open_trades": analytics.open_trades(),
+        "winning_trades": analytics.winning_trades(),
+        "losing_trades": analytics.losing_trades(),
+        "win_rate": analytics.win_rate(),
+        "total_profit": analytics.total_profit(),
+        "average_profit": analytics.average_profit(),
+        "profit_factor": analytics.profit_factor(),
     }
