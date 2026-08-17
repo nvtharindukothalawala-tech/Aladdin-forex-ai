@@ -41,6 +41,90 @@ export type TradeCreateData = {
   take_profit: number;
 };
 
+export type AITradeAnalysisData = {
+  symbol: string;
+  ema_signal: "BULLISH" | "BEARISH" | "NEUTRAL";
+  rsi_value: number;
+  adx_value: number;
+  volatility: "NORMAL" | "HIGH";
+  currency: string;
+  event_type: string;
+  importance: "HIGH" | "MEDIUM" | "LOW";
+  sentiment: "BULLISH" | "BEARISH" | "NEUTRAL";
+  price_structure:
+    | "BOS_BULLISH"
+    | "BOS_BEARISH"
+    | "CHOCH"
+    | "RANGE";
+  liquidity_sweep: boolean;
+  order_block: "BULLISH" | "BEARISH";
+  fair_value_gap: boolean;
+  entry_price: number;
+  stop_loss: number;
+  take_profit: number;
+  account_balance: number;
+  risk_percent: number;
+  trade_risk_amount: number;
+  lot_size: number;
+};
+
+
+export type AITradeAnalysisResult = {
+  market_intelligence: {
+    market_bias: string;
+    confidence: number;
+    technical_summary: string;
+    news_summary: string;
+    structure_summary: string;
+    risk_level: string;
+    recommendation: string;
+    conflict_detected: boolean;
+    conflict_summary: string;
+    confidence_summary: string;
+    timeframe_alignment: string;
+    timeframe_confidence: number;
+    timeframe_summary: string;
+    market_session: string;
+    session_activity: string;
+    session_condition: string;
+    session_summary: string;
+  };
+
+  decision: {
+    action: string;
+    confidence: number;
+    reason: string;
+  };
+
+  trade_plan?: {
+    symbol: string;
+    direction: string;
+    entry_price: number;
+    stop_loss: number;
+    take_profit: number;
+    risk_reward: number;
+  };
+
+  risk_validation?: {
+    approved: boolean;
+    reason: string;
+  };
+
+  approval?: {
+    approved: boolean;
+    reason: string;
+  };
+
+  reasoning?: {
+    decision: string;
+    confidence: number;
+    technical_reason: string;
+    news_reason: string;
+    structure_reason: string;
+    risk_reason: string;
+    final_reason: string;
+  };
+};
 
 export type TradeStatistics = {
   total_trades: number;
@@ -447,6 +531,65 @@ export async function markAllNotificationsAsRead(): Promise<{
     throw new Error(
       `Failed to mark notifications as read (${response.status}).`,
     );
+  }
+
+  return response.json();
+}
+
+/* =========================================================
+   AI TRADE ANALYSIS
+   ========================================================= */
+
+export async function analyzeAITrade(
+  tradeData: AITradeAnalysisData,
+): Promise<AITradeAnalysisResult> {
+  const response =
+    await authenticatedFetch(
+      "/trading/ai-analyze",
+      {
+        method: "POST",
+        body: JSON.stringify(tradeData),
+      },
+    );
+
+  if (!response.ok) {
+    let message =
+      `AI analysis failed (${response.status}).`;
+
+    try {
+      const data =
+        await response.json();
+
+      if (
+        typeof data.detail === "string"
+      ) {
+        message = data.detail;
+      } else if (
+        Array.isArray(data.detail)
+      ) {
+        message = data.detail
+          .map(
+            (error: {
+              loc?: unknown[];
+              msg?: string;
+            }) => {
+              const location =
+                Array.isArray(error.loc)
+                  ? error.loc.join(".")
+                  : "field";
+
+              return `${location}: ${
+                error.msg ?? "Invalid value"
+              }`;
+            },
+          )
+          .join("; ");
+      }
+    } catch {
+      // Keep default error message.
+    }
+
+    throw new Error(message);
   }
 
   return response.json();
