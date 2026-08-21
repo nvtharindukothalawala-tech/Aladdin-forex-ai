@@ -24,4 +24,12 @@ class MarketSignal:
 
     volatility: str
 
+    ema: float
+
+    rsi: float
+
+    atr: float
+
+    adx: float
+
     explanation: str

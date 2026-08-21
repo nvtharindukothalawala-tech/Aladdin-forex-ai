@@ -20,19 +20,20 @@ class MarketAnalyzer:
     def analyze(
         symbol,
         current_price,
-        sma,
+        ema,
         rsi,
         atr,
+        adx,
     ):
         """
         Generate market analysis.
 
         Rules:
 
-        Price > SMA:
+        Price > EMA:
             Bullish trend
 
-        Price < SMA:
+        Price < EMA:
             Bearish trend
 
         RSI:
@@ -40,14 +41,20 @@ class MarketAnalyzer:
 
         ATR:
             Volatility
+
+        ADX:
+            Trend strength
         """
 
         # Trend detection
-        if current_price > sma:
+        if current_price > ema:
             trend = "Bullish"
 
-        else:
+        elif current_price < ema:
             trend = "Bearish"
+
+        else:
+            trend = "Neutral"
 
         # Momentum detection
         if rsi >= 70:
@@ -69,12 +76,30 @@ class MarketAnalyzer:
         else:
             volatility = "Normal"
 
-        explanation = f"Price is {trend.lower()} " f"with {momentum.lower()} momentum."
+        # Trend strength
+        if adx >= 25:
+            trend_strength = "Strong"
+
+        elif adx >= 20:
+            trend_strength = "Developing"
+
+        else:
+            trend_strength = "Weak"
+
+        explanation = (
+            f"Price is {trend.lower()} with "
+            f"{momentum.lower()} momentum and "
+            f"{trend_strength.lower()} trend strength."
+        )
 
         return MarketSignal(
             symbol=symbol,
             trend=trend,
             momentum=momentum,
             volatility=volatility,
+            ema=ema,
+            rsi=rsi,
+            atr=atr,
+            adx=adx,
             explanation=explanation,
         )

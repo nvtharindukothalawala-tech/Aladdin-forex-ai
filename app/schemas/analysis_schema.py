@@ -3,7 +3,7 @@ analysis_schema.py
 
 Contains Pydantic schemas for market analysis API.
 
-Author: Tharindu Kothalwala
+Author: Tharindu Kothalawala
 Project: Aladdin
 """
 
@@ -26,15 +26,15 @@ class MarketAnalysisRequest(BaseModel):
         ...,
         gt=0,
         json_schema_extra={
-            "example": 1.0850
+            "example": 1.1696
         },
     )
 
-    sma: float = Field(
+    ema: float = Field(
         ...,
         gt=0,
         json_schema_extra={
-            "example": 1.0800
+            "example": 1.1687
         },
     )
 
@@ -43,7 +43,7 @@ class MarketAnalysisRequest(BaseModel):
         ge=0,
         le=100,
         json_schema_extra={
-            "example": 60
+            "example": 42.06
         },
     )
 
@@ -51,6 +51,15 @@ class MarketAnalysisRequest(BaseModel):
         ...,
         gt=0,
         json_schema_extra={
-            "example": 0.0015
+            "example": 0.001096
+        },
+    )
+
+    adx: float = Field(
+        ...,
+        ge=0,
+        le=100,
+        json_schema_extra={
+            "example": 39.59
         },
     )
