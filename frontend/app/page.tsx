@@ -23,10 +23,10 @@ import {
 } from "lucide-react";
 
 import {
-  analyzeAITrade,
   closeTrade,
   createTrade,
   getAccessToken,
+  getLiveIntelligentDecision,
   getNotifications,
   getTradeStatistics,
   getTrades,
@@ -34,8 +34,7 @@ import {
   markAllNotificationsAsRead,
   markNotificationAsRead,
   removeAccessToken,
-  type AITradeAnalysisData,
-  type AITradeAnalysisResult,
+  type LiveDecisionGateResult,
   type Notification,
   type Trade,
   type TradeCreateData,
@@ -251,7 +250,7 @@ export default function DashboardPage() {
     useState("");
 
   const [aiAnalysis, setAiAnalysis] =
-    useState<AITradeAnalysisResult | null>(null);
+    useState<LiveDecisionGateResult | null>(null);
 
   const [aiAnalyzing, setAiAnalyzing] =
     useState(false);
@@ -297,45 +296,36 @@ export default function DashboardPage() {
       setAiAnalysisError("");
       setAiAnalysis(null);
 
-      const aiData: AITradeAnalysisData = {
-        symbol: tradeForm.symbol,
-        ema_signal: "BULLISH",
-        rsi_value: 65,
-        adx_value: 30,
-        volatility: "NORMAL",
-        currency: tradeForm.symbol.split("/")[0] || "EUR",
-        event_type: "ECB Interest Rate Decision",
-        importance: "HIGH",
-        sentiment: "BULLISH",
-        price_structure: "BOS_BULLISH",
-        liquidity_sweep: true,
-        order_block: "BULLISH",
-        fair_value_gap: true,
-        entry_price: tradeForm.entry_price,
-        stop_loss: tradeForm.stop_loss,
-        take_profit: tradeForm.take_profit,
-        account_balance: 10000,
-        risk_percent: 1,
-        trade_risk_amount: 50,
-        lot_size: tradeForm.lot_size,
-      };
+      const accessToken = getAccessToken();
 
-      const result = await analyzeAITrade(aiData);
+      if (!accessToken) {
+        window.location.href = "/login";
+        return;
+      }
 
-      console.log("ALADDIN AI RESULT:", result);
+      // MT5/backend symbols normally use EURUSD instead of EUR/USD.
+      const symbol = tradeForm.symbol.replace("/", "").toUpperCase();
+
+      const result = await getLiveIntelligentDecision(symbol);
+
+      console.log("ALADDIN LIVE DECISION GATE RESULT:", result);
 
       setAiAnalysis(result);
-      
     } catch (err) {
       console.error("AI analysis error:", err);
 
-      if (err instanceof Error && err.message === "Authentication required.") {
+      if (
+        err instanceof Error &&
+        err.message === "Authentication required."
+      ) {
         window.location.href = "/login";
         return;
       }
 
       setAiAnalysisError(
-        err instanceof Error ? err.message : "Unable to analyze trade.",
+        err instanceof Error
+          ? err.message
+          : "Unable to generate live Aladdin decision.",
       );
     } finally {
       setAiAnalyzing(false);
@@ -1964,7 +1954,7 @@ export default function DashboardPage() {
 
 
           {/* =================================================
-              AI ANALYSIS RESULT
+              AI DECISION GATE RESULT
               ================================================= */}
 
           {aiAnalysis && (
@@ -1974,74 +1964,229 @@ export default function DashboardPage() {
                   <div>
                     <div className="flex items-center gap-2">
                       <BrainCircuit size={19} className="text-purple-300" />
-                      <h2 className="text-base font-semibold text-white">Aladdin AI Analysis</h2>
+                      <h2 className="text-base font-semibold text-white">
+                        Aladdin Decision Gate
+                      </h2>
                     </div>
-                    <p className="mt-1 text-xs text-gray-600">Market intelligence, decision, risk validation and explainable reasoning.</p>
+                    <p className="mt-1 text-xs text-gray-600">
+                      Live market intelligence evaluated by Aladdin's multi-gate decision system.
+                    </p>
                   </div>
-                  <div className={`inline-flex w-fit items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold ${aiAnalysis.decision.action === "BUY" ? "bg-emerald-400/10 text-emerald-400" : aiAnalysis.decision.action === "SELL" ? "bg-red-400/10 text-red-400" : "bg-amber-400/10 text-amber-400"}`}>
-                    <span className={`h-1.5 w-1.5 rounded-full ${aiAnalysis.decision.action === "BUY" ? "bg-emerald-400" : aiAnalysis.decision.action === "SELL" ? "bg-red-400" : "bg-amber-400"}`} />
+
+                  <div
+                    className={`inline-flex w-fit items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold ${
+                      aiAnalysis.decision.action === "BUY"
+                        ? "bg-emerald-400/10 text-emerald-400"
+                        : aiAnalysis.decision.action === "SELL"
+                          ? "bg-red-400/10 text-red-400"
+                          : "bg-amber-400/10 text-amber-400"
+                    }`}
+                  >
+                    <span
+                      className={`h-1.5 w-1.5 rounded-full ${
+                        aiAnalysis.decision.action === "BUY"
+                          ? "bg-emerald-400"
+                          : aiAnalysis.decision.action === "SELL"
+                            ? "bg-red-400"
+                            : "bg-amber-400"
+                      }`}
+                    />
                     {aiAnalysis.decision.action}
                   </div>
                 </div>
               </div>
 
+              {/* Decision metrics */}
               <div className="grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-4">
-                <AIMetricCard label="Market Bias" value={aiAnalysis.market_intelligence.market_bias} valueClassName={aiAnalysis.market_intelligence.market_bias === "BULLISH" ? "text-emerald-400" : aiAnalysis.market_intelligence.market_bias === "BEARISH" ? "text-red-400" : "text-amber-400"} />
-                <AIMetricCard label="Confidence" value={`${formatNumber(aiAnalysis.market_intelligence.confidence, 1)}%`} />
-                <AIMetricCard label="Risk Level" value={aiAnalysis.market_intelligence.risk_level} valueClassName={aiAnalysis.market_intelligence.risk_level === "LOW" ? "text-emerald-400" : aiAnalysis.market_intelligence.risk_level === "MEDIUM" ? "text-amber-400" : "text-red-400"} />
-                <AIMetricCard label="Recommendation" value={aiAnalysis.market_intelligence.recommendation} />
+                <AIMetricCard
+                  label="Approved"
+                  value={aiAnalysis.decision.approved ? "YES" : "NO"}
+                  valueClassName={
+                    aiAnalysis.decision.approved
+                      ? "text-emerald-400"
+                      : "text-red-400"
+                  }
+                />
+                <AIMetricCard
+                  label="Market Confidence"
+                  value={`${formatNumber(aiAnalysis.decision.market_confidence, 1)}%`}
+                />
+                <AIMetricCard
+                  label="MTF Confidence"
+                  value={`${formatNumber(aiAnalysis.decision.timeframe_confidence, 1)}%`}
+                />
+                <AIMetricCard
+                  label="Decision Confidence"
+                  value={`${formatNumber(aiAnalysis.decision.decision_confidence, 1)}%`}
+                  valueClassName="text-purple-300"
+                />
               </div>
 
-              <div className="grid gap-4 px-5 pb-5 lg:grid-cols-3">
-                <AIAnalysisCard icon={<Activity size={16} className="text-blue-400" />} title="Technical Analysis" text={aiAnalysis.market_intelligence.technical_summary} />
-                <AIAnalysisCard icon={<BarChart3 size={16} className="text-purple-400" />} title="News Analysis" text={aiAnalysis.market_intelligence.news_summary} />
-                <AIAnalysisCard icon={<TrendingUp size={16} className="text-emerald-400" />} title="Market Structure" text={aiAnalysis.market_intelligence.structure_summary} />
-              </div>
-
+              {/* Decision reason */}
               <div className="border-t border-white/10 px-5 py-5">
-                <p className="text-[10px] uppercase tracking-wider text-gray-600">AI Decision</p>
-                <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                  <p className="max-w-3xl text-sm leading-6 text-gray-300">{aiAnalysis.decision.reason}</p>
-                  <span className="shrink-0 text-xs font-semibold text-gray-500">Confidence {formatNumber(aiAnalysis.decision.confidence, 1)}%</span>
+                <p className="text-[10px] uppercase tracking-wider text-gray-600">
+                  Decision Reason
+                </p>
+                <p className="mt-3 max-w-4xl text-sm leading-6 text-gray-300">
+                  {aiAnalysis.decision.reason}
+                </p>
+              </div>
+
+              {/* Gates */}
+              <div className="grid gap-4 border-t border-white/10 p-5 lg:grid-cols-2">
+                <GateListCard
+                  title="Gates Passed"
+                  items={aiAnalysis.decision.gates_passed}
+                  passed
+                />
+                <GateListCard
+                  title="Gates Failed"
+                  items={aiAnalysis.decision.gates_failed}
+                  passed={false}
+                />
+              </div>
+
+              {/* Market intelligence */}
+              <div className="border-t border-white/10 px-5 py-5">
+                <div className="flex items-center gap-2">
+                  <Activity size={17} className="text-blue-400" />
+                  <p className="text-sm font-semibold text-white">
+                    Market Intelligence
+                  </p>
+                </div>
+
+                <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <AIMetricCard
+                    label="Market Bias"
+                    value={aiAnalysis.market_intelligence.market_bias}
+                    valueClassName={
+                      aiAnalysis.market_intelligence.market_bias === "BULLISH"
+                        ? "text-emerald-400"
+                        : aiAnalysis.market_intelligence.market_bias === "BEARISH"
+                          ? "text-red-400"
+                          : "text-amber-400"
+                    }
+                  />
+                  <AIMetricCard
+                    label="Market Confidence"
+                    value={`${formatNumber(aiAnalysis.market_intelligence.confidence, 1)}%`}
+                  />
+                  <AIMetricCard
+                    label="Risk Level"
+                    value={aiAnalysis.market_intelligence.risk_level}
+                    valueClassName={
+                      aiAnalysis.market_intelligence.risk_level === "LOW"
+                        ? "text-emerald-400"
+                        : aiAnalysis.market_intelligence.risk_level === "MEDIUM"
+                          ? "text-amber-400"
+                          : "text-red-400"
+                    }
+                  />
+                  <AIMetricCard
+                    label="Recommendation"
+                    value={aiAnalysis.market_intelligence.recommendation}
+                  />
                 </div>
               </div>
 
-              {aiAnalysis.trade_plan && (
-                <div className="border-t border-white/10 px-5 py-5">
-                  <p className="text-[10px] uppercase tracking-wider text-gray-600">Trade Plan</p>
-                  <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-                    <AIPlanValue label="Entry" value={formatNumber(aiAnalysis.trade_plan.entry_price, 5)} />
-                    <AIPlanValue label="Stop Loss" value={formatNumber(aiAnalysis.trade_plan.stop_loss, 5)} />
-                    <AIPlanValue label="Take Profit" value={formatNumber(aiAnalysis.trade_plan.take_profit, 5)} />
-                    <AIPlanValue label="Risk / Reward" value={`1:${formatNumber(aiAnalysis.trade_plan.risk_reward, 2)}`} />
-                    <AIPlanValue label="Direction" value={aiAnalysis.trade_plan.direction} />
-                  </div>
-                </div>
-              )}
-
-              <div className="grid gap-4 border-t border-white/10 p-5 sm:grid-cols-2">
-                {aiAnalysis.risk_validation && <AIApprovalCard title="Risk Validation" approved={aiAnalysis.risk_validation.approved} reason={aiAnalysis.risk_validation.reason} icon={<ShieldCheck size={17} />} />}
-                {aiAnalysis.approval && <AIApprovalCard title="Trade Approval" approved={aiAnalysis.approval.approved} reason={aiAnalysis.approval.reason} icon={<CheckCircle2 size={17} />} />}
+              {/* Structure / MTF / Session */}
+              <div className="grid gap-4 border-t border-white/10 p-5 sm:grid-cols-2 lg:grid-cols-4">
+                <AIMetricCard
+                  label="Structure Direction"
+                  value={aiAnalysis.market_intelligence.structure_direction}
+                  valueClassName={
+                    aiAnalysis.market_intelligence.structure_direction === "BULLISH"
+                      ? "text-emerald-400"
+                      : aiAnalysis.market_intelligence.structure_direction === "BEARISH"
+                        ? "text-red-400"
+                        : "text-amber-400"
+                  }
+                />
+                <AIMetricCard
+                  label="Structure Confirmation"
+                  value={aiAnalysis.market_intelligence.structure_confirmation}
+                />
+                <AIMetricCard
+                  label="MTF Alignment"
+                  value={aiAnalysis.market_intelligence.timeframe_alignment}
+                  valueClassName={
+                    aiAnalysis.market_intelligence.timeframe_alignment === "FULL"
+                      ? "text-emerald-400"
+                      : aiAnalysis.market_intelligence.timeframe_alignment === "PARTIAL"
+                        ? "text-amber-400"
+                        : "text-red-400"
+                  }
+                />
+                <AIMetricCard
+                  label="Market Session"
+                  value={aiAnalysis.market_intelligence.market_session}
+                />
               </div>
 
-              {aiAnalysis.reasoning && (
-                <div className="border-t border-white/10 px-5 py-5">
-                  <div className="flex items-center gap-2">
-                    <BrainCircuit size={17} className="text-purple-300" />
-                    <p className="text-sm font-semibold text-white">Explainable AI Reasoning</p>
-                  </div>
-                  <div className="mt-4 space-y-3 text-xs leading-6 text-gray-400">
-                    <p><span className="text-gray-300">Technical:</span> {aiAnalysis.reasoning.technical_reason}</p>
-                    <p><span className="text-gray-300">News:</span> {aiAnalysis.reasoning.news_reason}</p>
-                    <p><span className="text-gray-300">Structure:</span> {aiAnalysis.reasoning.structure_reason}</p>
-                    <p><span className="text-gray-300">Risk:</span> {aiAnalysis.reasoning.risk_reason}</p>
-                    <p className="border-t border-white/5 pt-3 text-gray-300">{aiAnalysis.reasoning.final_reason}</p>
-                  </div>
+              {/* Analysis summaries */}
+              <div className="grid gap-4 border-t border-white/10 p-5 lg:grid-cols-3">
+                <AIAnalysisCard
+                  icon={<Activity size={16} className="text-blue-400" />}
+                  title="Technical Analysis"
+                  text={aiAnalysis.market_intelligence.technical_summary}
+                />
+                <AIAnalysisCard
+                  icon={<BarChart3 size={16} className="text-purple-400" />}
+                  title="News Analysis"
+                  text={aiAnalysis.market_intelligence.news_summary}
+                />
+                <AIAnalysisCard
+                  icon={<TrendingUp size={16} className="text-emerald-400" />}
+                  title="Market Structure"
+                  text={aiAnalysis.market_intelligence.structure_summary}
+                />
+              </div>
+
+              {/* MTF and session details */}
+              <div className="grid gap-4 border-t border-white/10 p-5 lg:grid-cols-2">
+                <AIAnalysisCard
+                  icon={<BarChart3 size={16} className="text-purple-400" />}
+                  title="Multi-Timeframe Analysis"
+                  text={`${aiAnalysis.market_intelligence.timeframe_summary} MTF confidence: ${formatNumber(aiAnalysis.market_intelligence.timeframe_confidence, 1)}%.`}
+                />
+                <AIAnalysisCard
+                  icon={<Clock3 size={16} className="text-blue-400" />}
+                  title="Market Session"
+                  text={`${aiAnalysis.market_intelligence.session_summary} Activity: ${aiAnalysis.market_intelligence.session_activity}. Condition: ${aiAnalysis.market_intelligence.session_condition}.`}
+                />
+              </div>
+
+              {/* Confidence explanation */}
+              <div className="border-t border-white/10 px-5 py-5">
+                <div className="flex items-center gap-2">
+                  <BrainCircuit size={17} className="text-purple-300" />
+                  <p className="text-sm font-semibold text-white">
+                    Decision Confidence Explanation
+                  </p>
                 </div>
-              )}
+                <p className="mt-3 text-xs leading-6 text-gray-400">
+                  {aiAnalysis.market_intelligence.confidence_summary}
+                </p>
+              </div>
+
+              {/* Conflict */}
+              <div className="border-t border-white/10 px-5 py-5">
+                <div className="flex items-center gap-2">
+                  {aiAnalysis.market_intelligence.conflict_detected ? (
+                    <AlertTriangle size={17} className="text-amber-400" />
+                  ) : (
+                    <CheckCircle2 size={17} className="text-emerald-400" />
+                  )}
+                  <p className="text-sm font-semibold text-white">
+                    Agent Conflict
+                  </p>
+                </div>
+                <p className="mt-3 text-xs leading-6 text-gray-400">
+                  {aiAnalysis.market_intelligence.conflict_summary}
+                </p>
+              </div>
             </section>
           )}
-
 
           {/* =================================================
               RECENT TRADES
@@ -2434,50 +2579,47 @@ function AIAnalysisCard({
 
 
 /* =========================================================
-   AI PLAN VALUE
+   GATE LIST CARD
    ========================================================= */
 
-function AIPlanValue({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
-  return (
-    <div>
-      <p className="text-[10px] text-gray-600">{label}</p>
-      <p className="mt-1 text-sm font-medium text-white">{value}</p>
-    </div>
-  );
-}
-
-
-/* =========================================================
-   AI APPROVAL CARD
-   ========================================================= */
-
-function AIApprovalCard({
+function GateListCard({
   title,
-  approved,
-  reason,
-  icon,
+  items,
+  passed,
 }: {
   title: string;
-  approved: boolean;
-  reason: string;
-  icon: ReactNode;
+  items: string[];
+  passed: boolean;
 }) {
   return (
     <div className="rounded-xl border border-white/5 bg-black/20 p-5">
       <div className="flex items-center gap-2">
-        <span className={approved ? "text-emerald-400" : "text-red-400"}>{icon}</span>
+        {passed ? (
+          <CheckCircle2 size={16} className="text-emerald-400" />
+        ) : (
+          <CircleAlert size={16} className="text-red-400" />
+        )}
         <p className="text-sm font-semibold text-white">{title}</p>
-        <span className={`ml-auto rounded-md px-2 py-1 text-[9px] font-bold uppercase ${approved ? "bg-emerald-400/10 text-emerald-400" : "bg-red-400/10 text-red-400"}`}>
-          {approved ? "Approved" : "Rejected"}
-        </span>
       </div>
-      <p className="mt-3 text-xs leading-6 text-gray-400">{reason}</p>
+
+      {items.length === 0 ? (
+        <p className="mt-3 text-xs text-gray-600">None</p>
+      ) : (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {items.map((item) => (
+            <span
+              key={item}
+              className={`rounded-lg px-2.5 py-1.5 text-[10px] font-medium ${
+                passed
+                  ? "bg-emerald-400/10 text-emerald-400"
+                  : "bg-red-400/10 text-red-400"
+              }`}
+            >
+              {item}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

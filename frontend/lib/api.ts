@@ -150,6 +150,57 @@ export type Notification = {
   created_at: string;
 };
 
+/* =========================================================
+   LIVE DECISION GATE
+   ========================================================= */
+
+export type LiveDecisionGateResult = {
+  symbol: string;
+
+  decision: {
+    action: "BUY" | "SELL" | "HOLD";
+    approved: boolean;
+
+    market_confidence: number;
+    timeframe_confidence: number;
+    decision_confidence: number;
+
+    reason: string;
+
+    gates_passed: string[];
+    gates_failed: string[];
+  };
+
+  market_intelligence: {
+    market_bias: string;
+    confidence: number;
+
+    risk_level: string;
+    recommendation: string;
+
+    structure_direction: string;
+    structure_confirmation: string;
+
+    timeframe_alignment: string;
+    timeframe_confidence: number;
+    timeframe_summary: string;
+
+    market_session: string;
+    session_activity: string;
+    session_condition: string;
+    session_summary: string;
+
+    technical_summary: string;
+    news_summary: string;
+    structure_summary: string;
+
+    conflict_detected: boolean;
+    conflict_summary: string;
+
+    confidence_summary: string;
+  };
+};
+
 
 /* =========================================================
    AUTHENTICATION
@@ -531,6 +582,63 @@ export async function markAllNotificationsAsRead(): Promise<{
     throw new Error(
       `Failed to mark notifications as read (${response.status}).`,
     );
+  }
+
+  return response.json();
+}
+
+/* =========================================================
+   LIVE INTELLIGENT DECISION
+   ========================================================= */
+
+export async function getLiveIntelligentDecision(
+  symbol: string,
+): Promise<LiveDecisionGateResult> {
+  const normalizedSymbol = symbol
+    .replace("/", "")
+    .trim()
+    .toUpperCase();
+
+  const response =
+    await authenticatedFetch(
+      `/decision/intelligent/live/${encodeURIComponent(
+        normalizedSymbol,
+      )}`,
+    );
+
+  if (!response.ok) {
+    let message =
+      `Live intelligent decision failed (${response.status}).`;
+
+    try {
+      const data = await response.json();
+
+      if (typeof data.detail === "string") {
+        message = data.detail;
+      } else if (Array.isArray(data.detail)) {
+        message = data.detail
+          .map(
+            (error: {
+              loc?: unknown[];
+              msg?: string;
+            }) => {
+              const location =
+                Array.isArray(error.loc)
+                  ? error.loc.join(".")
+                  : "field";
+
+              return `${location}: ${
+                error.msg ?? "Invalid value"
+              }`;
+            },
+          )
+          .join("; ");
+      }
+    } catch {
+      // Keep default error message.
+    }
+
+    throw new Error(message);
   }
 
   return response.json();
