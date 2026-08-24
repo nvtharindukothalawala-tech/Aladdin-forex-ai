@@ -38,7 +38,7 @@ class MarketIntelligenceAgent:
 
         if news_result is None:
 
-            # Without news, technical and structure
+            # Technical and market structure
             # share the available confidence weight.
 
             technical_weight = 0.50
@@ -174,6 +174,9 @@ class MarketIntelligenceAgent:
                 news_result.sentiment
             )
 
+            # Technical and structure agree,
+            # but news disagrees.
+
             if (
                 technical_direction
                 == structure_direction
@@ -191,6 +194,9 @@ class MarketIntelligenceAgent:
                     "analysis"
                 )
 
+            # Technical and news agree,
+            # but structure disagrees.
+
             elif (
                 technical_direction
                 == news_direction
@@ -207,6 +213,9 @@ class MarketIntelligenceAgent:
                     "disagrees with technical "
                     "and news analysis"
                 )
+
+            # News and structure agree,
+            # but technical disagrees.
 
             elif (
                 news_direction
@@ -274,31 +283,74 @@ class MarketIntelligenceAgent:
             )
 
         # ==========================================
+        # Market Structure Confirmation
+        # ==========================================
+
+        structure_direction = (
+            structure_result.trend_direction
+        )
+
+        structure_confirmation = "NONE"
+
+        if (
+            structure_result.structure == "BOS"
+            and structure_direction == "BULLISH"
+        ):
+
+            structure_confirmation = "BOS_BULLISH"
+
+        elif (
+            structure_result.structure == "BOS"
+            and structure_direction == "BEARISH"
+        ):
+
+            structure_confirmation = "BOS_BEARISH"
+
+        elif structure_result.structure == "CHoCH":
+
+            structure_confirmation = "CHoCH"
+
+        # ==========================================
         # Return Combined Result
         # ==========================================
 
         return MarketIntelligenceResult(
             market_bias=market_bias,
+
             confidence=round(
                 confidence,
                 2,
             ),
+
             technical_summary=(
                 f"Trend: "
                 f"{technical_result.trend}, "
                 f"Momentum: "
                 f"{technical_result.momentum}"
             ),
+
             news_summary=news_summary,
+
             structure_summary=(
                 f"{structure_result.structure}, "
                 f"{structure_result.trend_direction}, "
                 f"Liquidity: "
                 f"{structure_result.liquidity_status}"
             ),
+
+            structure_direction=structure_direction,
+
+            structure_confirmation=(
+                structure_confirmation
+            ),
+
             risk_level=risk_level,
+
             recommendation=recommendation,
+
             conflict_detected=conflict_detected,
+
             conflict_summary=conflict_summary,
+
             confidence_summary=confidence_summary,
         )
