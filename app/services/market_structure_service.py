@@ -375,6 +375,277 @@ class MarketStructureService:
             key=lambda item: item["break_index"],
         )
 
+    @staticmethod
+    def detect_liquidity_sweep(
+        candles,
+        swing_highs,
+        swing_lows,
+    ):
+        """
+        Detect the latest liquidity sweep.
+
+        High-side sweep:
+            Candle high moves above a confirmed swing high
+            but candle closes back below that level.
+
+        Low-side sweep:
+            Candle low moves below a confirmed swing low
+            but candle closes back above that level.
+        """
+
+        sweep_events = []
+
+        # ==========================================
+        # High-side liquidity sweep
+        # ==========================================
+
+        for swing_high in swing_highs:
+
+            swing_index = swing_high["index"]
+            swing_price = swing_high["price"]
+
+            for index in range(
+                swing_index + 1,
+                len(candles),
+            ):
+
+                candle = candles[index]
+
+                if (
+                    candle.high_price > swing_price
+                    and candle.close_price < swing_price
+                ):
+
+                    sweep_events.append(
+                        {
+                            "type": "LIQUIDITY_SWEEP_HIGH",
+                            "level_price": swing_price,
+                            "swing_index": swing_index,
+                            "sweep_index": index,
+                            "timestamp": candle.timestamp,
+                        }
+                    )
+
+                    break
+
+        # ==========================================
+        # Low-side liquidity sweep
+        # ==========================================
+
+        for swing_low in swing_lows:
+
+            swing_index = swing_low["index"]
+            swing_price = swing_low["price"]
+
+            for index in range(
+                swing_index + 1,
+                len(candles),
+            ):
+
+                candle = candles[index]
+
+                if (
+                    candle.low_price < swing_price
+                    and candle.close_price > swing_price
+                ):
+
+                    sweep_events.append(
+                        {
+                            "type": "LIQUIDITY_SWEEP_LOW",
+                            "level_price": swing_price,
+                            "swing_index": swing_index,
+                            "sweep_index": index,
+                            "timestamp": candle.timestamp,
+                        }
+                    )
+
+                    break
+
+        # ==========================================
+        # No sweep detected
+        # ==========================================
+
+        if not sweep_events:
+            return None
+
+        # ==========================================
+        # Return latest sweep
+        # ==========================================
+
+        return max(
+            sweep_events,
+            key=lambda item: item["sweep_index"],
+        )
+
+    @staticmethod
+    def detect_order_block(
+        candles,
+        latest_bos,
+    ):
+        """
+        Detect the latest Order Block related to BOS.
+
+        Bullish Order Block:
+            The last bearish candle before
+            a bullish BOS.
+
+        Bearish Order Block:
+            The last bullish candle before
+            a bearish BOS.
+        """
+
+        if latest_bos is None:
+            return None
+
+        bos_type = latest_bos["type"]
+        break_index = latest_bos["break_index"]
+
+        # We need at least one candle before the BOS.
+        if break_index <= 0:
+            return None
+
+        # ==========================================
+        # Bullish Order Block
+        # ==========================================
+
+        if bos_type == "BOS_BULLISH":
+
+            for index in range(
+                break_index - 1,
+                -1,
+                -1,
+            ):
+
+                candle = candles[index]
+
+                # Bearish candle
+                if candle.close_price < candle.open_price:
+
+                    return {
+                        "type": "ORDER_BLOCK_BULLISH",
+                        "candle_index": index,
+                        "high_price": candle.high_price,
+                        "low_price": candle.low_price,
+                        "open_price": candle.open_price,
+                        "close_price": candle.close_price,
+                        "timestamp": candle.timestamp,
+                    }
+
+        # ==========================================
+        # Bearish Order Block
+        # ==========================================
+
+        elif bos_type == "BOS_BEARISH":
+
+            for index in range(
+                break_index - 1,
+                -1,
+                -1,
+            ):
+
+                candle = candles[index]
+
+                # Bullish candle
+                if candle.close_price > candle.open_price:
+
+                    return {
+                        "type": "ORDER_BLOCK_BEARISH",
+                        "candle_index": index,
+                        "high_price": candle.high_price,
+                        "low_price": candle.low_price,
+                        "open_price": candle.open_price,
+                        "close_price": candle.close_price,
+                        "timestamp": candle.timestamp,
+                    }
+
+        return None
+
+    @staticmethod
+    def detect_fvg(
+        candles,
+    ):
+        """
+        Detect the latest Fair Value Gap (FVG).
+
+        Bullish FVG:
+            Candle 3 low is above Candle 1 high.
+
+        Bearish FVG:
+            Candle 3 high is below Candle 1 low.
+
+        The middle candle is the displacement candle.
+        """
+
+        fvg_events = []
+
+        if len(candles) < 3:
+            return None
+
+        # ==========================================
+        # Scan 3-candle patterns
+        # ==========================================
+
+        for index in range(
+            2,
+            len(candles),
+        ):
+
+            candle_1 = candles[index - 2]
+            candle_2 = candles[index - 1]
+            candle_3 = candles[index]
+
+            # ==========================================
+            # Bullish FVG
+            # ==========================================
+
+            if candle_3.low_price > candle_1.high_price:
+
+                fvg_events.append(
+                    {
+                        "type": "FVG_BULLISH",
+                        "start_index": index - 2,
+                        "middle_index": index - 1,
+                        "end_index": index,
+                        "lower_price": candle_1.high_price,
+                        "upper_price": candle_3.low_price,
+                        "timestamp": candle_3.timestamp,
+                    }
+                )
+
+            # ==========================================
+            # Bearish FVG
+            # ==========================================
+
+            elif candle_3.high_price < candle_1.low_price:
+
+                fvg_events.append(
+                    {
+                        "type": "FVG_BEARISH",
+                        "start_index": index - 2,
+                        "middle_index": index - 1,
+                        "end_index": index,
+                        "lower_price": candle_3.high_price,
+                        "upper_price": candle_1.low_price,
+                        "timestamp": candle_3.timestamp,
+                    }
+                )
+
+        # ==========================================
+        # No FVG detected
+        # ==========================================
+
+        if not fvg_events:
+            return None
+
+        # ==========================================
+        # Return latest FVG
+        # ==========================================
+
+        return max(
+            fvg_events,
+            key=lambda item: item["end_index"],
+        )
+
     def close(self):
         """
         Close the MetaTrader 5 connection.

@@ -8,6 +8,8 @@ Author: Tharindu Kothalawala
 Project: Aladdin
 """
 
+import MetaTrader5 as mt5
+
 from app.intelligence.technical_agent import (
     TechnicalAgent,
 )
@@ -35,21 +37,28 @@ class TechnicalAnalysisService:
     def analyze(
         self,
         symbol,
+        timeframe=mt5.TIMEFRAME_H1,
     ):
         """
-        Get real market data and perform
-        technical analysis.
+        Get real market data for a selected
+        timeframe and perform technical analysis.
         """
 
+        # ==========================================
         # Get real market analysis
+        # ==========================================
+
         market_signal = (
             self.market_service.analyze(
                 symbol=symbol,
+                timeframe=timeframe,
             )
         )
 
-        # Convert market trend into
-        # the format expected by TechnicalAgent
+        # ==========================================
+        # Convert market trend
+        # ==========================================
+
         if market_signal.trend == "Bullish":
 
             ema_signal = "BULLISH"
@@ -62,13 +71,18 @@ class TechnicalAnalysisService:
 
             ema_signal = "NEUTRAL"
 
+        # ==========================================
         # Run Technical Analysis Agent
+        # ==========================================
+
         technical_result = (
             TechnicalAgent.analyze(
                 ema_signal=ema_signal,
                 rsi_value=market_signal.rsi,
                 adx_value=market_signal.adx,
-                volatility=market_signal.volatility.upper(),
+                volatility=(
+                    market_signal.volatility.upper()
+                ),
             )
         )
 

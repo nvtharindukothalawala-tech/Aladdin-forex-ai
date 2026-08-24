@@ -3,7 +3,7 @@ market_structure_result.py
 
 Stores market structure analysis results.
 
-Author: Tharindu Kothalwala
+Author: Tharindu Kothalawala
 Project: Aladdin
 """
 
@@ -29,3 +29,17 @@ class MarketStructureResult:
     confidence: float
 
     signals: list[str]
+
+    bos: dict | None = None
+
+    choch: dict | None = None
+
+    liquidity_sweep: dict | None = None
+
+    order_block_details: dict | None = None
+
+    fvg_details: dict | None = None
+
+    swing_highs: list[dict] | None = None
+
+    swing_lows: list[dict] | None = None

@@ -139,9 +139,22 @@ class Settings:
         if origin.strip()
     ]
 
+        # ==========================================
+    # Economic News Configuration
+    # ==========================================
+
+    TRADING_ECONOMICS_API_KEY = os.getenv(
+        "TRADING_ECONOMICS_API_KEY",
+        "",
+    )
+
+    TRADING_ECONOMICS_BASE_URL = os.getenv(
+        "TRADING_ECONOMICS_BASE_URL",
+        "https://api.tradingeconomics.com",
+    )
+
 
 settings = Settings()
-
 
 # ==============================================
 # Production Security Validation
