@@ -102,6 +102,7 @@ def analyze_ai_trade(
         risk_percent=data.risk_percent,
         trade_risk_amount=data.trade_risk_amount,
         lot_size=data.lot_size,
+        pip_value=data.pip_value,
     )
 
     return result

@@ -119,3 +119,11 @@ class AITradeAnalysisRequest(BaseModel):
         ...,
         gt=0,
     )
+
+    pip_value: float = Field(
+        ...,
+        gt=0,
+        json_schema_extra={
+            "example": 10
+        },
+    )

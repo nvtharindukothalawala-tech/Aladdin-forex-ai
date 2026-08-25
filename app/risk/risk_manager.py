@@ -4,26 +4,32 @@ risk_manager.py
 Contains the RiskManager class used by the
 Aladdin Forex Trading Assistant.
 
-This class provides reusable calculations for trade risk,
-position sizing, pip size, pip distance,
-and risk-to-reward ratio.
+Supports:
+- Forex pairs
+- JPY pairs
+- XAU/USD Gold
+- Risk amount
+- Position sizing
+- Pip size
+- Pip distance
+- Actual trade risk
+- Risk-to-reward ratio
 
-Author: Tharindu Kothalwala
+Author: Tharindu Kothalawala
 Project: Aladdin
 """
 
 from app.core.exceptions import RiskError
 from app.core.logger import get_logger
 
+from app.config.instrument_config import (
+    get_pip_size,
+)
+
 
 class RiskManager:
     """
-    Provide risk-management calculations for Forex trades.
-
-    All methods are static because the class does not need
-    to store account or trade information inside an object.
-
-    Risk validation errors use RiskError.
+    Provide reusable risk-management calculations.
     """
 
     logger = get_logger(__name__)
@@ -33,24 +39,12 @@ class RiskManager:
     # ==========================================
 
     @staticmethod
-    def calculate_risk_amount(account_balance, risk_percent):
+    def calculate_risk_amount(
+        account_balance,
+        risk_percent,
+    ):
         """
-        Calculate the amount of money allowed to risk on a trade.
-
-        Args:
-            account_balance:
-                Current trading account balance.
-
-            risk_percent:
-                Percentage of the balance to risk.
-
-        Returns:
-            float:
-                Amount of money allowed to risk.
-
-        Raises:
-            RiskError:
-                If the account balance or risk percentage is invalid.
+        Calculate maximum allowed money risk.
         """
 
         if account_balance <= 0:
@@ -59,7 +53,9 @@ class RiskManager:
                 account_balance,
             )
 
-            raise RiskError("Account balance must be greater than zero.")
+            raise RiskError(
+                "Account balance must be greater than zero."
+            )
 
         if risk_percent <= 0 or risk_percent > 100:
             RiskManager.logger.warning(
@@ -67,9 +63,15 @@ class RiskManager:
                 risk_percent,
             )
 
-            raise RiskError("Risk percentage must be between 0 and 100.")
+            raise RiskError(
+                "Risk percentage must be between 0 and 100."
+            )
 
-        risk_amount = account_balance * risk_percent / 100
+        risk_amount = (
+            account_balance
+            * risk_percent
+            / 100
+        )
 
         RiskManager.logger.info(
             "Risk amount calculated successfully: %s",
@@ -88,16 +90,13 @@ class RiskManager:
         stop_loss_distance,
     ):
         """
-        Calculate position size using risk amount and
-        stop-loss distance.
-
-        Formula:
-            position size = risk amount / stop-loss distance
-
-        Raises:
-            RiskError:
-                If the stop-loss distance is invalid.
+        Calculate generic position size.
         """
+
+        if risk_amount <= 0:
+            raise RiskError(
+                "Risk amount must be greater than zero."
+            )
 
         if stop_loss_distance <= 0:
             RiskManager.logger.warning(
@@ -105,9 +104,14 @@ class RiskManager:
                 stop_loss_distance,
             )
 
-            raise RiskError("Stop loss distance must be greater than zero.")
+            raise RiskError(
+                "Stop loss distance must be greater than zero."
+            )
 
-        position_size = risk_amount / stop_loss_distance
+        position_size = (
+            risk_amount
+            / stop_loss_distance
+        )
 
         RiskManager.logger.info(
             "Position size calculated successfully: %s",
@@ -127,43 +131,41 @@ class RiskManager:
         take_profit_price,
     ):
         """
-        Calculate the risk-to-reward ratio.
+        Calculate risk-to-reward ratio.
 
-        Formula:
-            risk = |entry - stop loss|
-            reward = |take profit - entry|
+        Risk:
+            |entry - stop|
 
-            ratio = reward / risk
+        Reward:
+            |take profit - entry|
 
-        Args:
-            entry_price:
-                Trade entry price.
-
-            stop_loss_price:
-                Stop-loss price.
-
-            take_profit_price:
-                Take-profit price.
-
-        Returns:
-            float:
-                Risk-to-reward ratio.
-
-        Raises:
-            RiskError:
-                If the risk distance is zero.
+        Ratio:
+            reward / risk
         """
 
-        risk_distance = abs(entry_price - stop_loss_price)
+        risk_distance = abs(
+            entry_price
+            - stop_loss_price
+        )
 
-        reward_distance = abs(take_profit_price - entry_price)
+        reward_distance = abs(
+            take_profit_price
+            - entry_price
+        )
 
-        if risk_distance == 0:
-            RiskManager.logger.warning("Entry price equals stop loss price.")
+        if risk_distance <= 0:
+            RiskManager.logger.warning(
+                "Entry price equals stop loss price."
+            )
 
-            raise RiskError("Entry price and stop loss cannot be equal.")
+            raise RiskError(
+                "Entry price and stop loss cannot be equal."
+            )
 
-        ratio = reward_distance / risk_distance
+        ratio = (
+            reward_distance
+            / risk_distance
+        )
 
         RiskManager.logger.info(
             "Risk reward ratio calculated successfully: %s",
@@ -173,24 +175,47 @@ class RiskManager:
         return ratio
 
     # ==========================================
-    # Pip Calculations
+    # Pip Size
     # ==========================================
 
     @staticmethod
     def get_pip_size(symbol):
         """
-        Return the standard pip size for a Forex symbol.
+        Return instrument pip size.
 
-        Most Forex pairs use 0.0001.
-        Japanese Yen pairs use 0.01.
+        Examples:
+
+        EUR/USD:
+            0.0001
+
+        USD/JPY:
+            0.01
+
+        XAU/USD:
+            0.01
         """
 
-        normalized_symbol = symbol.replace("/", "").upper()
+        try:
+            pip_size = get_pip_size(
+                symbol
+            )
 
-        if normalized_symbol.endswith("JPY"):
-            return 0.01
+        except ValueError as error:
 
-        return 0.0001
+            RiskManager.logger.warning(
+                "Unsupported symbol for pip size: %s",
+                symbol,
+            )
+
+            raise RiskError(
+                str(error)
+            ) from error
+
+        return pip_size
+
+    # ==========================================
+    # Pip Calculation
+    # ==========================================
 
     @staticmethod
     def calculate_pips(
@@ -198,23 +223,24 @@ class RiskManager:
         price_distance,
     ):
         """
-        Convert a price movement into pips.
-
-        Args:
-            symbol:
-                Forex pair.
-
-            price_distance:
-                Difference between two prices.
-
-        Returns:
-            float:
-                Number of pips.
+        Convert price movement into pips.
         """
 
-        pip_size = RiskManager.get_pip_size(symbol)
+        if price_distance <= 0:
+            raise RiskError(
+                "Price distance must be greater than zero."
+            )
 
-        pips = price_distance / pip_size
+        pip_size = (
+            RiskManager.get_pip_size(
+                symbol
+            )
+        )
+
+        pips = (
+            price_distance
+            / pip_size
+        )
 
         RiskManager.logger.info(
             "Pip calculation completed: %s pips for %s",
@@ -224,9 +250,57 @@ class RiskManager:
 
         return pips
 
-        # ==========================================
+    # ==========================================
+    # Actual Trade Risk
+    # ==========================================
 
-    # Forex Lot Size Calculation
+    @staticmethod
+    def calculate_trade_risk(
+        stop_loss_pips,
+        pip_value,
+        lot_size,
+    ):
+        """
+        Calculate actual monetary risk.
+
+        Formula:
+
+            actual risk =
+                stop loss pips
+                × pip value
+                × lot size
+        """
+
+        if stop_loss_pips <= 0:
+            raise RiskError(
+                "Stop loss pips must be greater than zero."
+            )
+
+        if pip_value <= 0:
+            raise RiskError(
+                "Pip value must be greater than zero."
+            )
+
+        if lot_size <= 0:
+            raise RiskError(
+                "Lot size must be greater than zero."
+            )
+
+        actual_risk = (
+            stop_loss_pips
+            * pip_value
+            * lot_size
+        )
+
+        RiskManager.logger.info(
+            "Actual trade risk calculated successfully: %s",
+            actual_risk,
+        )
+
+        return actual_risk
+
+    # ==========================================
+    # Forex / Instrument Lot Size
     # ==========================================
 
     @staticmethod
@@ -236,61 +310,39 @@ class RiskManager:
         pip_value,
     ):
         """
-        Calculate Forex lot size using professional
-        position sizing formula.
+        Calculate lot size.
 
         Formula:
 
             lot size =
-            risk amount / (stop loss pips × pip value)
-
-        Args:
-            risk_amount:
-                Amount of money willing to lose.
-
-            stop_loss_pips:
-                Distance between entry and stop loss.
-
-            pip_value:
-                Value of one pip for one standard lot.
-
-        Returns:
-            float:
-                Recommended lot size.
-
-        Raises:
-            RiskError:
-                If input values are invalid.
+                risk amount
+                /
+                (stop loss pips × pip value)
         """
 
-        # Validate risk amount.
         if risk_amount <= 0:
-            RiskManager.logger.warning(
-                "Invalid risk amount: %s",
-                risk_amount,
+            raise RiskError(
+                "Risk amount must be greater than zero."
             )
 
-            raise RiskError("Risk amount must be greater than zero.")
-
-        # Validate stop loss distance.
         if stop_loss_pips <= 0:
-            RiskManager.logger.warning(
-                "Invalid stop loss pips: %s",
-                stop_loss_pips,
+            raise RiskError(
+                "Stop loss pips must be greater than zero."
             )
 
-            raise RiskError("Stop loss pips must be greater than zero.")
-
-        # Validate pip value.
         if pip_value <= 0:
-            RiskManager.logger.warning(
-                "Invalid pip value: %s",
-                pip_value,
+            raise RiskError(
+                "Pip value must be greater than zero."
             )
 
-            raise RiskError("Pip value must be greater than zero.")
-
-        lot_size = risk_amount / (stop_loss_pips * pip_value)
+        lot_size = (
+            risk_amount
+            /
+            (
+                stop_loss_pips
+                * pip_value
+            )
+        )
 
         RiskManager.logger.info(
             "Forex lot size calculated successfully: %s",

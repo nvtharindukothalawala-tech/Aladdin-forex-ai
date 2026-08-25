@@ -23,10 +23,10 @@ import {
 } from "lucide-react";
 
 import {
+  analyzeAITrade,
   closeTrade,
   createTrade,
   getAccessToken,
-  getLiveIntelligentDecision,
   getNotifications,
   getTradeStatistics,
   getTrades,
@@ -34,7 +34,8 @@ import {
   markAllNotificationsAsRead,
   markNotificationAsRead,
   removeAccessToken,
-  type LiveDecisionGateResult,
+  type AITradeAnalysisData,
+  type AITradeAnalysisResult,
   type Notification,
   type Trade,
   type TradeCreateData,
@@ -62,6 +63,243 @@ const defaultStatistics: TradeStatistics = {
   average_profit: 0,
   profit_factor: 0,
 };
+
+
+/* =========================================================
+   AI ANALYSIS TYPES + CONSTANTS
+   ========================================================= */
+
+const AI_ACCOUNT_BALANCE = 10000;
+const AI_RISK_PERCENT = 1;
+
+type InstrumentConfig = {
+  pipSize: number;
+  pipValue: number;
+  priceStep: string;
+  priceDecimals: number;
+};
+
+const INSTRUMENT_CONFIG: Record<string, InstrumentConfig> = {
+  "EUR/USD": {
+    pipSize: 0.0001,
+    pipValue: 10,
+    priceStep: "0.00001",
+    priceDecimals: 5,
+  },
+  "GBP/USD": {
+    pipSize: 0.0001,
+    pipValue: 10,
+    priceStep: "0.00001",
+    priceDecimals: 5,
+  },
+  "USD/JPY": {
+    pipSize: 0.01,
+    pipValue: 10,
+    priceStep: "0.001",
+    priceDecimals: 3,
+  },
+  "AUD/USD": {
+    pipSize: 0.0001,
+    pipValue: 10,
+    priceStep: "0.00001",
+    priceDecimals: 5,
+  },
+  "NZD/USD": {
+    pipSize: 0.0001,
+    pipValue: 10,
+    priceStep: "0.00001",
+    priceDecimals: 5,
+  },
+  "USD/CAD": {
+    pipSize: 0.0001,
+    pipValue: 10,
+    priceStep: "0.00001",
+    priceDecimals: 5,
+  },
+  "USD/CHF": {
+    pipSize: 0.0001,
+    pipValue: 10,
+    priceStep: "0.00001",
+    priceDecimals: 5,
+  },
+  "XAU/USD": {
+    pipSize: 0.01,
+    pipValue: 1,
+    priceStep: "0.01",
+    priceDecimals: 2,
+  },
+};
+
+type RiskGateDisplay = {
+  approved: boolean;
+  risk_amount: number;
+  risk_reward: number;
+  reason: string;
+  gates_passed: string[];
+  gates_failed: string[];
+};
+
+type AIAnalysisDisplayResult = AITradeAnalysisResult & {
+  risk_gate?: RiskGateDisplay;
+};
+
+function getInstrumentConfig(symbol: string): InstrumentConfig {
+  return (
+    INSTRUMENT_CONFIG[symbol] ??
+    INSTRUMENT_CONFIG["EUR/USD"]
+  );
+}
+
+function getPipSize(symbol: string) {
+  return getInstrumentConfig(symbol).pipSize;
+}
+
+function getPipValue(symbol: string) {
+  return getInstrumentConfig(symbol).pipValue;
+}
+
+function getPriceDecimals(symbol: string) {
+  return getInstrumentConfig(symbol).priceDecimals;
+}
+
+function getPriceStep(symbol: string) {
+  return getInstrumentConfig(symbol).priceStep;
+}
+
+function calculateStopLossPips(
+  symbol: string,
+  entryPrice: number,
+  stopLoss: number,
+) {
+  const pipSize = getPipSize(symbol);
+
+  return Math.abs(
+    entryPrice - stopLoss,
+  ) / pipSize;
+}
+
+function calculateTradeRisk(
+  symbol: string,
+  entryPrice: number,
+  stopLoss: number,
+  lotSize: number,
+) {
+  const stopLossPips =
+    calculateStopLossPips(
+      symbol,
+      entryPrice,
+      stopLoss,
+    );
+
+  return (
+    stopLossPips *
+    getPipValue(symbol) *
+    lotSize
+  );
+}
+
+function calculateRiskReward(
+  entryPrice: number,
+  stopLoss: number,
+  takeProfit: number,
+) {
+  const risk = Math.abs(
+    entryPrice - stopLoss,
+  );
+
+  const reward = Math.abs(
+    takeProfit - entryPrice,
+  );
+
+  if (risk <= 0) {
+    return 0;
+  }
+
+  return reward / risk;
+}
+
+function getCurrencyFromSymbol(symbol: string) {
+  return symbol.replace("/", "").slice(0, 3).toUpperCase();
+}
+
+function getDefaultTradeForm(
+  symbol: string,
+  direction: "Buy" | "Sell",
+): TradeCreateData {
+  const defaults: Record<
+    string,
+    {
+      entry: number;
+      risk: number;
+      reward: number;
+    }
+  > = {
+    "EUR/USD": {
+      entry: 1.08,
+      risk: 0.005,
+      reward: 0.01,
+    },
+    "GBP/USD": {
+      entry: 1.25,
+      risk: 0.005,
+      reward: 0.01,
+    },
+    "USD/JPY": {
+      entry: 150,
+      risk: 1,
+      reward: 2,
+    },
+    "AUD/USD": {
+      entry: 0.65,
+      risk: 0.005,
+      reward: 0.01,
+    },
+    "NZD/USD": {
+      entry: 0.60,
+      risk: 0.005,
+      reward: 0.01,
+    },
+    "USD/CAD": {
+      entry: 1.38,
+      risk: 0.005,
+      reward: 0.01,
+    },
+    "USD/CHF": {
+      entry: 0.80,
+      risk: 0.005,
+      reward: 0.01,
+    },
+    "XAU/USD": {
+      entry: 3400,
+      risk: 10,
+      reward: 20,
+    },
+  };
+
+  const selected =
+    defaults[symbol] ??
+    defaults["EUR/USD"];
+
+  const isBuy =
+    direction === "Buy";
+
+  return {
+    symbol,
+    direction,
+    entry_price: selected.entry,
+    lot_size: 0.1,
+    stop_loss: isBuy
+      ? selected.entry -
+        selected.risk
+      : selected.entry +
+        selected.risk,
+    take_profit: isBuy
+      ? selected.entry +
+        selected.reward
+      : selected.entry -
+        selected.reward,
+  };
+}
 
 
 /* =========================================================
@@ -250,7 +488,7 @@ export default function DashboardPage() {
     useState("");
 
   const [aiAnalysis, setAiAnalysis] =
-    useState<LiveDecisionGateResult | null>(null);
+    useState<AIAnalysisDisplayResult | null>(null);
 
   const [aiAnalyzing, setAiAnalyzing] =
     useState(false);
@@ -286,6 +524,23 @@ export default function DashboardPage() {
     useState(false);
 
 
+  function scrollToSection(sectionId: string) {
+    const element = document.getElementById(sectionId);
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    setSidebarOpen(false);
+  }
+
+  function updateTradeForm(next: TradeCreateData) {
+    setTradeForm(next);
+    setAiAnalysis(null);
+    setAiAnalysisError("");
+    setTradeActionError("");
+    setTradeActionMessage("");
+  }
+
+
   /* =======================================================
      AI TRADE ANALYSIS
      ======================================================= */
@@ -295,37 +550,207 @@ export default function DashboardPage() {
       setAiAnalyzing(true);
       setAiAnalysisError("");
       setAiAnalysis(null);
+      setTradeActionError("");
 
-      const accessToken = getAccessToken();
+      const accessToken =
+        getAccessToken();
 
       if (!accessToken) {
-        window.location.href = "/login";
+        window.location.href =
+          "/login";
         return;
       }
 
-      // MT5/backend symbols normally use EURUSD instead of EUR/USD.
-      const symbol = tradeForm.symbol.replace("/", "").toUpperCase();
+      const symbol =
+        tradeForm.symbol.trim();
 
-      const result = await getLiveIntelligentDecision(symbol);
+      const direction =
+        tradeForm.direction;
 
-      console.log("ALADDIN LIVE DECISION GATE RESULT:", result);
+      const entryPrice =
+        Number(
+          tradeForm.entry_price,
+        );
 
-      setAiAnalysis(result);
+      const stopLoss =
+        Number(
+          tradeForm.stop_loss,
+        );
+
+      const takeProfit =
+        Number(
+          tradeForm.take_profit,
+        );
+
+      const lotSize =
+        Number(
+          tradeForm.lot_size,
+        );
+
+      if (
+        !symbol ||
+        !Number.isFinite(entryPrice) ||
+        !Number.isFinite(stopLoss) ||
+        !Number.isFinite(takeProfit) ||
+        !Number.isFinite(lotSize) ||
+        entryPrice <= 0 ||
+        stopLoss <= 0 ||
+        takeProfit <= 0 ||
+        lotSize <= 0
+      ) {
+        setAiAnalysisError(
+          "Please enter valid symbol, entry price, stop loss, take profit, and lot size values.",
+        );
+        return;
+      }
+
+      if (!INSTRUMENT_CONFIG[symbol]) {
+        setAiAnalysisError(
+          `Unsupported trading symbol: ${symbol}.`,
+        );
+        return;
+      }
+
+      const isBuy =
+        direction.toLowerCase() ===
+        "buy";
+
+      const validPriceStructure =
+        isBuy
+          ? stopLoss < entryPrice &&
+            takeProfit > entryPrice
+          : stopLoss > entryPrice &&
+            takeProfit < entryPrice;
+
+      if (!validPriceStructure) {
+        setAiAnalysisError(
+          isBuy
+            ? "For a BUY trade, Stop Loss must be below Entry and Take Profit must be above Entry."
+            : "For a SELL trade, Stop Loss must be above Entry and Take Profit must be below Entry.",
+        );
+        return;
+      }
+
+      const stopLossPips =
+        calculateStopLossPips(
+          symbol,
+          entryPrice,
+          stopLoss,
+        );
+
+      if (
+        !Number.isFinite(
+          stopLossPips,
+        ) ||
+        stopLossPips <= 0
+      ) {
+        setAiAnalysisError(
+          "Stop-loss distance must be greater than zero.",
+        );
+        return;
+      }
+
+      const tradeRiskAmount =
+        calculateTradeRisk(
+          symbol,
+          entryPrice,
+          stopLoss,
+          lotSize,
+        );
+
+      if (
+        !Number.isFinite(
+          tradeRiskAmount,
+        ) ||
+        tradeRiskAmount <= 0
+      ) {
+        setAiAnalysisError(
+          "Unable to calculate the trade risk.",
+        );
+        return;
+      }
+
+      const currency =
+        getCurrencyFromSymbol(
+          symbol,
+        );
+
+      const signal =
+        isBuy
+          ? "BULLISH"
+          : "BEARISH";
+
+      const aiData:
+        AITradeAnalysisData = {
+        symbol,
+        ema_signal: signal,
+        rsi_value:
+          isBuy ? 65 : 35,
+        adx_value: 30,
+        volatility: "NORMAL",
+        currency,
+        event_type:
+          `${currency} economic event`,
+        importance: "MEDIUM",
+        sentiment: signal,
+        price_structure: isBuy
+          ? "BOS_BULLISH"
+          : "BOS_BEARISH",
+        liquidity_sweep: true,
+        order_block: signal,
+        fair_value_gap: true,
+        entry_price: entryPrice,
+        stop_loss: stopLoss,
+        take_profit: takeProfit,
+        account_balance:
+          AI_ACCOUNT_BALANCE,
+        risk_percent:
+          AI_RISK_PERCENT,
+        trade_risk_amount:
+          tradeRiskAmount,
+        lot_size: lotSize,
+        pip_value:
+          getPipValue(symbol),
+      };
+
+      console.log(
+        "ALADDIN AI REQUEST:",
+        aiData,
+      );
+
+      const result =
+        await analyzeAITrade(
+          aiData,
+        );
+
+      console.log(
+        "ALADDIN AI RESULT:",
+        result,
+      );
+
+      setAiAnalysis(
+        result as AIAnalysisDisplayResult,
+      );
     } catch (err) {
-      console.error("AI analysis error:", err);
+      console.error(
+        "AI analysis error:",
+        err,
+      );
 
       if (
         err instanceof Error &&
-        err.message === "Authentication required."
+        err.message ===
+          "Authentication required."
       ) {
-        window.location.href = "/login";
+        window.location.href =
+          "/login";
         return;
       }
 
       setAiAnalysisError(
         err instanceof Error
           ? err.message
-          : "Unable to generate live Aladdin decision.",
+          : "Unable to analyze trade.",
       );
     } finally {
       setAiAnalyzing(false);
@@ -412,11 +837,27 @@ export default function DashboardPage() {
       setTradeActionError("");
       setTradeActionMessage("");
 
+      const entryPrice =
+        Number(tradeForm.entry_price);
+
+      const stopLoss =
+        Number(tradeForm.stop_loss);
+
+      const takeProfit =
+        Number(tradeForm.take_profit);
+
+      const lotSize =
+        Number(tradeForm.lot_size);
+
       if (
-        tradeForm.entry_price <= 0 ||
-        tradeForm.lot_size <= 0 ||
-        tradeForm.stop_loss <= 0 ||
-        tradeForm.take_profit <= 0
+        !Number.isFinite(entryPrice) ||
+        !Number.isFinite(stopLoss) ||
+        !Number.isFinite(takeProfit) ||
+        !Number.isFinite(lotSize) ||
+        entryPrice <= 0 ||
+        lotSize <= 0 ||
+        stopLoss <= 0 ||
+        takeProfit <= 0
       ) {
         setTradeActionError(
           "Please enter valid values for entry price, lot size, stop loss, and take profit.",
@@ -425,8 +866,42 @@ export default function DashboardPage() {
         return;
       }
 
+      const isBuy =
+        tradeForm.direction
+          .toLowerCase() ===
+        "buy";
+
+      const validPriceStructure =
+        isBuy
+          ? stopLoss < entryPrice &&
+            takeProfit > entryPrice
+          : stopLoss > entryPrice &&
+            takeProfit < entryPrice;
+
+      if (!validPriceStructure) {
+        setTradeActionError(
+          isBuy
+            ? "For a BUY trade, Stop Loss must be below Entry and Take Profit must be above Entry."
+            : "For a SELL trade, Stop Loss must be above Entry and Take Profit must be below Entry.",
+        );
+
+        return;
+      }
+
+      const tradeToCreate: TradeCreateData = {
+        symbol: tradeForm.symbol,
+        direction: tradeForm.direction,
+        entry_price: entryPrice,
+        lot_size: lotSize,
+        stop_loss: stopLoss,
+        take_profit: takeProfit,
+      };
+
       const createdTrade =
-        await createTrade(tradeForm);
+        await createTrade(tradeToCreate);
+
+      setAiAnalysis(null);
+      setAiAnalysisError("");
 
       setTradeActionMessage(
         `${createdTrade.symbol} ${createdTrade.direction} trade created successfully.`,
@@ -438,13 +913,18 @@ export default function DashboardPage() {
         await loadNotifications();
       }
     } catch (err) {
-      console.error("Create trade error:", err);
+      console.error(
+        "Create trade error:",
+        err,
+      );
 
       if (
         err instanceof Error &&
-        err.message === "Authentication required."
+        err.message ===
+          "Authentication required."
       ) {
-        window.location.href = "/login";
+        window.location.href =
+          "/login";
         return;
       }
 
@@ -828,6 +1308,7 @@ export default function DashboardPage() {
               }
               label="Dashboard"
               active
+              onClick={() => scrollToSection("dashboard-top")}
             />
 
             <SidebarItem
@@ -837,6 +1318,7 @@ export default function DashboardPage() {
                 />
               }
               label="Markets"
+              onClick={() => scrollToSection("market-section")}
             />
 
             <SidebarItem
@@ -846,6 +1328,7 @@ export default function DashboardPage() {
                 />
               }
               label="AI Analysis"
+              onClick={() => scrollToSection("ai-analysis-section")}
             />
 
             <SidebarItem
@@ -855,6 +1338,7 @@ export default function DashboardPage() {
                 />
               }
               label="Trade Setup"
+              onClick={() => scrollToSection("trade-setup-section")}
             />
 
             <SidebarItem
@@ -864,6 +1348,7 @@ export default function DashboardPage() {
                 />
               }
               label="Trade Journal"
+              onClick={() => scrollToSection("trade-journal-section")}
             />
 
             <SidebarItem
@@ -873,6 +1358,7 @@ export default function DashboardPage() {
                 />
               }
               label="Performance"
+              onClick={() => scrollToSection("performance-section")}
             />
 
             <SidebarItem
@@ -882,6 +1368,7 @@ export default function DashboardPage() {
                 />
               }
               label="AI Coaching"
+              onClick={() => scrollToSection("ai-coaching-section")}
             />
 
             {/* Notification navigation */}
@@ -1443,7 +1930,7 @@ export default function DashboardPage() {
             CONTENT
             ================================================= */}
 
-        <section className="px-5 py-8 sm:px-8 lg:px-10">
+        <section id="dashboard-top" className="px-5 py-8 sm:px-8 lg:px-10">
 
 
           {/* =================================================
@@ -1617,7 +2104,7 @@ export default function DashboardPage() {
               SECONDARY METRICS
               ================================================= */}
 
-          <div className="mt-5 grid gap-5 md:grid-cols-3">
+          <div id="performance-section" className="mt-5 grid gap-5 md:grid-cols-3 scroll-mt-24">
 
             <SmallMetric
               label="Winning Trades"
@@ -1651,11 +2138,13 @@ export default function DashboardPage() {
 
           </div>
 
+          <div id="market-section" className="scroll-mt-24" aria-hidden="true" />
+
           {/* =================================================
               CREATE TRADE
               ================================================= */}
 
-          <div className="mt-8 rounded-2xl border border-white/10 bg-[#0a0e13]">
+          <div id="trade-setup-section" className="mt-8 rounded-2xl border border-white/10 bg-[#0a0e13]">
 
             <div className="border-b border-white/10 px-5 py-5">
 
@@ -1684,12 +2173,15 @@ export default function DashboardPage() {
 
                   <select
                     value={tradeForm.symbol}
-                    onChange={(event) =>
-                      setTradeForm({
-                        ...tradeForm,
-                        symbol: event.target.value,
-                      })
-                    }
+                    onChange={(event) => {
+                      const nextSymbol = event.target.value;
+                      updateTradeForm(
+                        getDefaultTradeForm(
+                          nextSymbol,
+                          tradeForm.direction as "Buy" | "Sell",
+                        ),
+                      );
+                    }}
                     className="w-full rounded-xl border border-white/10 bg-black px-3 py-3 text-sm text-white outline-none transition focus:border-emerald-400/50"
                   >
                     <option value="EUR/USD">
@@ -1707,6 +2199,22 @@ export default function DashboardPage() {
                     <option value="AUD/USD">
                       AUD/USD
                     </option>
+
+                    <option value="NZD/USD">
+                      NZD/USD
+                    </option>
+
+                    <option value="USD/CAD">
+                      USD/CAD
+                    </option>
+
+                    <option value="USD/CHF">
+                      USD/CHF
+                    </option>
+
+                    <option value="XAU/USD">
+                      XAU/USD — Gold
+                    </option>
                   </select>
 
                 </div>
@@ -1722,12 +2230,15 @@ export default function DashboardPage() {
 
                   <select
                     value={tradeForm.direction}
-                    onChange={(event) =>
-                      setTradeForm({
-                        ...tradeForm,
-                        direction: event.target.value,
-                      })
-                    }
+                    onChange={(event) => {
+                      const nextDirection = event.target.value as "Buy" | "Sell";
+                      updateTradeForm(
+                        getDefaultTradeForm(
+                          tradeForm.symbol,
+                          nextDirection,
+                        ),
+                      );
+                    }}
                     className="w-full rounded-xl border border-white/10 bg-black px-3 py-3 text-sm text-white outline-none transition focus:border-emerald-400/50"
                   >
                     <option value="Buy">
@@ -1752,21 +2263,28 @@ export default function DashboardPage() {
 
                   <input
                     type="number"
-                    step="0.00001"
+                    step={getPriceStep(tradeForm.symbol)}
                     min="0"
                     value={
                       tradeForm.entry_price || ""
                     }
                     onChange={(event) =>
-                      setTradeForm({
+                      updateTradeForm({
                         ...tradeForm,
-                        entry_price:
-                          Number(
-                            event.target.value,
-                          ),
+                        entry_price: Number(event.target.value),
                       })
                     }
-                    placeholder="1.08000"
+                    placeholder={
+                      getInstrumentConfig(
+                        tradeForm.symbol,
+                      ).priceDecimals === 2
+                        ? "3400.00"
+                        : getInstrumentConfig(
+                            tradeForm.symbol,
+                          ).priceDecimals === 3
+                          ? "150.000"
+                          : "1.08000"
+                    }
                     className="w-full rounded-xl border border-white/10 bg-black px-3 py-3 text-sm text-white outline-none transition placeholder:text-gray-700 focus:border-emerald-400/50"
                   />
 
@@ -1789,12 +2307,9 @@ export default function DashboardPage() {
                       tradeForm.lot_size || ""
                     }
                     onChange={(event) =>
-                      setTradeForm({
+                      updateTradeForm({
                         ...tradeForm,
-                        lot_size:
-                          Number(
-                            event.target.value,
-                          ),
+                        lot_size: Number(event.target.value),
                       })
                     }
                     placeholder="0.10"
@@ -1814,21 +2329,28 @@ export default function DashboardPage() {
 
                   <input
                     type="number"
-                    step="0.00001"
+                    step={getPriceStep(tradeForm.symbol)}
                     min="0"
                     value={
                       tradeForm.stop_loss || ""
                     }
                     onChange={(event) =>
-                      setTradeForm({
+                      updateTradeForm({
                         ...tradeForm,
-                        stop_loss:
-                          Number(
-                            event.target.value,
-                          ),
+                        stop_loss: Number(event.target.value),
                       })
                     }
-                    placeholder="1.07500"
+                    placeholder={
+                      getInstrumentConfig(
+                        tradeForm.symbol,
+                      ).priceDecimals === 2
+                        ? "3390.00"
+                        : getInstrumentConfig(
+                            tradeForm.symbol,
+                          ).priceDecimals === 3
+                          ? "149.000"
+                          : "1.07500"
+                    }
                     className="w-full rounded-xl border border-white/10 bg-black px-3 py-3 text-sm text-white outline-none transition placeholder:text-gray-700 focus:border-emerald-400/50"
                   />
 
@@ -1845,21 +2367,28 @@ export default function DashboardPage() {
 
                   <input
                     type="number"
-                    step="0.00001"
+                    step={getPriceStep(tradeForm.symbol)}
                     min="0"
                     value={
                       tradeForm.take_profit || ""
                     }
                     onChange={(event) =>
-                      setTradeForm({
+                      updateTradeForm({
                         ...tradeForm,
-                        take_profit:
-                          Number(
-                            event.target.value,
-                          ),
+                        take_profit: Number(event.target.value),
                       })
                     }
-                    placeholder="1.09000"
+                    placeholder={
+                      getInstrumentConfig(
+                        tradeForm.symbol,
+                      ).priceDecimals === 2
+                        ? "3420.00"
+                        : getInstrumentConfig(
+                            tradeForm.symbol,
+                          ).priceDecimals === 3
+                          ? "152.000"
+                          : "1.09000"
+                    }
                     className="w-full rounded-xl border border-white/10 bg-black px-3 py-3 text-sm text-white outline-none transition placeholder:text-gray-700 focus:border-emerald-400/50"
                   />
 
@@ -1884,9 +2413,107 @@ export default function DashboardPage() {
               )}
 
 
+              {/* AI Risk Information */}
+
+              <div className="mt-5 rounded-xl border border-purple-400/10 bg-purple-400/5 px-4 py-3">
+                <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[10px] text-gray-500">
+                  <span>
+                    AI account:
+                    <strong className="ml-1 text-gray-300">
+                      {formatMoney(AI_ACCOUNT_BALANCE)}
+                    </strong>
+                  </span>
+
+                  <span>
+                    Risk:
+                    <strong className="ml-1 text-gray-300">
+                      {AI_RISK_PERCENT}%
+                    </strong>
+                  </span>
+
+                  <span>
+                    Pip size:
+                    <strong className="ml-1 text-gray-300">
+                      {getPipSize(tradeForm.symbol)}
+                    </strong>
+                  </span>
+
+                  <span>
+                    Pip value:
+                    <strong className="ml-1 text-gray-300">
+                      {formatMoney(
+                        getPipValue(
+                          tradeForm.symbol,
+                        ),
+                      )}
+                    </strong>
+                    {" "} / standard lot
+                  </span>
+
+                  <span>
+                    Stop:
+                    <strong className="ml-1 text-gray-300">
+                      {formatNumber(
+                        calculateStopLossPips(
+                          tradeForm.symbol,
+                          Number(
+                            tradeForm.entry_price,
+                          ),
+                          Number(
+                            tradeForm.stop_loss,
+                          ),
+                        ),
+                        1,
+                      )}{" "}
+                      pips
+                    </strong>
+                  </span>
+
+                  <span>
+                    Estimated trade risk:
+                    <strong
+                      className={`ml-1 ${
+                        calculateTradeRisk(
+                          tradeForm.symbol,
+                          Number(
+                            tradeForm.entry_price,
+                          ),
+                          Number(
+                            tradeForm.stop_loss,
+                          ),
+                          Number(
+                            tradeForm.lot_size,
+                          ),
+                        ) >
+                        AI_ACCOUNT_BALANCE *
+                          AI_RISK_PERCENT /
+                          100
+                          ? "text-red-400"
+                          : "text-purple-300"
+                      }`}
+                    >
+                      {formatMoney(
+                        calculateTradeRisk(
+                          tradeForm.symbol,
+                          Number(
+                            tradeForm.entry_price,
+                          ),
+                          Number(
+                            tradeForm.stop_loss,
+                          ),
+                          Number(
+                            tradeForm.lot_size,
+                          ),
+                        ),
+                      )}
+                    </strong>
+                  </span>
+                </div>
+              </div>
+
               {/* AI Analysis Button */}
 
-              <div className="mt-5 flex justify-end">
+              <div id="ai-analysis-section" className="mt-5 flex justify-end scroll-mt-24">
                 <button
                   type="button"
                   onClick={handleAIAnalysis}
@@ -1954,250 +2581,177 @@ export default function DashboardPage() {
 
 
           {/* =================================================
-              AI DECISION GATE RESULT
+              AI ANALYSIS RESULT
               ================================================= */}
 
           {aiAnalysis && (
-            <section className="mt-8 overflow-hidden rounded-2xl border border-white/10 bg-[#0a0e13]">
+            <section id="ai-analysis-result" className="mt-8 overflow-hidden rounded-2xl border border-white/10 bg-[#0a0e13]">
               <div className="border-b border-white/10 px-5 py-5">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <div className="flex items-center gap-2">
                       <BrainCircuit size={19} className="text-purple-300" />
-                      <h2 className="text-base font-semibold text-white">
-                        Aladdin Decision Gate
-                      </h2>
+                      <h2 className="text-base font-semibold text-white">Aladdin AI Analysis</h2>
                     </div>
-                    <p className="mt-1 text-xs text-gray-600">
-                      Live market intelligence evaluated by Aladdin's multi-gate decision system.
-                    </p>
+                    <p className="mt-1 text-xs text-gray-600">Market intelligence, decision, risk validation and explainable reasoning.</p>
                   </div>
-
-                  <div
-                    className={`inline-flex w-fit items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold ${
-                      aiAnalysis.decision.action === "BUY"
-                        ? "bg-emerald-400/10 text-emerald-400"
-                        : aiAnalysis.decision.action === "SELL"
-                          ? "bg-red-400/10 text-red-400"
-                          : "bg-amber-400/10 text-amber-400"
-                    }`}
-                  >
-                    <span
-                      className={`h-1.5 w-1.5 rounded-full ${
-                        aiAnalysis.decision.action === "BUY"
-                          ? "bg-emerald-400"
-                          : aiAnalysis.decision.action === "SELL"
-                            ? "bg-red-400"
-                            : "bg-amber-400"
-                      }`}
-                    />
+                  <div className={`inline-flex w-fit items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold ${aiAnalysis.decision.action === "BUY" ? "bg-emerald-400/10 text-emerald-400" : aiAnalysis.decision.action === "SELL" ? "bg-red-400/10 text-red-400" : "bg-amber-400/10 text-amber-400"}`}>
+                    <span className={`h-1.5 w-1.5 rounded-full ${aiAnalysis.decision.action === "BUY" ? "bg-emerald-400" : aiAnalysis.decision.action === "SELL" ? "bg-red-400" : "bg-amber-400"}`} />
                     {aiAnalysis.decision.action}
                   </div>
                 </div>
               </div>
 
-              {/* Decision metrics */}
               <div className="grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-4">
-                <AIMetricCard
-                  label="Approved"
-                  value={aiAnalysis.decision.approved ? "YES" : "NO"}
-                  valueClassName={
-                    aiAnalysis.decision.approved
-                      ? "text-emerald-400"
-                      : "text-red-400"
-                  }
-                />
-                <AIMetricCard
-                  label="Market Confidence"
-                  value={`${formatNumber(aiAnalysis.decision.market_confidence, 1)}%`}
-                />
-                <AIMetricCard
-                  label="MTF Confidence"
-                  value={`${formatNumber(aiAnalysis.decision.timeframe_confidence, 1)}%`}
-                />
-                <AIMetricCard
-                  label="Decision Confidence"
-                  value={`${formatNumber(aiAnalysis.decision.decision_confidence, 1)}%`}
-                  valueClassName="text-purple-300"
-                />
+                <AIMetricCard label="Market Bias" value={aiAnalysis.market_intelligence.market_bias} />
+                <AIMetricCard label="Confidence" value={`${formatNumber(aiAnalysis.market_intelligence.confidence, 1)}%`} />
+                <AIMetricCard label="Risk Level" value={aiAnalysis.market_intelligence.risk_level} valueClassName={aiAnalysis.market_intelligence.risk_level === "LOW" ? "text-emerald-400" : aiAnalysis.market_intelligence.risk_level === "MEDIUM" ? "text-amber-400" : "text-red-400"} />
+                <AIMetricCard label="Recommendation" value={aiAnalysis.market_intelligence.recommendation} />
               </div>
 
-              {/* Decision reason */}
+              <div className="grid gap-4 px-5 pb-5 lg:grid-cols-3">
+                <AIAnalysisCard icon={<Activity size={16} className="text-blue-400" />} title="Technical Analysis" text={aiAnalysis.market_intelligence.technical_summary} />
+                <AIAnalysisCard icon={<BarChart3 size={16} className="text-purple-400" />} title="News Analysis" text={aiAnalysis.market_intelligence.news_summary} />
+                <AIAnalysisCard icon={<TrendingUp size={16} className="text-emerald-400" />} title="Market Structure" text={aiAnalysis.market_intelligence.structure_summary} />
+              </div>
+
               <div className="border-t border-white/10 px-5 py-5">
-                <p className="text-[10px] uppercase tracking-wider text-gray-600">
-                  Decision Reason
-                </p>
-                <p className="mt-3 max-w-4xl text-sm leading-6 text-gray-300">
-                  {aiAnalysis.decision.reason}
-                </p>
+                <p className="text-[10px] uppercase tracking-wider text-gray-600">AI Decision</p>
+                <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                  <p className="max-w-3xl text-sm leading-6 text-gray-300">{aiAnalysis.decision.reason}</p>
+                  <span className="shrink-0 text-xs font-semibold text-gray-500">Confidence {formatNumber(aiAnalysis.decision.confidence, 1)}%</span>
+                </div>
               </div>
 
-              {/* Gates */}
-              <div className="grid gap-4 border-t border-white/10 p-5 lg:grid-cols-2">
-                <GateListCard
-                  title="Gates Passed"
-                  items={aiAnalysis.decision.gates_passed}
-                  passed
-                />
-                <GateListCard
-                  title="Gates Failed"
-                  items={aiAnalysis.decision.gates_failed}
-                  passed={false}
-                />
-              </div>
+              {aiAnalysis.trade_plan && (
+                <div className="border-t border-white/10 px-5 py-5">
+                  <p className="text-[10px] uppercase tracking-wider text-gray-600">Trade Plan</p>
+                  <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+                    <AIPlanValue
+                      label="Entry"
+                      value={formatNumber(
+                        aiAnalysis.trade_plan.entry_price,
+                        getPriceDecimals(tradeForm.symbol),
+                      )}
+                    />
+                    <AIPlanValue
+                      label="Stop Loss"
+                      value={formatNumber(
+                        aiAnalysis.trade_plan.stop_loss,
+                        getPriceDecimals(tradeForm.symbol),
+                      )}
+                    />
+                    <AIPlanValue
+                      label="Take Profit"
+                      value={formatNumber(
+                        aiAnalysis.trade_plan.take_profit,
+                        getPriceDecimals(tradeForm.symbol),
+                      )}
+                    />
+                    <AIPlanValue label="Risk / Reward" value={`1:${formatNumber(aiAnalysis.trade_plan.risk_reward, 2)}`} />
+                    <AIPlanValue label="Direction" value={aiAnalysis.trade_plan.direction} />
+                  </div>
+                </div>
+              )}
 
-              {/* Market intelligence */}
-              <div className="border-t border-white/10 px-5 py-5">
-                <div className="flex items-center gap-2">
-                  <Activity size={17} className="text-blue-400" />
-                  <p className="text-sm font-semibold text-white">
-                    Market Intelligence
+              {aiAnalysis.risk_gate && (
+                <div className="border-t border-white/10 px-5 py-5">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck
+                        size={17}
+                        className={
+                          aiAnalysis.risk_gate.approved
+                            ? "text-emerald-400"
+                            : "text-red-400"
+                        }
+                      />
+                      <p className="text-sm font-semibold text-white">
+                        Risk Gate
+                      </p>
+                    </div>
+
+                    <span
+                      className={`rounded-lg px-3 py-1.5 text-[10px] font-bold uppercase ${
+                        aiAnalysis.risk_gate.approved
+                          ? "bg-emerald-400/10 text-emerald-400"
+                          : "bg-red-400/10 text-red-400"
+                      }`}
+                    >
+                      {aiAnalysis.risk_gate.approved
+                        ? "Approved"
+                        : "Blocked"}
+                    </span>
+                  </div>
+
+                  <div className="mt-4 grid gap-4 sm:grid-cols-3">
+                    <AIMetricCard
+                      label="Actual Risk"
+                      value={formatMoney(aiAnalysis.risk_gate.risk_amount)}
+                    />
+                    <AIMetricCard
+                      label="Risk / Reward"
+                      value={`1:${formatNumber(
+                        aiAnalysis.risk_gate.risk_reward,
+                        2,
+                      )}`}
+                    />
+                    <AIMetricCard
+                      label="Maximum Risk"
+                      value={formatMoney(
+                        AI_ACCOUNT_BALANCE * AI_RISK_PERCENT / 100,
+                      )}
+                    />
+                  </div>
+
+                  <p className="mt-4 text-xs leading-6 text-gray-400">
+                    {aiAnalysis.risk_gate.reason}
                   </p>
+
+                  <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                    <GateListCard
+                      title="Risk Gates Passed"
+                      items={aiAnalysis.risk_gate.gates_passed || []}
+                      passed
+                    />
+                    <GateListCard
+                      title="Risk Gates Failed"
+                      items={aiAnalysis.risk_gate.gates_failed || []}
+                      passed={false}
+                    />
+                  </div>
                 </div>
+              )}
 
-                <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                  <AIMetricCard
-                    label="Market Bias"
-                    value={aiAnalysis.market_intelligence.market_bias}
-                    valueClassName={
-                      aiAnalysis.market_intelligence.market_bias === "BULLISH"
-                        ? "text-emerald-400"
-                        : aiAnalysis.market_intelligence.market_bias === "BEARISH"
-                          ? "text-red-400"
-                          : "text-amber-400"
-                    }
-                  />
-                  <AIMetricCard
-                    label="Market Confidence"
-                    value={`${formatNumber(aiAnalysis.market_intelligence.confidence, 1)}%`}
-                  />
-                  <AIMetricCard
-                    label="Risk Level"
-                    value={aiAnalysis.market_intelligence.risk_level}
-                    valueClassName={
-                      aiAnalysis.market_intelligence.risk_level === "LOW"
-                        ? "text-emerald-400"
-                        : aiAnalysis.market_intelligence.risk_level === "MEDIUM"
-                          ? "text-amber-400"
-                          : "text-red-400"
-                    }
-                  />
-                  <AIMetricCard
-                    label="Recommendation"
-                    value={aiAnalysis.market_intelligence.recommendation}
-                  />
+              <div className="grid gap-4 border-t border-white/10 p-5 sm:grid-cols-2">
+                {aiAnalysis.risk_validation && <AIApprovalCard title="Risk Validation" approved={aiAnalysis.risk_validation.approved} reason={aiAnalysis.risk_validation.reason} icon={<ShieldCheck size={17} />} />}
+                {aiAnalysis.approval && <AIApprovalCard title="Trade Approval" approved={aiAnalysis.approval.approved} reason={aiAnalysis.approval.reason} icon={<CheckCircle2 size={17} />} />}
+              </div>
+
+              {aiAnalysis.reasoning && (
+                <div className="border-t border-white/10 px-5 py-5">
+                  <div className="flex items-center gap-2">
+                    <BrainCircuit size={17} className="text-purple-300" />
+                    <p className="text-sm font-semibold text-white">Explainable AI Reasoning</p>
+                  </div>
+                  <div className="mt-4 space-y-3 text-xs leading-6 text-gray-400">
+                    <p><span className="text-gray-300">Technical:</span> {aiAnalysis.reasoning.technical_reason}</p>
+                    <p><span className="text-gray-300">News:</span> {aiAnalysis.reasoning.news_reason}</p>
+                    <p><span className="text-gray-300">Structure:</span> {aiAnalysis.reasoning.structure_reason}</p>
+                    <p><span className="text-gray-300">Risk:</span> {aiAnalysis.reasoning.risk_reason}</p>
+                    <p className="border-t border-white/5 pt-3 text-gray-300">{aiAnalysis.reasoning.final_reason}</p>
+                  </div>
                 </div>
-              </div>
-
-              {/* Structure / MTF / Session */}
-              <div className="grid gap-4 border-t border-white/10 p-5 sm:grid-cols-2 lg:grid-cols-4">
-                <AIMetricCard
-                  label="Structure Direction"
-                  value={aiAnalysis.market_intelligence.structure_direction}
-                  valueClassName={
-                    aiAnalysis.market_intelligence.structure_direction === "BULLISH"
-                      ? "text-emerald-400"
-                      : aiAnalysis.market_intelligence.structure_direction === "BEARISH"
-                        ? "text-red-400"
-                        : "text-amber-400"
-                  }
-                />
-                <AIMetricCard
-                  label="Structure Confirmation"
-                  value={aiAnalysis.market_intelligence.structure_confirmation}
-                />
-                <AIMetricCard
-                  label="MTF Alignment"
-                  value={aiAnalysis.market_intelligence.timeframe_alignment}
-                  valueClassName={
-                    aiAnalysis.market_intelligence.timeframe_alignment === "FULL"
-                      ? "text-emerald-400"
-                      : aiAnalysis.market_intelligence.timeframe_alignment === "PARTIAL"
-                        ? "text-amber-400"
-                        : "text-red-400"
-                  }
-                />
-                <AIMetricCard
-                  label="Market Session"
-                  value={aiAnalysis.market_intelligence.market_session}
-                />
-              </div>
-
-              {/* Analysis summaries */}
-              <div className="grid gap-4 border-t border-white/10 p-5 lg:grid-cols-3">
-                <AIAnalysisCard
-                  icon={<Activity size={16} className="text-blue-400" />}
-                  title="Technical Analysis"
-                  text={aiAnalysis.market_intelligence.technical_summary}
-                />
-                <AIAnalysisCard
-                  icon={<BarChart3 size={16} className="text-purple-400" />}
-                  title="News Analysis"
-                  text={aiAnalysis.market_intelligence.news_summary}
-                />
-                <AIAnalysisCard
-                  icon={<TrendingUp size={16} className="text-emerald-400" />}
-                  title="Market Structure"
-                  text={aiAnalysis.market_intelligence.structure_summary}
-                />
-              </div>
-
-              {/* MTF and session details */}
-              <div className="grid gap-4 border-t border-white/10 p-5 lg:grid-cols-2">
-                <AIAnalysisCard
-                  icon={<BarChart3 size={16} className="text-purple-400" />}
-                  title="Multi-Timeframe Analysis"
-                  text={`${aiAnalysis.market_intelligence.timeframe_summary} MTF confidence: ${formatNumber(aiAnalysis.market_intelligence.timeframe_confidence, 1)}%.`}
-                />
-                <AIAnalysisCard
-                  icon={<Clock3 size={16} className="text-blue-400" />}
-                  title="Market Session"
-                  text={`${aiAnalysis.market_intelligence.session_summary} Activity: ${aiAnalysis.market_intelligence.session_activity}. Condition: ${aiAnalysis.market_intelligence.session_condition}.`}
-                />
-              </div>
-
-              {/* Confidence explanation */}
-              <div className="border-t border-white/10 px-5 py-5">
-                <div className="flex items-center gap-2">
-                  <BrainCircuit size={17} className="text-purple-300" />
-                  <p className="text-sm font-semibold text-white">
-                    Decision Confidence Explanation
-                  </p>
-                </div>
-                <p className="mt-3 text-xs leading-6 text-gray-400">
-                  {aiAnalysis.market_intelligence.confidence_summary}
-                </p>
-              </div>
-
-              {/* Conflict */}
-              <div className="border-t border-white/10 px-5 py-5">
-                <div className="flex items-center gap-2">
-                  {aiAnalysis.market_intelligence.conflict_detected ? (
-                    <AlertTriangle size={17} className="text-amber-400" />
-                  ) : (
-                    <CheckCircle2 size={17} className="text-emerald-400" />
-                  )}
-                  <p className="text-sm font-semibold text-white">
-                    Agent Conflict
-                  </p>
-                </div>
-                <p className="mt-3 text-xs leading-6 text-gray-400">
-                  {aiAnalysis.market_intelligence.conflict_summary}
-                </p>
-              </div>
+              )}
             </section>
           )}
 
-          {/* =================================================
-              RECENT TRADES
-              ================================================= */}
-
 
           {/* =================================================
               RECENT TRADES
               ================================================= */}
 
-          <div className="mt-8 overflow-hidden rounded-2xl border border-white/10 bg-[#0a0e13]">
+          <div id="trade-journal-section" className="mt-8 overflow-hidden rounded-2xl border border-white/10 bg-[#0a0e13]">
 
             <div className="flex flex-col gap-3 border-b border-white/10 px-5 py-5 sm:flex-row sm:items-center sm:justify-between">
 
@@ -2334,6 +2888,8 @@ export default function DashboardPage() {
           </div>
 
 
+          <div id="ai-coaching-section" className="scroll-mt-24" aria-hidden="true" />
+
           {/* =================================================
               SYSTEM STATUS
               ================================================= */}
@@ -2426,14 +2982,17 @@ function SidebarItem({
   icon,
   label,
   active = false,
+  onClick,
 }: {
   icon: ReactNode;
   label: string;
   active?: boolean;
+  onClick?: () => void;
 }) {
   return (
     <button
       type="button"
+      onClick={onClick}
       className={`
         flex
         w-full
@@ -2579,6 +3138,56 @@ function AIAnalysisCard({
 
 
 /* =========================================================
+   AI PLAN VALUE
+   ========================================================= */
+
+function AIPlanValue({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div>
+      <p className="text-[10px] text-gray-600">{label}</p>
+      <p className="mt-1 text-sm font-medium text-white">{value}</p>
+    </div>
+  );
+}
+
+
+/* =========================================================
+   AI APPROVAL CARD
+   ========================================================= */
+
+function AIApprovalCard({
+  title,
+  approved,
+  reason,
+  icon,
+}: {
+  title: string;
+  approved: boolean;
+  reason: string;
+  icon: ReactNode;
+}) {
+  return (
+    <div className="rounded-xl border border-white/5 bg-black/20 p-5">
+      <div className="flex items-center gap-2">
+        <span className={approved ? "text-emerald-400" : "text-red-400"}>{icon}</span>
+        <p className="text-sm font-semibold text-white">{title}</p>
+        <span className={`ml-auto rounded-md px-2 py-1 text-[9px] font-bold uppercase ${approved ? "bg-emerald-400/10 text-emerald-400" : "bg-red-400/10 text-red-400"}`}>
+          {approved ? "Approved" : "Rejected"}
+        </span>
+      </div>
+      <p className="mt-3 text-xs leading-6 text-gray-400">{reason}</p>
+    </div>
+  );
+}
+
+
+/* =========================================================
    GATE LIST CARD
    ========================================================= */
 
@@ -2606,9 +3215,9 @@ function GateListCard({
         <p className="mt-3 text-xs text-gray-600">None</p>
       ) : (
         <div className="mt-3 flex flex-wrap gap-2">
-          {items.map((item) => (
+          {items.map((item, index) => (
             <span
-              key={item}
+              key={`${item}-${index}`}
               className={`rounded-lg px-2.5 py-1.5 text-[10px] font-medium ${
                 passed
                   ? "bg-emerald-400/10 text-emerald-400"
@@ -2693,7 +3302,7 @@ function TradeRow({
       <td className="px-5 py-4 text-xs text-gray-400">
         {formatNumber(
           trade.entry_price,
-          5,
+          getPriceDecimals(trade.symbol),
         )}
       </td>
 
@@ -2701,7 +3310,7 @@ function TradeRow({
       <td className="px-5 py-4 text-xs text-gray-500">
         {formatNumber(
           trade.stop_loss,
-          5,
+          getPriceDecimals(trade.symbol),
         )}
       </td>
 
@@ -2709,7 +3318,7 @@ function TradeRow({
       <td className="px-5 py-4 text-xs text-gray-500">
         {formatNumber(
           trade.take_profit,
-          5,
+          getPriceDecimals(trade.symbol),
         )}
       </td>
 
@@ -2821,7 +3430,7 @@ function CloseTradeControl({
 
       <input
         type="number"
-        step="0.00001"
+        step={getPriceStep(trade.symbol)}
         min="0"
         value={exitPrice}
         onChange={(event) =>
@@ -2829,7 +3438,17 @@ function CloseTradeControl({
             event.target.value,
           )
         }
-        placeholder="Exit price"
+        placeholder={
+          getInstrumentConfig(
+            trade.symbol,
+          ).priceDecimals === 2
+            ? "3400.00"
+            : getInstrumentConfig(
+                trade.symbol,
+              ).priceDecimals === 3
+              ? "150.000"
+              : "1.08000"
+        }
         className="w-24 rounded-lg border border-white/10 bg-black px-2.5 py-2 text-[10px] text-white outline-none placeholder:text-gray-700 focus:border-emerald-400/50"
       />
 

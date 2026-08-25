@@ -43,29 +43,68 @@ export type TradeCreateData = {
 
 export type AITradeAnalysisData = {
   symbol: string;
-  ema_signal: "BULLISH" | "BEARISH" | "NEUTRAL";
+
+  ema_signal:
+    | "BULLISH"
+    | "BEARISH"
+    | "NEUTRAL";
+
   rsi_value: number;
+
   adx_value: number;
-  volatility: "NORMAL" | "HIGH";
+
+  volatility:
+    | "NORMAL"
+    | "HIGH";
+
   currency: string;
+
   event_type: string;
-  importance: "HIGH" | "MEDIUM" | "LOW";
-  sentiment: "BULLISH" | "BEARISH" | "NEUTRAL";
+
+  importance:
+    | "HIGH"
+    | "MEDIUM"
+    | "LOW";
+
+  sentiment:
+    | "BULLISH"
+    | "BEARISH"
+    | "NEUTRAL";
+
   price_structure:
     | "BOS_BULLISH"
     | "BOS_BEARISH"
     | "CHOCH"
     | "RANGE";
+
   liquidity_sweep: boolean;
-  order_block: "BULLISH" | "BEARISH";
+
+  order_block:
+    | "BULLISH"
+    | "BEARISH";
+
   fair_value_gap: boolean;
+
   entry_price: number;
+
   stop_loss: number;
+
   take_profit: number;
+
   account_balance: number;
+
   risk_percent: number;
+
   trade_risk_amount: number;
+
   lot_size: number;
+
+  /*
+   * Value of one pip for one standard lot.
+   *
+   * This is supplied to the backend Risk Gate.
+   */
+  pip_value: number;
 };
 
 
@@ -103,6 +142,15 @@ export type AITradeAnalysisResult = {
     stop_loss: number;
     take_profit: number;
     risk_reward: number;
+  };
+
+  risk_gate?: {
+    approved: boolean;
+    risk_amount: number;
+    risk_reward: number;
+    reason: string;
+    gates_passed: string[];
+    gates_failed: string[];
   };
 
   risk_validation?: {
