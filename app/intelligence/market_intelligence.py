@@ -4,7 +4,7 @@ market_intelligence.py
 Combines technical, news,
 and market structure analysis.
 
-Author: Tharindu Kothalawala
+Author: Tharindu Kothalwala
 Project: Aladdin
 """
 
@@ -17,9 +17,13 @@ class MarketIntelligenceAgent:
     """
     Combines multiple intelligence sources.
 
-    News analysis is optional because the
-    external economic news provider may not
-    always be configured.
+    The agent combines:
+    - Technical analysis
+    - Economic news sentiment
+    - Market structure analysis
+
+    The final confidence is calculated using
+    weighted intelligence from all three sources.
     """
 
     @staticmethod
@@ -33,59 +37,38 @@ class MarketIntelligenceAgent:
         """
 
         # ==========================================
-        # Confidence Calculation
+        # Confidence Weights
         # ==========================================
 
-        if news_result is None:
+        technical_weight = 0.40
+        structure_weight = 0.40
+        news_weight = 0.20
 
-            # Technical and market structure
-            # share the available confidence weight.
+        # ==========================================
+        # Weighted Confidence Calculation
+        # ==========================================
 
-            technical_weight = 0.50
-            structure_weight = 0.50
+        confidence = (
+            technical_result.confidence * technical_weight
+            + structure_result.confidence * structure_weight
+            + news_result.confidence * news_weight
+        )
 
-            confidence = (
-                technical_result.confidence
-                * technical_weight
-                + structure_result.confidence
-                * structure_weight
-            )
+        confidence = round(
+            confidence,
+            2,
+        )
 
-            confidence_summary = (
-                f"Technical: "
-                f"{technical_result.confidence:g} x 50%, "
-                f"Structure: "
-                f"{structure_result.confidence:g} x 50%, "
-                "News: unavailable, "
-                f"Final confidence: "
-                f"{round(confidence, 2)}%"
-            )
-
-        else:
-
-            technical_weight = 0.40
-            structure_weight = 0.40
-            news_weight = 0.20
-
-            confidence = (
-                technical_result.confidence
-                * technical_weight
-                + structure_result.confidence
-                * structure_weight
-                + news_result.confidence
-                * news_weight
-            )
-
-            confidence_summary = (
-                f"Technical: "
-                f"{technical_result.confidence:g} x 40%, "
-                f"Structure: "
-                f"{structure_result.confidence:g} x 40%, "
-                f"News: "
-                f"{news_result.confidence:g} x 20%, "
-                f"Final confidence: "
-                f"{round(confidence, 2)}%"
-            )
+        confidence_summary = (
+            f"Technical: "
+            f"{technical_result.confidence:g} x 40%, "
+            f"Structure: "
+            f"{structure_result.confidence:g} x 40%, "
+            f"News: "
+            f"{news_result.confidence:g} x 20%, "
+            f"Final confidence: "
+            f"{confidence}%"
+        )
 
         # ==========================================
         # Determine Market Bias
@@ -94,36 +77,29 @@ class MarketIntelligenceAgent:
         bullish_signals = 0
         bearish_signals = 0
 
+        # Technical signal
         if technical_result.trend == "BULLISH":
-
             bullish_signals += 1
 
         elif technical_result.trend == "BEARISH":
-
             bearish_signals += 1
 
-        if structure_result.trend_direction == "BULLISH":
+        # News signal
+        if news_result.sentiment == "BULLISH":
+            bullish_signals += 1
 
+        elif news_result.sentiment == "BEARISH":
+            bearish_signals += 1
+
+        # Market structure signal
+        if structure_result.trend_direction == "BULLISH":
             bullish_signals += 1
 
         elif structure_result.trend_direction == "BEARISH":
-
             bearish_signals += 1
 
-        # News is included only when available.
-
-        if news_result is not None:
-
-            if news_result.sentiment == "BULLISH":
-
-                bullish_signals += 1
-
-            elif news_result.sentiment == "BEARISH":
-
-                bearish_signals += 1
-
         # ==========================================
-        # Determine Market Bias
+        # Final Market Bias
         # ==========================================
 
         if bullish_signals >= 2:
@@ -151,6 +127,38 @@ class MarketIntelligenceAgent:
             )
 
         # ==========================================
+        # Market Structure Information
+        # ==========================================
+
+        structure_direction = (
+            structure_result.trend_direction
+        )
+
+        structure_confirmation = "NONE"
+
+        if (
+            structure_result.structure == "BOS"
+            and structure_direction == "BULLISH"
+        ):
+
+            structure_confirmation = (
+                "BOS_BULLISH"
+            )
+
+        elif (
+            structure_result.structure == "BOS"
+            and structure_direction == "BEARISH"
+        ):
+
+            structure_confirmation = (
+                "BOS_BEARISH"
+            )
+
+        elif structure_result.structure == "CHoCH":
+
+            structure_confirmation = "CHoCH"
+
+        # ==========================================
         # Detect Agent Conflict
         # ==========================================
 
@@ -164,75 +172,75 @@ class MarketIntelligenceAgent:
             technical_result.trend
         )
 
-        structure_direction = (
-            structure_result.trend_direction
+        news_direction = (
+            news_result.sentiment
         )
 
-        if news_result is not None:
+        # ------------------------------------------
+        # Case 1:
+        # Technical + Structure agree
+        # News disagrees
+        # ------------------------------------------
 
-            news_direction = (
-                news_result.sentiment
+        if (
+            technical_direction == structure_direction
+            and news_direction != technical_direction
+            and news_direction in {
+                "BULLISH",
+                "BEARISH",
+            }
+        ):
+
+            conflict_detected = True
+
+            conflict_summary = (
+                "News analysis disagrees with "
+                "technical and market structure analysis"
             )
 
-            # Technical and structure agree,
-            # but news disagrees.
+        # ------------------------------------------
+        # Case 2:
+        # Technical + News agree
+        # Structure disagrees
+        # ------------------------------------------
 
-            if (
-                technical_direction
-                == structure_direction
-                and news_direction
-                != technical_direction
-                and news_direction
-                in {"BULLISH", "BEARISH"}
-            ):
+        elif (
+            technical_direction == news_direction
+            and structure_direction != technical_direction
+            and structure_direction in {
+                "BULLISH",
+                "BEARISH",
+            }
+        ):
 
-                conflict_detected = True
+            conflict_detected = True
 
-                conflict_summary = (
-                    "News analysis disagrees with "
-                    "technical and market structure "
-                    "analysis"
-                )
+            conflict_summary = (
+                "Market structure analysis disagrees "
+                "with technical and news analysis"
+            )
 
-            # Technical and news agree,
-            # but structure disagrees.
+        # ------------------------------------------
+        # Case 3:
+        # News + Structure agree
+        # Technical disagrees
+        # ------------------------------------------
 
-            elif (
-                technical_direction
-                == news_direction
-                and structure_direction
-                != technical_direction
-                and structure_direction
-                in {"BULLISH", "BEARISH"}
-            ):
+        elif (
+            news_direction == structure_direction
+            and technical_direction != news_direction
+            and technical_direction in {
+                "BULLISH",
+                "BEARISH",
+            }
+        ):
 
-                conflict_detected = True
+            conflict_detected = True
 
-                conflict_summary = (
-                    "Market structure analysis "
-                    "disagrees with technical "
-                    "and news analysis"
-                )
-
-            # News and structure agree,
-            # but technical disagrees.
-
-            elif (
-                news_direction
-                == structure_direction
-                and technical_direction
-                != news_direction
-                and technical_direction
-                in {"BULLISH", "BEARISH"}
-            ):
-
-                conflict_detected = True
-
-                conflict_summary = (
-                    "Technical analysis disagrees "
-                    "with news and market structure "
-                    "analysis"
-                )
+            conflict_summary = (
+                "Technical analysis disagrees with "
+                "news and market structure analysis"
+            )
 
         # ==========================================
         # Determine Risk Level
@@ -265,50 +273,33 @@ class MarketIntelligenceAgent:
                 risk_level = "HIGH"
 
         # ==========================================
+        # Technical Summary
+        # ==========================================
+
+        technical_summary = (
+            f"Trend: {technical_result.trend}, "
+            f"Momentum: {technical_result.momentum}"
+        )
+
+        # ==========================================
         # News Summary
         # ==========================================
 
-        if news_result is None:
-
-            news_summary = (
-                "Economic news analysis unavailable"
-            )
-
-        else:
-
-            news_summary = (
-                f"{news_result.currency} "
-                f"sentiment: "
-                f"{news_result.sentiment}"
-            )
-
-        # ==========================================
-        # Market Structure Confirmation
-        # ==========================================
-
-        structure_direction = (
-            structure_result.trend_direction
+        news_summary = (
+            f"{news_result.currency} "
+            f"sentiment: {news_result.sentiment}"
         )
 
-        structure_confirmation = "NONE"
+        # ==========================================
+        # Market Structure Summary
+        # ==========================================
 
-        if (
-            structure_result.structure == "BOS"
-            and structure_direction == "BULLISH"
-        ):
-
-            structure_confirmation = "BOS_BULLISH"
-
-        elif (
-            structure_result.structure == "BOS"
-            and structure_direction == "BEARISH"
-        ):
-
-            structure_confirmation = "BOS_BEARISH"
-
-        elif structure_result.structure == "CHoCH":
-
-            structure_confirmation = "CHoCH"
+        structure_summary = (
+            f"{structure_result.structure}, "
+            f"{structure_result.trend_direction}, "
+            f"Liquidity: "
+            f"{structure_result.liquidity_status}"
+        )
 
         # ==========================================
         # Return Combined Result
@@ -317,26 +308,13 @@ class MarketIntelligenceAgent:
         return MarketIntelligenceResult(
             market_bias=market_bias,
 
-            confidence=round(
-                confidence,
-                2,
-            ),
+            confidence=confidence,
 
-            technical_summary=(
-                f"Trend: "
-                f"{technical_result.trend}, "
-                f"Momentum: "
-                f"{technical_result.momentum}"
-            ),
+            technical_summary=technical_summary,
 
             news_summary=news_summary,
 
-            structure_summary=(
-                f"{structure_result.structure}, "
-                f"{structure_result.trend_direction}, "
-                f"Liquidity: "
-                f"{structure_result.liquidity_status}"
-            ),
+            structure_summary=structure_summary,
 
             structure_direction=structure_direction,
 
@@ -348,9 +326,15 @@ class MarketIntelligenceAgent:
 
             recommendation=recommendation,
 
-            conflict_detected=conflict_detected,
+            conflict_detected=(
+                conflict_detected
+            ),
 
-            conflict_summary=conflict_summary,
+            conflict_summary=(
+                conflict_summary
+            ),
 
-            confidence_summary=confidence_summary,
+            confidence_summary=(
+                confidence_summary
+            ),
         )
