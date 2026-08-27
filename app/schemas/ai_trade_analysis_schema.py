@@ -127,3 +127,31 @@ class AITradeAnalysisRequest(BaseModel):
             "example": 10
         },
     )
+
+    # ==========================================
+    # Multi-Timeframe Analysis
+    # ==========================================
+
+    higher_timeframe_bias: str = Field(
+        default="BULLISH",
+        pattern="^(BULLISH|BEARISH|NEUTRAL)$",
+        json_schema_extra={
+            "example": "BULLISH"
+        },
+    )
+
+    middle_timeframe_bias: str = Field(
+        default="BULLISH",
+        pattern="^(BULLISH|BEARISH|NEUTRAL)$",
+        json_schema_extra={
+            "example": "BULLISH"
+        },
+    )
+
+    entry_timeframe_bias: str = Field(
+        default="BULLISH",
+        pattern="^(BULLISH|BEARISH|NEUTRAL)$",
+        json_schema_extra={
+            "example": "BULLISH"
+        },
+    )

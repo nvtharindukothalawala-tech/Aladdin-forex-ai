@@ -192,6 +192,9 @@ class TradingService:
         liquidity_sweep=True,
         order_block="BULLISH",
         fair_value_gap=True,
+        higher_timeframe_bias="BULLISH",
+        middle_timeframe_bias="BULLISH",
+        entry_timeframe_bias="BULLISH",
     ):
         """
         Generate intelligent market analysis
@@ -212,6 +215,9 @@ class TradingService:
                 liquidity_sweep=liquidity_sweep,
                 order_block=order_block,
                 fair_value_gap=fair_value_gap,
+                higher_timeframe_bias=higher_timeframe_bias,
+                middle_timeframe_bias=middle_timeframe_bias,
+                entry_timeframe_bias=entry_timeframe_bias,
             )
         )
 
@@ -253,6 +259,9 @@ class TradingService:
         liquidity_sweep=True,
         order_block="BULLISH",
         fair_value_gap=True,
+        higher_timeframe_bias="BULLISH",
+        middle_timeframe_bias="BULLISH",
+        entry_timeframe_bias="BULLISH",
     ):
         """
         Generate a complete AI-powered trade setup.
@@ -288,6 +297,9 @@ class TradingService:
                 liquidity_sweep=liquidity_sweep,
                 order_block=order_block,
                 fair_value_gap=fair_value_gap,
+                higher_timeframe_bias=higher_timeframe_bias,
+                middle_timeframe_bias=middle_timeframe_bias,
+                entry_timeframe_bias=entry_timeframe_bias,
             )
         )
 
