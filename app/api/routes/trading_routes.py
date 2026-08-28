@@ -98,6 +98,7 @@ def analyze_ai_trade(
         higher_timeframe_bias=data.higher_timeframe_bias,
         middle_timeframe_bias=data.middle_timeframe_bias,
         entry_timeframe_bias=data.entry_timeframe_bias,
+        hour_utc=data.hour_utc,
         entry_price=data.entry_price,
         stop_loss=data.stop_loss,
         take_profit=data.take_profit,

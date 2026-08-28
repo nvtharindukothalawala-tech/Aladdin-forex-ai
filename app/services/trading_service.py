@@ -195,7 +195,9 @@ class TradingService:
         higher_timeframe_bias="BULLISH",
         middle_timeframe_bias="BULLISH",
         entry_timeframe_bias="BULLISH",
+        hour_utc=None,
     ):
+
         """
         Generate intelligent market analysis
         and an intelligent trading decision.
@@ -218,6 +220,7 @@ class TradingService:
                 higher_timeframe_bias=higher_timeframe_bias,
                 middle_timeframe_bias=middle_timeframe_bias,
                 entry_timeframe_bias=entry_timeframe_bias,
+                hour_utc=hour_utc,
             )
         )
 
@@ -262,6 +265,7 @@ class TradingService:
         higher_timeframe_bias="BULLISH",
         middle_timeframe_bias="BULLISH",
         entry_timeframe_bias="BULLISH",
+        hour_utc=None,
     ):
         """
         Generate a complete AI-powered trade setup.
@@ -300,6 +304,7 @@ class TradingService:
                 higher_timeframe_bias=higher_timeframe_bias,
                 middle_timeframe_bias=middle_timeframe_bias,
                 entry_timeframe_bias=entry_timeframe_bias,
+                hour_utc=hour_utc,
             )
         )
 

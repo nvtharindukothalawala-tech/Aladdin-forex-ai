@@ -155,3 +155,16 @@ class AITradeAnalysisRequest(BaseModel):
             "example": "BULLISH"
         },
     )
+
+    # ==========================================
+    # Market Session Analysis
+    # ==========================================
+
+    hour_utc: int | None = Field(
+        default=None,
+        ge=0,
+        le=23,
+        json_schema_extra={
+            "example": 14
+        },
+    )
