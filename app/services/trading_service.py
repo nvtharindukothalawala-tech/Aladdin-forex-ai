@@ -240,6 +240,7 @@ class TradingService:
     # ======================================================
 
     @staticmethod
+
     def generate_ai_trade_setup(
         symbol,
         ema_signal,
@@ -257,7 +258,7 @@ class TradingService:
         risk_percent,
         trade_risk_amount,
         lot_size,
-        pip_value,
+        pip_value=10.0,
         price_structure="BOS_BULLISH",
         liquidity_sweep=True,
         order_block="BULLISH",
@@ -317,7 +318,6 @@ class TradingService:
         # ==========================================
 
         if decision.action == "HOLD":
-
             return result
 
         # ==========================================
@@ -348,42 +348,40 @@ class TradingService:
         )
 
         # ==========================================
-        # Risk Validator
+        # Risk Validation
+        # ==========================================
         #
-        # We keep the existing validator because
-        # it provides the lower-level risk validation
-        # used by the existing approval/reasoning layer.
+        # IMPORTANT:
+        # Use the trade_risk_amount supplied to this
+        # workflow.
+        #
+        # Do NOT replace it with risk_gate.risk_amount.
+        #
+        # The Risk Gate and Risk Validator are two
+        # separate safety checks.
         # ==========================================
 
         risk_validation = RiskValidator.validate(
             account_balance=account_balance,
             risk_percent=risk_percent,
-            trade_risk_amount=risk_gate.risk_amount,
+            trade_risk_amount=trade_risk_amount,
             risk_reward=trade_plan.risk_reward,
         )
 
         # ==========================================
         # Final Approval
+        # ==========================================
         #
-        # The Risk Gate is now the final safety gate.
-        # Approval can happen only when:
+        # IMPORTANT:
+        # Approval MUST receive risk_validation.
         #
-        # Risk Gate approved
-        # AND
-        # Risk Validator approved
+        # If risk_validation.approved is False,
+        # ApprovalManager must reject the trade.
         # ==========================================
 
-        if risk_gate.approved and risk_validation.approved:
-
-            approval = ApprovalManager.approve_trade(
-                risk_gate,
-            )
-
-        else:
-
-            approval = ApprovalManager.approve_trade(
-                risk_gate,
-            )
+        approval = ApprovalManager.approve_trade(
+            risk_validation,
+        )
 
         # ==========================================
         # Explainable AI Reasoning
@@ -394,7 +392,7 @@ class TradingService:
             market_intelligence=(
                 result["market_intelligence"]
             ),
-            risk_validation=risk_gate,
+            risk_validation=risk_validation,
         )
 
         # ==========================================
@@ -412,10 +410,6 @@ class TradingService:
         result["reasoning"] = reasoning
 
         return result
-
-    # ======================================================
-    # AI EXECUTION WORKFLOW
-    # ======================================================
 
     @staticmethod
     def generate_ai_execution_workflow(
@@ -435,7 +429,7 @@ class TradingService:
         risk_percent,
         trade_risk_amount,
         lot_size,
-        pip_value,
+        pip_value=10.0,
         execute=False,
         execution_service=None,
         notification_service=None,

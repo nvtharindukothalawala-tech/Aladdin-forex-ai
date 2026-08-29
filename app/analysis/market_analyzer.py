@@ -4,7 +4,7 @@ market_analyzer.py
 Analyzes market conditions using
 technical indicators.
 
-Author: Tharindu Kothalwala
+Author: Tharindu Kothalawala
 Project: Aladdin
 """
 
@@ -20,44 +20,68 @@ class MarketAnalyzer:
     def analyze(
         symbol,
         current_price,
-        ema,
-        rsi,
-        atr,
-        adx,
+        ema=None,
+        rsi=None,
+        atr=None,
+        adx=None,
+        sma=None,
     ):
         """
         Generate market analysis.
 
-        Rules:
+        Backward compatibility:
 
-        Price > EMA:
-            Bullish trend
+        Older callers may provide:
+            sma
+            rsi
+            atr
 
-        Price < EMA:
-            Bearish trend
+        Newer callers may provide:
+            ema
+            rsi
+            atr
+            adx
 
-        RSI:
-            Momentum
+        If EMA is not provided, SMA is used as the
+        moving-average reference.
 
-        ATR:
-            Volatility
-
-        ADX:
-            Trend strength
+        If ADX is not provided, trend strength is
+        reported as "Not Analyzed".
         """
 
-        # Trend detection
-        if current_price > ema:
+        # ==========================================
+        # Moving Average Selection
+        # ==========================================
+
+        moving_average = ema
+
+        if moving_average is None:
+            moving_average = sma
+
+        # ==========================================
+        # Trend Detection
+        # ==========================================
+
+        if moving_average is None:
+            trend = "Neutral"
+
+        elif current_price > moving_average:
             trend = "Bullish"
 
-        elif current_price < ema:
+        elif current_price < moving_average:
             trend = "Bearish"
 
         else:
             trend = "Neutral"
 
-        # Momentum detection
-        if rsi >= 70:
+        # ==========================================
+        # Momentum Detection
+        # ==========================================
+
+        if rsi is None:
+            momentum = "Unknown"
+
+        elif rsi >= 70:
             momentum = "Overbought"
 
         elif rsi <= 30:
@@ -69,15 +93,27 @@ class MarketAnalyzer:
         else:
             momentum = "Negative"
 
-        # Volatility detection
-        if atr > 0.002:
+        # ==========================================
+        # Volatility Detection
+        # ==========================================
+
+        if atr is None:
+            volatility = "Unknown"
+
+        elif atr > 0.002:
             volatility = "High"
 
         else:
             volatility = "Normal"
 
-        # Trend strength
-        if adx >= 25:
+        # ==========================================
+        # Trend Strength
+        # ==========================================
+
+        if adx is None:
+            trend_strength = "Not Analyzed"
+
+        elif adx >= 25:
             trend_strength = "Strong"
 
         elif adx >= 20:
@@ -86,18 +122,30 @@ class MarketAnalyzer:
         else:
             trend_strength = "Weak"
 
+        # ==========================================
+        # Explanation
+        # ==========================================
+
         explanation = (
             f"Price is {trend.lower()} with "
             f"{momentum.lower()} momentum and "
             f"{trend_strength.lower()} trend strength."
         )
 
+        # ==========================================
+        # Market Signal
+        # ==========================================
+
         return MarketSignal(
             symbol=symbol,
             trend=trend,
             momentum=momentum,
             volatility=volatility,
-            ema=ema,
+            ema=(
+                ema
+                if ema is not None
+                else moving_average
+            ),
             rsi=rsi,
             atr=atr,
             adx=adx,

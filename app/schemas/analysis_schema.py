@@ -7,12 +7,15 @@ Author: Tharindu Kothalawala
 Project: Aladdin
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class MarketAnalysisRequest(BaseModel):
     """
     Input schema for market analysis.
+
+    Supports both the current EMA/ADX inputs and
+    older SMA-only requests.
     """
 
     symbol: str = Field(
@@ -30,8 +33,18 @@ class MarketAnalysisRequest(BaseModel):
         },
     )
 
-    ema: float = Field(
-        ...,
+    # Current API input
+    ema: float | None = Field(
+        default=None,
+        gt=0,
+        json_schema_extra={
+            "example": 1.1687
+        },
+    )
+
+    # Backward-compatible input
+    sma: float | None = Field(
+        default=None,
         gt=0,
         json_schema_extra={
             "example": 1.1687
@@ -55,11 +68,27 @@ class MarketAnalysisRequest(BaseModel):
         },
     )
 
-    adx: float = Field(
-        ...,
+    # ADX is optional for backward compatibility.
+    adx: float | None = Field(
+        default=None,
         ge=0,
         le=100,
         json_schema_extra={
             "example": 39.59
         },
     )
+
+    @model_validator(mode="after")
+    def validate_moving_average(self):
+        """
+        Require at least one moving-average value.
+
+        The API accepts either EMA or the older SMA field.
+        """
+
+        if self.ema is None and self.sma is None:
+            raise ValueError(
+                "Either ema or sma must be provided."
+            )
+
+        return self

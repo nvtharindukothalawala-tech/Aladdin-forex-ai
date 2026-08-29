@@ -89,18 +89,317 @@ class DecisionEngine:
         market_intelligence,
     ):
         """
-        Generate a trading decision using
-        the detailed Decision Gate.
+        Generate an intelligent trading decision.
 
-        The Decision Gate is the single source
-        of truth for intelligent trading decisions.
+        Complete market-structure analysis uses the
+        detailed Decision Gate and returns DecisionGateResult.
 
-        This method is kept as a backward-compatible
-        wrapper for existing services.
+        Older/simple market-intelligence results that do not
+        contain complete structure confirmation continue to
+        use the backward-compatible DecisionResult behaviour.
         """
 
-        return DecisionEngine.evaluate_gate(
+        # ==========================================
+        # Detect Complete Market Structure Analysis
+        # ==========================================
+
+        structure_direction = getattr(
             market_intelligence,
+            "structure_direction",
+            "NOT_ANALYZED",
+        )
+
+        structure_confirmation = getattr(
+            market_intelligence,
+            "structure_confirmation",
+            "NOT_ANALYZED",
+        )
+
+        has_complete_structure = (
+            structure_direction in {
+                "BULLISH",
+                "BEARISH",
+            }
+            and structure_confirmation in {
+                "BOS_BULLISH",
+                "BOS_BEARISH",
+            }
+        )
+
+        # ==========================================
+        # Decision Gate Path
+        # ==========================================
+        #
+        # The Decision Gate is used when complete
+        # market-structure information is available.
+        #
+        # This returns DecisionGateResult with:
+        #
+        # - action
+        # - approved
+        # - reason
+        # - market_confidence
+        # - timeframe_confidence
+        # - decision_confidence
+        # - gates_passed
+        # - gates_failed
+        #
+
+        if has_complete_structure:
+
+            return DecisionEngine.evaluate_gate(
+                market_intelligence,
+            )
+
+        # ==========================================
+        # Backward-Compatible Intelligent Decision
+        # ==========================================
+
+        action = "HOLD"
+
+        confidence = (
+            market_intelligence.confidence
+        )
+
+        reason = (
+            "Market intelligence does not "
+            "provide enough confirmation."
+        )
+
+        # ==========================================
+        # Multi-Timeframe Decision Gate
+        # ==========================================
+
+        timeframe_alignment = (
+            market_intelligence.timeframe_alignment
+        )
+
+        if timeframe_alignment in {
+            "WEAK",
+            "NONE",
+        }:
+
+            return DecisionResult(
+                action="HOLD",
+                confidence=confidence,
+                reason=(
+                    "Trade blocked because multi-timeframe "
+                    "analysis is not aligned."
+                ),
+            )
+
+        # ==========================================
+        # Market Session Decision Gate
+        # ==========================================
+
+        if (
+            market_intelligence.market_session
+            != "NOT_ANALYZED"
+            and market_intelligence.session_activity
+            == "LOW"
+        ):
+
+            return DecisionResult(
+                action="HOLD",
+                confidence=confidence,
+                reason=(
+                    "Trade blocked because market session "
+                    "activity is too low."
+                ),
+            )
+
+        # ==========================================
+        # Timeframe Confidence Adjustment
+        # ==========================================
+
+        if (
+            timeframe_alignment
+            != "NOT_ANALYZED"
+        ):
+
+            market_weight = 0.70
+            timeframe_weight = 0.30
+
+            confidence = (
+                market_intelligence.confidence
+                * market_weight
+                + market_intelligence.timeframe_confidence
+                * timeframe_weight
+            )
+
+            confidence = round(
+                confidence,
+                2,
+            )
+
+        # ==========================================
+        # Session Confidence Adjustment
+        # ==========================================
+
+        if (
+            market_intelligence.market_session
+            != "NOT_ANALYZED"
+            and market_intelligence.session_condition
+            == "HIGH_OPPORTUNITY"
+        ):
+
+            session_bonus = 5.0
+
+            confidence += session_bonus
+
+            confidence = min(
+                confidence,
+                100.0,
+            )
+
+            confidence = round(
+                confidence,
+                2,
+            )
+
+        # ==========================================
+        # Confidence Gate
+        # ==========================================
+
+        if confidence < 70:
+
+            return DecisionResult(
+                action="HOLD",
+                confidence=confidence,
+                reason=(
+                    "Trade held because adjusted decision "
+                    "confidence is below 70%. "
+                    f"Decision confidence: {confidence}%."
+                ),
+            )
+
+        # ==========================================
+        # BUY Decision
+        # ==========================================
+
+        if (
+            market_intelligence.market_bias
+            == "BULLISH"
+            and market_intelligence.risk_level
+            == "LOW"
+            and confidence >= 70
+        ):
+
+            action = "BUY"
+
+            if (
+                timeframe_alignment
+                != "NOT_ANALYZED"
+            ):
+
+                if (
+                    market_intelligence.market_session
+                    != "NOT_ANALYZED"
+                    and market_intelligence.session_condition
+                    == "HIGH_OPPORTUNITY"
+                ):
+
+                    reason = (
+                        "Bullish market intelligence supports BUY. "
+                        f"Timeframe alignment: "
+                        f"{timeframe_alignment}. "
+                        f"Market session: "
+                        f"{market_intelligence.market_session}. "
+                        f"Session condition: "
+                        f"{market_intelligence.session_condition}. "
+                        f"Decision confidence: {confidence}%."
+                    )
+
+                else:
+
+                    reason = (
+                        "Bullish market intelligence supports BUY. "
+                        f"Timeframe alignment: "
+                        f"{timeframe_alignment}. "
+                        f"Decision confidence: {confidence}%."
+                    )
+
+            else:
+
+                reason = (
+                    "Bullish technical and news "
+                    "intelligence confirms BUY opportunity."
+                )
+
+        # ==========================================
+        # SELL Decision
+        # ==========================================
+
+        elif (
+            market_intelligence.market_bias
+            == "BEARISH"
+            and market_intelligence.risk_level
+            == "LOW"
+            and confidence >= 70
+        ):
+
+            action = "SELL"
+
+            if (
+                timeframe_alignment
+                != "NOT_ANALYZED"
+            ):
+
+                if (
+                    market_intelligence.market_session
+                    != "NOT_ANALYZED"
+                    and market_intelligence.session_condition
+                    == "HIGH_OPPORTUNITY"
+                ):
+
+                    reason = (
+                        "Bearish market intelligence supports SELL. "
+                        f"Timeframe alignment: "
+                        f"{timeframe_alignment}. "
+                        f"Market session: "
+                        f"{market_intelligence.market_session}. "
+                        f"Session condition: "
+                        f"{market_intelligence.session_condition}. "
+                        f"Decision confidence: {confidence}%."
+                    )
+
+                else:
+
+                    reason = (
+                        "Bearish market intelligence supports SELL. "
+                        f"Timeframe alignment: "
+                        f"{timeframe_alignment}. "
+                        f"Decision confidence: {confidence}%."
+                    )
+
+            else:
+
+                reason = (
+                    "Bearish technical and news "
+                    "intelligence confirms SELL opportunity."
+                )
+
+        # ==========================================
+        # Final HOLD
+        # ==========================================
+
+        else:
+
+            action = "HOLD"
+
+            reason = (
+                "Market intelligence does not "
+                "provide enough confirmation."
+            )
+
+        # ==========================================
+        # Backward-Compatible Result
+        # ==========================================
+
+        return DecisionResult(
+            action=action,
+            confidence=confidence,
+            reason=reason,
         )
 
     @staticmethod

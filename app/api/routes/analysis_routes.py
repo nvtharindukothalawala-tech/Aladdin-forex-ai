@@ -37,6 +37,7 @@ def analyze_market(
         symbol=data.symbol,
         current_price=data.current_price,
         ema=data.ema,
+        sma=data.sma,
         rsi=data.rsi,
         atr=data.atr,
         adx=data.adx,
