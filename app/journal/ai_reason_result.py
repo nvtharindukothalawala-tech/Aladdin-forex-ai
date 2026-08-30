@@ -3,7 +3,7 @@ ai_reason_result.py
 
 Stores AI trade reasoning output.
 
-Author: Tharindu Kothalwala
+Author: Tharindu Kothalawala
 Project: Aladdin
 """
 
@@ -29,3 +29,11 @@ class AIReasonResult:
     risk_reason: str
 
     final_reason: str
+
+    timeframe_reason: str = (
+        "Multi-timeframe analysis not available."
+    )
+
+    session_reason: str = (
+        "Market session analysis not available."
+    )

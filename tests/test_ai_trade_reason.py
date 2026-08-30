@@ -177,4 +177,92 @@ def test_generate_hold_reasoning():
         in result.risk_reasons
     )
 
-    
+def test_ai_trade_reason_includes_full_timeframe_reasoning():
+
+    decision = DecisionResult(
+        action="BUY",
+        confidence=90,
+        reason="Bullish conditions confirmed",
+    )
+
+    market_intelligence = MarketIntelligenceResult(
+        market_bias="BULLISH",
+        confidence=90,
+        technical_summary="Bullish technical conditions",
+        news_summary="Bullish news sentiment",
+        structure_summary="Bullish market structure",
+        risk_level="LOW",
+        recommendation="Consider BUY opportunities",
+        timeframe_alignment="FULL",
+        timeframe_confidence=100,
+        timeframe_summary=(
+            "All monitored timeframes are aligned BULLISH"
+        ),
+    )
+
+    risk_validation = RiskValidationResult(
+        approved=True,
+        reason="Trade risk is within allowed limit.",
+    )
+
+    result = AITradeReasonGenerator.generate(
+        decision=decision,
+        market_intelligence=market_intelligence,
+        risk_validation=risk_validation,
+    )
+
+    assert (
+        "All monitored timeframes are aligned BULLISH"
+        in result.timeframe_reason
+    )
+
+    assert (
+        "Multi-timeframe confirmation supports"
+        in result.timeframe_reason
+    )
+
+
+def test_ai_trade_reason_includes_high_opportunity_session():
+
+    decision = DecisionResult(
+        action="BUY",
+        confidence=90,
+        reason="Bullish conditions confirmed",
+    )
+
+    market_intelligence = MarketIntelligenceResult(
+        market_bias="BULLISH",
+        confidence=90,
+        technical_summary="Bullish technical conditions",
+        news_summary="Bullish news sentiment",
+        structure_summary="Bullish market structure",
+        risk_level="LOW",
+        recommendation="Consider BUY opportunities",
+        market_session="LONDON_NEW_YORK_OVERLAP",
+        session_activity="VERY_HIGH",
+        session_condition="HIGH_OPPORTUNITY",
+        session_summary=(
+            "London and New York sessions are active."
+        ),
+    )
+
+    risk_validation = RiskValidationResult(
+        approved=True,
+        reason="Trade risk is within allowed limit.",
+    )
+
+    result = AITradeReasonGenerator.generate(
+        decision=decision,
+        market_intelligence=market_intelligence,
+        risk_validation=risk_validation,
+    )
+
+    assert (
+        "London and New York sessions are active."
+        in result.session_reason
+    )
+
+    assert (
+        "high-opportunity trading environment"
+        in result.session_reason
+    )
