@@ -16,6 +16,10 @@ from pydantic import (
 )
 
 
+# ==========================================
+# Direct Execution Request
+# ==========================================
+
 class ExecutionRequestSchema(BaseModel):
     """
     Input schema for direct execution request.
@@ -45,6 +49,10 @@ class ExecutionRequestSchema(BaseModel):
     approved: bool
 
 
+# ==========================================
+# Execution Response
+# ==========================================
+
 class ExecutionResponseSchema(BaseModel):
     """
     Response schema after execution.
@@ -62,8 +70,14 @@ class ExecutionResponseSchema(BaseModel):
 
     status: str
 
-    broker_order_id: str | None
+    broker_order_id: str | None = None
 
+    execution_message: str | None = None
+
+
+# ==========================================
+# Execution History Response
+# ==========================================
 
 class ExecutionHistoryResponseSchema(BaseModel):
     """
@@ -82,8 +96,14 @@ class ExecutionHistoryResponseSchema(BaseModel):
 
     status: str
 
-    broker_order_id: str | None
+    broker_order_id: str | None = None
 
+    execution_message: str | None = None
+
+
+# ==========================================
+# Execution Statistics Response
+# ==========================================
 
 class ExecutionStatisticsResponseSchema(BaseModel):
     """
@@ -98,6 +118,10 @@ class ExecutionStatisticsResponseSchema(BaseModel):
 
     success_rate: float
 
+
+# ==========================================
+# AI Execution Request
+# ==========================================
 
 class AIExecutionRequestSchema(BaseModel):
     """
@@ -214,6 +238,10 @@ class AIExecutionRequestSchema(BaseModel):
     )
 
 
+# ==========================================
+# AI Execution Information
+# ==========================================
+
 class AIExecutionExecutionSchema(BaseModel):
     """
     Prepared execution information returned
@@ -232,6 +260,10 @@ class AIExecutionExecutionSchema(BaseModel):
 
     status: str
 
+
+# ==========================================
+# AI Reasoning Response
+# ==========================================
 
 class AIReasoningResponseSchema(BaseModel):
     """
@@ -267,6 +299,16 @@ class AIReasoningResponseSchema(BaseModel):
     final_reason: str | None = None
 
     # ==========================================
+    # Decision Gate Reasoning
+    # ==========================================
+
+    gate_reason: str | None = None
+
+    gates_passed: list[str] | None = None
+
+    gates_failed: list[str] | None = None
+
+    # ==========================================
     # Legacy reasoning fields
     # ==========================================
 
@@ -278,6 +320,10 @@ class AIReasoningResponseSchema(BaseModel):
 
     final_message: str | None = None
 
+
+# ==========================================
+# AI Execution Response
+# ==========================================
 
 class AIExecutionResponseSchema(BaseModel):
     """
