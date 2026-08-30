@@ -50,7 +50,9 @@ class ExecutionResponseSchema(BaseModel):
     Response schema after execution.
     """
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(
+        from_attributes=True,
+    )
 
     symbol: str
 
@@ -68,7 +70,9 @@ class ExecutionHistoryResponseSchema(BaseModel):
     Response schema for execution history.
     """
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(
+        from_attributes=True,
+    )
 
     symbol: str
 
@@ -216,12 +220,63 @@ class AIExecutionExecutionSchema(BaseModel):
     by the AI execution workflow.
     """
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(
+        from_attributes=True,
+    )
 
     symbol: str
+
     order_type: str
+
     volume: float
+
     status: str
+
+
+class AIReasoningResponseSchema(BaseModel):
+    """
+    Explainable AI reasoning returned by the
+    AI trade execution workflow.
+
+    The legacy reasoning fields are kept for
+    backward compatibility with the existing
+    ReasoningEngine contract.
+    """
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        extra="ignore",
+    )
+
+    decision: str | None = None
+
+    confidence: float | None = None
+
+    technical_reason: str | None = None
+
+    news_reason: str | None = None
+
+    structure_reason: str | None = None
+
+    risk_reason: str | None = None
+
+    timeframe_reason: str | None = None
+
+    session_reason: str | None = None
+
+    final_reason: str | None = None
+
+    # ==========================================
+    # Legacy reasoning fields
+    # ==========================================
+
+    technical_reasons: list[str] | None = None
+
+    structure_reasons: list[str] | None = None
+
+    risk_reasons: list[str] | None = None
+
+    final_message: str | None = None
 
 
 class AIExecutionResponseSchema(BaseModel):
@@ -247,7 +302,7 @@ class AIExecutionResponseSchema(BaseModel):
 
     approval: Any | None = None
 
-    reasoning: Any | None = None
+    reasoning: AIReasoningResponseSchema | None = None
 
     execution: AIExecutionExecutionSchema | None = None
 
