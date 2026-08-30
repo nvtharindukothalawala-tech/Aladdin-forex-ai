@@ -476,7 +476,22 @@ class TradingService:
 
         decision = result.get("decision")
 
-        if decision:
+        # ==========================================
+        # Explainable AI Reasoning
+        # ==========================================
+        #
+        # generate_ai_trade_setup() already creates
+        # the complete AIReasonResult for BUY/SELL.
+        #
+        # Do not overwrite that richer reasoning
+        # with the older ReasoningEngine result.
+        #
+        # For HOLD decisions, generate_ai_trade_setup()
+        # returns before creating AIReasonResult, so
+        # ReasoningEngine is still used as a fallback.
+        # ==========================================
+
+        if decision and "reasoning" not in result:
 
             risk_approved = False
 
