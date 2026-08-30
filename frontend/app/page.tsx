@@ -24,6 +24,7 @@ import {
 
 import {
   analyzeAITrade,
+  executeAITrade,
   closeTrade,
   createTrade,
   getAccessToken,
@@ -36,6 +37,7 @@ import {
   removeAccessToken,
   type AITradeAnalysisData,
   type AITradeAnalysisResult,
+  type AIExecutionResult,
   type Notification,
   type Trade,
   type TradeCreateData,
@@ -142,6 +144,8 @@ type RiskGateDisplay = {
 type AIAnalysisDisplayResult = AITradeAnalysisResult & {
   risk_gate?: RiskGateDisplay;
 };
+
+type AIExecutionDisplayResult = AIExecutionResult;
 
 function getInstrumentConfig(symbol: string): InstrumentConfig {
   return (
@@ -496,6 +500,15 @@ export default function DashboardPage() {
   const [aiAnalysisError, setAiAnalysisError] =
     useState("");
 
+  const [aiTradeData, setAiTradeData] =
+    useState<AITradeAnalysisData | null>(null);
+
+  const [aiExecutionResult, setAiExecutionResult] =
+    useState<AIExecutionDisplayResult | null>(null);
+
+  const [tradeExecuting, setTradeExecuting] =
+    useState(false);
+
   const [notificationCount, setNotificationCount] =
     useState(0);
 
@@ -533,13 +546,14 @@ export default function DashboardPage() {
   }
 
   function updateTradeForm(next: TradeCreateData) {
-    setTradeForm(next);
-    setAiAnalysis(null);
-    setAiAnalysisError("");
-    setTradeActionError("");
-    setTradeActionMessage("");
-  }
-
+  setTradeForm(next);
+  setAiAnalysis(null);
+  setAiTradeData(null);
+  setAiExecutionResult(null);
+  setAiAnalysisError("");
+  setTradeActionError("");
+  setTradeActionMessage("");
+}
 
   /* =======================================================
      AI TRADE ANALYSIS
@@ -713,6 +727,9 @@ export default function DashboardPage() {
           getPipValue(symbol),
       };
 
+      setAiTradeData(aiData);
+      setAiExecutionResult(null);
+
       console.log(
         "ALADDIN AI REQUEST:",
         aiData,
@@ -754,6 +771,93 @@ export default function DashboardPage() {
       );
     } finally {
       setAiAnalyzing(false);
+    }
+  }
+
+  async function handleAIExecute() {
+    if (!aiAnalysis) {
+      setTradeActionError(
+        "Please analyze the trade first.",
+      );
+      return;
+    }
+
+    if (!aiTradeData) {
+      setTradeActionError(
+        "AI trade data is not available. Please analyze the trade again.",
+      );
+      return;
+    }
+
+    const action =
+      String(aiAnalysis.decision.action || "").toUpperCase();
+
+    if (action !== "BUY" && action !== "SELL") {
+      setTradeActionError(
+        "AI decision is HOLD. Trade execution is blocked.",
+      );
+      return;
+    }
+
+    if (
+      aiAnalysis.risk_gate &&
+      !aiAnalysis.risk_gate.approved
+    ) {
+      setTradeActionError(
+        "Trade execution blocked by the Risk Gate.",
+      );
+      return;
+    }
+
+    try {
+      setTradeActionError("");
+      setTradeActionMessage("");
+      setTradeExecuting(true);
+      setAiExecutionResult(null);
+
+      const result =
+        await executeAITrade(
+          aiTradeData,
+        );
+
+      console.log(
+        "ALADDIN AI EXECUTION RESULT:",
+        result,
+      );
+
+      setAiExecutionResult(
+        result as AIExecutionDisplayResult,
+      );
+      setTradeActionMessage(
+        "AI trade execution completed successfully.",
+      );
+
+      await loadDashboard();
+
+      if (notificationOpen) {
+        await loadNotifications();
+      }
+    } catch (err) {
+      console.error(
+        "AI execution error:",
+        err,
+      );
+
+      if (
+        err instanceof Error &&
+        err.message === "Authentication required."
+      ) {
+        window.location.href = "/login";
+        return;
+      }
+
+      setTradeActionError(
+        err instanceof Error
+          ? err.message
+          : "Unable to execute AI trade.",
+      );
+    } finally {
+      setTradeExecuting(false);
     }
   }
 
@@ -901,6 +1005,8 @@ export default function DashboardPage() {
         await createTrade(tradeToCreate);
 
       setAiAnalysis(null);
+      setAiTradeData(null);
+      setAiExecutionResult(null);
       setAiAnalysisError("");
 
       setTradeActionMessage(
@@ -2743,6 +2849,317 @@ export default function DashboardPage() {
                   </div>
                 </div>
               )}
+
+              {/* =================================================
+                  AI TRADE EXECUTION
+                  ================================================= */}
+
+              <div className="border-t border-white/10 px-5 py-5">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck
+                        size={17}
+                        className="text-emerald-400"
+                      />
+                      <p className="text-sm font-semibold text-white">
+                        AI Trade Execution
+                      </p>
+                    </div>
+
+                    <p className="mt-1 max-w-2xl text-xs leading-5 text-gray-600">
+                      Execute the analyzed trade only when the AI decision
+                      is BUY or SELL and the Risk Gate approves it.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleAIExecute}
+                    disabled={
+                      tradeExecuting ||
+                      !aiTradeData ||
+                      (
+                        String(
+                          aiAnalysis.decision.action || "",
+                        ).toUpperCase() !== "BUY" &&
+                        String(
+                          aiAnalysis.decision.action || "",
+                        ).toUpperCase() !== "SELL"
+                      ) ||
+                      (
+                        aiAnalysis.risk_gate !== undefined &&
+                        !aiAnalysis.risk_gate.approved
+                      )
+                    }
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-400 px-5 py-3 text-xs font-bold text-[#06100c] transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"
+                  >
+                    {tradeExecuting ? (
+                      <>
+                        <RefreshCw
+                          size={14}
+                          className="animate-spin"
+                        />
+                        Executing AI Trade...
+                      </>
+                    ) : (
+                      <>
+                        <TrendingUp size={14} />
+                        Execute AI Trade
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {tradeActionError && (
+                  <div className="mt-4 rounded-xl border border-red-400/20 bg-red-400/5 px-4 py-3 text-xs leading-5 text-red-400">
+                    {tradeActionError}
+                  </div>
+                )}
+
+                {tradeActionMessage && aiExecutionResult && (
+                  <div className="mt-4 rounded-xl border border-emerald-400/20 bg-emerald-400/5 px-4 py-3 text-xs leading-5 text-emerald-400">
+                    {tradeActionMessage}
+                  </div>
+                )}
+
+                {aiExecutionResult && (
+                  <div className="mt-4 overflow-hidden rounded-2xl border border-emerald-400/10 bg-black/20">
+                    <div className="flex flex-col gap-4 border-b border-white/10 px-5 py-5 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gray-600">
+                          Execution Result
+                        </p>
+                        <div className="mt-2 flex items-center gap-2">
+                          <CheckCircle2 size={18} className="text-emerald-400" />
+                          <h3 className="text-sm font-semibold text-white">
+                            AI Trade Execution
+                          </h3>
+                        </div>
+                        <p className="mt-1 text-xs text-gray-600">
+                          The approved AI trading workflow has completed.
+                        </p>
+                      </div>
+
+                      <span
+                        className={`inline-flex w-fit items-center gap-2 rounded-lg px-3 py-2 text-[10px] font-bold uppercase tracking-wider ${
+                          String(aiExecutionResult.execution_result?.status ?? "").toUpperCase() === "EXECUTED"
+                            ? "bg-emerald-400/10 text-emerald-400"
+                            : "bg-red-400/10 text-red-400"
+                        }`}
+                      >
+                        <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                        {aiExecutionResult.execution_result?.status ?? "COMPLETED"}
+                      </span>
+                    </div>
+
+                    <div className="grid gap-px border-b border-white/10 bg-white/5 sm:grid-cols-3">
+                      <div className="bg-[#0a0e13] px-5 py-4">
+                        <p className="text-[10px] uppercase tracking-wider text-gray-600">
+                          AI Decision
+                        </p>
+                        <p
+                          className={`mt-2 text-lg font-bold ${
+                            aiExecutionResult.decision?.action === "BUY"
+                              ? "text-emerald-400"
+                              : aiExecutionResult.decision?.action === "SELL"
+                                ? "text-red-400"
+                                : "text-amber-400"
+                          }`}
+                        >
+                          {aiExecutionResult.decision?.action ?? "N/A"}
+                        </p>
+                      </div>
+
+                      <div className="bg-[#0a0e13] px-5 py-4">
+                        <p className="text-[10px] uppercase tracking-wider text-gray-600">
+                          AI Confidence
+                        </p>
+                        <p className="mt-2 text-lg font-bold text-white">
+                          {formatNumber(
+                            aiExecutionResult.decision?.decision_confidence ??
+                              aiExecutionResult.decision?.market_confidence ??
+                              0,
+                            1,
+                          )}%
+                        </p>
+                      </div>
+
+                      <div className="bg-[#0a0e13] px-5 py-4">
+                        <p className="text-[10px] uppercase tracking-wider text-gray-600">
+                          Market Bias
+                        </p>
+                        <p className="mt-2 text-lg font-bold text-white">
+                          {aiExecutionResult.market_intelligence?.market_bias ?? "N/A"}
+                        </p>
+                      </div>
+                    </div>
+
+                    {aiExecutionResult.trade_plan && (
+                      <div className="border-b border-white/10 px-5 py-5">
+                        <div className="mb-4">
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gray-600">
+                            Trade Plan
+                          </p>
+                          <p className="mt-1 text-sm font-semibold text-white">
+                            {aiExecutionResult.trade_plan.symbol ?? "Unknown Symbol"}
+                          </p>
+                        </div>
+
+                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                            <p className="text-[10px] uppercase text-gray-600">Direction</p>
+                            <p
+                              className={`mt-2 text-sm font-bold ${
+                                aiExecutionResult.trade_plan.direction === "BUY"
+                                  ? "text-emerald-400"
+                                  : aiExecutionResult.trade_plan.direction === "SELL"
+                                    ? "text-red-400"
+                                    : "text-gray-300"
+                              }`}
+                            >
+                              {aiExecutionResult.trade_plan.direction ?? "N/A"}
+                            </p>
+                          </div>
+
+                          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                            <p className="text-[10px] uppercase text-gray-600">Entry Price</p>
+                            <p className="mt-2 text-sm font-semibold text-white">
+                              {aiExecutionResult.trade_plan.entry_price ?? "N/A"}
+                            </p>
+                          </div>
+
+                          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                            <p className="text-[10px] uppercase text-gray-600">Stop Loss</p>
+                            <p className="mt-2 text-sm font-semibold text-red-400">
+                              {aiExecutionResult.trade_plan.stop_loss ?? "N/A"}
+                            </p>
+                          </div>
+
+                          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                            <p className="text-[10px] uppercase text-gray-600">Take Profit</p>
+                            <p className="mt-2 text-sm font-semibold text-emerald-400">
+                              {aiExecutionResult.trade_plan.take_profit ?? "N/A"}
+                            </p>
+                          </div>
+
+                          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                            <p className="text-[10px] uppercase text-gray-600">Risk / Reward</p>
+                            <p className="mt-2 text-sm font-semibold text-white">
+                              1:{formatNumber(aiExecutionResult.trade_plan.risk_reward ?? 0, 2)}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="grid gap-4 border-b border-white/10 px-5 py-5 sm:grid-cols-2">
+                      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2">
+                            <ShieldCheck size={16} className="text-emerald-400" />
+                            <p className="text-xs font-semibold text-white">Risk Validation</p>
+                          </div>
+                          <span
+                            className={`rounded-lg px-2.5 py-1 text-[10px] font-bold uppercase ${
+                              aiExecutionResult.risk_validation?.approved
+                                ? "bg-emerald-400/10 text-emerald-400"
+                                : "bg-red-400/10 text-red-400"
+                            }`}
+                          >
+                            {aiExecutionResult.risk_validation?.approved ? "Approved" : "Blocked"}
+                          </span>
+                        </div>
+                        <p className="mt-3 text-xs leading-5 text-gray-500">
+                          {aiExecutionResult.risk_validation?.reason ??
+                            "Risk validation information unavailable."}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2">
+                            <CheckCircle2 size={16} className="text-emerald-400" />
+                            <p className="text-xs font-semibold text-white">Final Approval</p>
+                          </div>
+                          <span
+                            className={`rounded-lg px-2.5 py-1 text-[10px] font-bold uppercase ${
+                              aiExecutionResult.approval?.approved
+                                ? "bg-emerald-400/10 text-emerald-400"
+                                : "bg-red-400/10 text-red-400"
+                            }`}
+                          >
+                            {aiExecutionResult.approval?.approved ? "Approved" : "Blocked"}
+                          </span>
+                        </div>
+                        <p className="mt-3 text-xs leading-5 text-gray-500">
+                          {aiExecutionResult.approval?.reason ??
+                            "Approval information unavailable."}
+                        </p>
+                      </div>
+                    </div>
+
+                    {aiExecutionResult.execution_result && (
+                      <div className="px-5 py-5">
+                        <div className="mb-4">
+                          <div className="flex items-center gap-2">
+                            <TrendingUp size={16} className="text-emerald-400" />
+                            <p className="text-sm font-semibold text-white">Broker Execution</p>
+                          </div>
+                          <p className="mt-1 text-xs text-gray-600">
+                            Details returned by the Aladdin execution service.
+                          </p>
+                        </div>
+
+                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                            <p className="text-[10px] uppercase tracking-wider text-gray-600">Symbol</p>
+                            <p className="mt-2 text-sm font-semibold text-white">
+                              {aiExecutionResult.execution_result.symbol ?? "N/A"}
+                            </p>
+                          </div>
+
+                          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                            <p className="text-[10px] uppercase tracking-wider text-gray-600">Direction</p>
+                            <p className="mt-2 text-sm font-semibold text-white">
+                              {aiExecutionResult.execution_result.direction ??
+                                aiExecutionResult.execution?.order_type ??
+                                "N/A"}
+                            </p>
+                          </div>
+
+                          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                            <p className="text-[10px] uppercase tracking-wider text-gray-600">Volume</p>
+                            <p className="mt-2 text-sm font-semibold text-white">
+                              {aiExecutionResult.execution_result.volume ??
+                                aiExecutionResult.execution?.volume ??
+                                "N/A"}
+                            </p>
+                          </div>
+
+                          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                            <p className="text-[10px] uppercase tracking-wider text-gray-600">Broker Order ID</p>
+                            <p className="mt-2 truncate text-sm font-semibold text-white">
+                              {aiExecutionResult.execution_result.broker_order_id ?? "N/A"}
+                            </p>
+                          </div>
+                        </div>
+
+                        {aiExecutionResult.execution_result.execution_message && (
+                          <div className="mt-4 rounded-xl border border-emerald-400/10 bg-emerald-400/5 px-4 py-3">
+                            <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-400">
+                              Execution Message
+                            </p>
+                            <p className="mt-1 text-xs leading-5 text-gray-400">
+                              {aiExecutionResult.execution_result.execution_message}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </section>
           )}
 

@@ -107,7 +107,6 @@ export type AITradeAnalysisData = {
   pip_value: number;
 };
 
-
 export type AITradeAnalysisResult = {
   market_intelligence: {
     market_bias: string;
@@ -171,6 +170,91 @@ export type AITradeAnalysisResult = {
     structure_reason: string;
     risk_reason: string;
     final_reason: string;
+  };
+};
+
+export type AIExecutionResult = {
+  decision?: {
+    action?: string;
+    approved?: boolean;
+    reason?: string;
+    market_confidence?: number;
+    timeframe_confidence?: number;
+    decision_confidence?: number;
+    gates_passed?: string[];
+    gates_failed?: string[];
+  };
+
+  market_intelligence?: {
+    market_bias?: string;
+    confidence?: number;
+    technical_summary?: string;
+    news_summary?: string;
+    structure_summary?: string;
+    structure_direction?: string;
+    structure_confirmation?: string;
+    risk_level?: string;
+    recommendation?: string;
+    conflict_detected?: boolean;
+    conflict_summary?: string;
+    confidence_summary?: string;
+    timeframe_alignment?: string;
+    timeframe_confidence?: number;
+    timeframe_summary?: string;
+    market_session?: string;
+    session_activity?: string;
+    session_condition?: string;
+    session_summary?: string;
+  };
+
+  trade_plan?: {
+    symbol?: string;
+    direction?: string;
+    entry_price?: number;
+    stop_loss?: number;
+    take_profit?: number;
+    risk_reward?: number;
+  };
+
+  risk_validation?: {
+    approved?: boolean;
+    reason?: string;
+  };
+
+  approval?: {
+    approved?: boolean;
+    reason?: string;
+  };
+
+  reasoning?: {
+    decision?: string;
+    confidence?: number;
+    technical_reason?: string;
+    news_reason?: string;
+    structure_reason?: string;
+    risk_reason?: string;
+    timeframe_reason?: string;
+    session_reason?: string;
+    final_reason?: string;
+    gate_reason?: string;
+    gates_passed?: string[];
+    gates_failed?: string[];
+  };
+
+  execution?: {
+    symbol?: string;
+    order_type?: string;
+    volume?: number;
+    status?: string;
+  };
+
+  execution_result?: {
+    symbol?: string;
+    direction?: string;
+    volume?: number;
+    status?: string;
+    broker_order_id?: string | null;
+    execution_message?: string | null;
   };
 };
 
@@ -321,6 +405,64 @@ export function removeAccessToken(): void {
   localStorage.removeItem(
     "aladdin_access_token",
   );
+
+  localStorage.removeItem(
+    "aladdin_user_id",
+  );
+}
+
+
+/* =========================================================
+   CURRENT USER
+   ========================================================= */
+
+export async function getCurrentUserId(): Promise<number> {
+  const cachedUserId = localStorage.getItem(
+    "aladdin_user_id",
+  );
+
+  if (cachedUserId) {
+    const parsedUserId = Number(cachedUserId);
+
+    if (
+      Number.isInteger(parsedUserId) &&
+      parsedUserId > 0
+    ) {
+      return parsedUserId;
+    }
+  }
+
+  const response = await authenticatedFetch(
+    "/auth/me",
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      `Failed to get current user (${response.status}).`,
+    );
+  }
+
+  const data = await response.json();
+
+  const userId = Number(
+    data.id ?? data.user_id,
+  );
+
+  if (
+    !Number.isInteger(userId) ||
+    userId <= 0
+  ) {
+    throw new Error(
+      "Authenticated user ID was not returned by the server.",
+    );
+  }
+
+  localStorage.setItem(
+    "aladdin_user_id",
+    String(userId),
+  );
+
+  return userId;
 }
 
 
@@ -740,6 +882,60 @@ export async function analyzeAITrade(
             },
           )
           .join("; ");
+      }
+    } catch {
+      // Keep default error message.
+    }
+
+    throw new Error(message);
+  }
+
+  return response.json();
+}
+
+export async function executeAITrade(
+  tradeData: AITradeAnalysisData,
+): Promise<AIExecutionResult> {
+  const userId = await getCurrentUserId();
+
+  const response = await authenticatedFetch(
+    "/execution/ai-execute",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        user_id: userId,
+        ...tradeData,
+      }),
+    },
+  );
+
+  if (!response.ok) {
+    let message =
+      `AI execution failed (${response.status}).`;
+
+    try {
+      const data = await response.json();
+
+      if (typeof data.detail === "string") {
+        message = data.detail;
+      } else if (Array.isArray(data.detail)) {
+        message = data.detail
+          .map(
+            (error: {
+              loc?: unknown[];
+              msg?: string;
+            }) => {
+              const location =
+                Array.isArray(error.loc)
+                  ? error.loc.join(".")
+                  : "field";
+
+              return `${location}: ${
+                error.msg ?? "Invalid value."
+              }`;
+            },
+          )
+          .join(", ");
       }
     } catch {
       // Keep default error message.

@@ -338,5 +338,22 @@
         "reason": "",
         "emotion": "",
         "lesson_learned": ""
+    },
+    {
+        "trade_id": "TRD2297",
+        "symbol": "EUR/USD",
+        "direction": "Buy",
+        "entry_price": 1.08,
+        "exit_price": null,
+        "stop_loss": 1.075,
+        "take_profit": 1.09,
+        "lot_size": 0.1,
+        "status": "Open",
+        "open_time": "2026-08-30T20:44:03.092225",
+        "close_time": null,
+        "strategy": "",
+        "reason": "",
+        "emotion": "",
+        "lesson_learned": ""
     }
 ]
