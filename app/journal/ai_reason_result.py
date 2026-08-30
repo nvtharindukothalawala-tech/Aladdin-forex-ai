@@ -37,3 +37,11 @@ class AIReasonResult:
     session_reason: str = (
         "Market session analysis not available."
     )
+
+    gate_reason: str = (
+        "Decision Gate information not available."
+    )
+
+    gates_passed: list[str] | None = None
+
+    gates_failed: list[str] | None = None

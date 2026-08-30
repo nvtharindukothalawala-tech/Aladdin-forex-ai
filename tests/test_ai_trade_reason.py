@@ -30,6 +30,10 @@ from app.intelligence.reasoning_engine import (
     ReasoningEngine,
 )
 
+from app.decision.decision_gate_result import (
+    DecisionGateResult,
+)
+
 def test_ai_trade_reason_generation():
 
     decision = DecisionResult(
@@ -266,3 +270,133 @@ def test_ai_trade_reason_includes_high_opportunity_session():
         "high-opportunity trading environment"
         in result.session_reason
     )
+
+def test_ai_trade_reason_includes_decision_gate_information():
+
+    decision = DecisionGateResult(
+        action="BUY",
+        approved=True,
+        reason="All decision gates passed.",
+        market_confidence=87.4,
+        timeframe_confidence=100,
+        decision_confidence=87.4,
+        gates_passed=[
+            "market_bias",
+            "multi_timeframe_alignment",
+            "market_session",
+        ],
+        gates_failed=[],
+    )
+
+    market_intelligence = MarketIntelligenceResult(
+        market_bias="BULLISH",
+        confidence=87.4,
+        technical_summary="Bullish technical conditions",
+        news_summary="Bullish news sentiment",
+        structure_summary="Bullish market structure",
+        risk_level="LOW",
+        recommendation="Consider BUY opportunities",
+        timeframe_alignment="FULL",
+        timeframe_confidence=100,
+        timeframe_summary=(
+            "All monitored timeframes are aligned BULLISH"
+        ),
+        market_session="LONDON_NEW_YORK_OVERLAP",
+        session_activity="VERY_HIGH",
+        session_condition="HIGH_OPPORTUNITY",
+        session_summary=(
+            "London and New York sessions are active."
+        ),
+    )
+
+    risk_validation = RiskValidationResult(
+        approved=True,
+        reason="Trade risk is within allowed limit.",
+    )
+
+    result = AITradeReasonGenerator.generate(
+        decision=decision,
+        market_intelligence=market_intelligence,
+        risk_validation=risk_validation,
+    )
+
+    assert result.gate_reason == (
+        "All decision gates passed."
+    )
+
+    assert "market_bias" in result.gates_passed
+
+    assert (
+        "multi_timeframe_alignment"
+        in result.gates_passed
+    )
+
+    assert result.gates_failed == []
+
+    assert result.confidence == 87.4
+
+
+def test_ai_trade_reason_includes_failed_decision_gates():
+
+    decision = DecisionGateResult(
+        action="HOLD",
+        approved=False,
+        reason="Multi-timeframe alignment is not sufficient.",
+        market_confidence=80,
+        timeframe_confidence=40,
+        decision_confidence=64,
+        gates_passed=[
+            "market_bias",
+        ],
+        gates_failed=[
+            "multi_timeframe_alignment",
+            "market_session",
+        ],
+    )
+
+    market_intelligence = MarketIntelligenceResult(
+        market_bias="BULLISH",
+        confidence=80,
+        technical_summary="Bullish technical conditions",
+        news_summary="Bullish news sentiment",
+        structure_summary="Bullish market structure",
+        risk_level="MEDIUM",
+        recommendation="Wait for stronger confirmation",
+        timeframe_alignment="NONE",
+        timeframe_confidence=40,
+        timeframe_summary=(
+            "Timeframes are not aligned."
+        ),
+        market_session="OTHER",
+        session_activity="LOW",
+        session_condition="NEUTRAL",
+        session_summary=(
+            "Market session activity is low."
+        ),
+    )
+
+    risk_validation = RiskValidationResult(
+        approved=False,
+        reason="Trade should not be executed.",
+    )
+
+    result = AITradeReasonGenerator.generate(
+        decision=decision,
+        market_intelligence=market_intelligence,
+        risk_validation=risk_validation,
+    )
+
+    assert result.decision == "HOLD"
+
+    assert result.gate_reason == (
+        "Multi-timeframe alignment is not sufficient."
+    )
+
+    assert (
+        "multi_timeframe_alignment"
+        in result.gates_failed
+    )
+
+    assert "market_session" in result.gates_failed
+
+    assert result.confidence == 64

@@ -122,6 +122,32 @@ class AITradeReasonGenerator:
             )
 
         # ==========================================
+        # Decision Gate Reasoning
+        # ==========================================
+
+        gates_passed = list(
+            getattr(
+                decision,
+                "gates_passed",
+                [],
+            )
+        )
+
+        gates_failed = list(
+            getattr(
+                decision,
+                "gates_failed",
+                [],
+            )
+        )
+
+        gate_reason = getattr(
+            decision,
+            "reason",
+            "Decision Gate information not available.",
+        )
+
+        # ==========================================
         # Final Reason
         # ==========================================
 
@@ -129,12 +155,19 @@ class AITradeReasonGenerator:
             "Decision generated using "
             "technical analysis, news sentiment, "
             "market structure, multi-timeframe analysis, "
-            "market session analysis, and risk validation."
+            "market session analysis, Decision Gate "
+            "validation, and risk validation."
         )
 
         return AIReasonResult(
             decision=decision.action,
-            confidence=market_intelligence.confidence,
+            confidence=(
+                getattr(
+                    decision,
+                    "decision_confidence",
+                    market_intelligence.confidence,
+                )
+            ),
             technical_reason=technical_reason,
             news_reason=news_reason,
             structure_reason=structure_reason,
@@ -142,4 +175,7 @@ class AITradeReasonGenerator:
             final_reason=final_reason,
             timeframe_reason=timeframe_reason,
             session_reason=session_reason,
+            gate_reason=gate_reason,
+            gates_passed=gates_passed,
+            gates_failed=gates_failed,
         )
