@@ -3,7 +3,7 @@ models.py
 
 Database models for trade execution history.
 
-Author: Tharindu Kothalwala
+Author: Tharindu Kothalawala
 Project: Aladdin
 """
 
@@ -61,6 +61,11 @@ class ExecutionModel(Base):
     )
 
     broker_order_id = Column(
+        String,
+        nullable=True,
+    )
+
+    execution_message = Column(
         String,
         nullable=True,
     )

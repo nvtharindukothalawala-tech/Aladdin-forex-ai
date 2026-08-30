@@ -55,6 +55,11 @@ def test_execute_trade_service():
 
     assert execution.broker_order_id == "MOCK_ORDER_001"
 
+    assert (
+        execution.execution_message
+        == "Order executed successfully."
+    )
+
     session.close()
 
 def test_execution_service_saves_failed_broker_execution(
@@ -99,5 +104,10 @@ def test_execution_service_saves_failed_broker_execution(
     assert execution.status == "FAILED"
 
     assert execution.broker_order_id is None
+
+    assert (
+        execution.execution_message
+        == "Broker execution failed."
+    )
 
     session.close()

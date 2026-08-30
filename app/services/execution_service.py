@@ -3,7 +3,7 @@ execution_service.py
 
 Business logic for trade execution lifecycle.
 
-Author: Tharindu Kothalwala
+Author: Tharindu Kothalawala
 Project: Aladdin
 """
 
@@ -36,16 +36,33 @@ class ExecutionService:
 
         try:
 
-            result = ExecutionManager.execute_with_mt5(execution_request)
+            result = (
+                ExecutionManager.execute_with_mt5(
+                    execution_request
+                )
+            )
 
-            status = "EXECUTED" if result.success else "FAILED"
+            status = (
+                "EXECUTED"
+                if result.success
+                else "FAILED"
+            )
 
-            order_id = result.order_id if result.success else None
+            order_id = (
+                result.order_id
+                if result.success
+                else None
+            )
 
-        except Exception:
+            execution_message = result.message
+
+        except Exception as error:
 
             status = "FAILED"
+
             order_id = None
+
+            execution_message = str(error)
 
         execution = self.repository.save_execution(
             user_id=user_id,
@@ -54,6 +71,7 @@ class ExecutionService:
             volume=execution_request.volume,
             status=status,
             broker_order_id=order_id,
+            execution_message=execution_message,
         )
 
         return execution

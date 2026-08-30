@@ -3,7 +3,7 @@ repository.py
 
 Database operations for execution history.
 
-Author: Tharindu Kothalwala
+Author: Tharindu Kothalawala
 Project: Aladdin
 """
 
@@ -30,6 +30,7 @@ class ExecutionRepository:
         volume: float,
         status: str,
         broker_order_id: str | None = None,
+        execution_message: str | None = None,
     ):
         """
         Save execution result.
@@ -42,6 +43,7 @@ class ExecutionRepository:
             volume=volume,
             status=status,
             broker_order_id=broker_order_id,
+            execution_message=execution_message,
         )
 
         self.session.add(execution)
@@ -62,7 +64,9 @@ class ExecutionRepository:
 
         return (
             self.session.query(ExecutionModel)
-            .filter(ExecutionModel.user_id == user_id)
+            .filter(
+                ExecutionModel.user_id == user_id
+            )
             .all()
         )
 
@@ -76,6 +80,8 @@ class ExecutionRepository:
 
         return (
             self.session.query(ExecutionModel)
-            .filter(ExecutionModel.user_id == user_id)
+            .filter(
+                ExecutionModel.user_id == user_id
+            )
             .count()
         )
