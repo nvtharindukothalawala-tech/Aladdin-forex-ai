@@ -17,9 +17,9 @@ from app.database.connection import SessionLocal
 
 from app.auth.service import AuthService
 
-from app.auth.dependencies import (
-    get_current_user,
-)
+from app.auth.dependencies import get_current_user
+
+from app.auth.models import UserModel
 
 from app.schemas.auth_schema import (
     UserRegisterRequest,
@@ -27,10 +27,6 @@ from app.schemas.auth_schema import (
     TokenResponse,
 )
 
-
-# ==========================================
-# Router
-# ==========================================
 
 router = APIRouter(
     prefix="/auth",
@@ -42,6 +38,7 @@ router = APIRouter(
 # Authentication Service
 # ==========================================
 
+
 def get_service():
 
     session = SessionLocal()
@@ -50,16 +47,14 @@ def get_service():
 
 
 # ==========================================
-# Register
+# REGISTER
 # ==========================================
+
 
 @router.post("/register")
 def register(
     user: UserRegisterRequest,
 ):
-    """
-    Register a new user.
-    """
 
     service = get_service()
 
@@ -85,8 +80,9 @@ def register(
 
 
 # ==========================================
-# Login
+# LOGIN
 # ==========================================
+
 
 @router.post(
     "/login",
@@ -95,9 +91,6 @@ def register(
 def login(
     user: UserLoginRequest,
 ):
-    """
-    Authenticate user and return JWT token.
-    """
 
     service = get_service()
 
@@ -122,23 +115,20 @@ def login(
 
 
 # ==========================================
-# Current User
+# CURRENT USER
 # ==========================================
+
 
 @router.get("/me")
 def get_me(
-    current_user=Depends(get_current_user),
+    current_user: UserModel = Depends(get_current_user),
 ):
     """
-    Return information about the
-    currently authenticated user.
-
-    The user is identified from the
-    JWT access token.
+    Return the currently authenticated user.
     """
 
     return {
-        "user_id": current_user.id,
+        "id": current_user.id,
         "username": current_user.username,
         "email": current_user.email,
     }
