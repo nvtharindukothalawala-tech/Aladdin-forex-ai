@@ -4,7 +4,7 @@ mt5_provider.py
 Provides real Forex market data from MetaTrader 5
 for the Aladdin Forex Trading Assistant.
 
-Author: Tharindu Kothalawala
+Author: Tharindu Kothalwala
 Project: Aladdin
 """
 
@@ -13,6 +13,9 @@ from datetime import datetime, timezone
 import MetaTrader5 as mt5
 
 from app.market.candle import Candle
+from app.market.mt5_symbol_resolver import (
+    MT5SymbolResolver,
+)
 
 
 class MT5DataProvider:
@@ -26,6 +29,10 @@ class MT5DataProvider:
         """
 
         self.connected = False
+
+    # ======================================================
+    # CONNECTION
+    # ======================================================
 
     def connect(self):
         """
@@ -56,6 +63,36 @@ class MT5DataProvider:
 
             self.connected = False
 
+    # ======================================================
+    # SYMBOL RESOLUTION
+    # ======================================================
+
+    def resolve_symbol(
+        self,
+        symbol: str,
+    ) -> str:
+        """
+        Resolve an Aladdin logical symbol to the
+        actual symbol available in MetaTrader 5.
+
+        Examples:
+
+            EUR/USD -> EURUSD
+            GBP/USD -> GBPUSD
+            XAU/USD -> XAUUSD or GOLD
+        """
+
+        self.connect()
+
+        return MT5SymbolResolver.resolve(
+            symbol=symbol,
+            mt5_module=mt5,
+        )
+
+    # ======================================================
+    # MARKET DATA
+    # ======================================================
+
     def get_candles(
         self,
         symbol,
@@ -65,24 +102,48 @@ class MT5DataProvider:
         """
         Get recent candles from MetaTrader 5.
 
-        Args:
-            symbol:
-                MT5 symbol, for example EURUSD.
+        The supplied symbol can be either:
 
-            timeframe:
-                MT5 timeframe constant.
+            EUR/USD
+            EURUSD
+            GBP/USD
+            XAU/USD
 
-            count:
-                Number of candles to retrieve.
-
-        Returns:
-            List of Candle objects.
+        The symbol is resolved automatically to the
+        broker's available MT5 symbol.
         """
 
         self.connect()
 
+        # ==============================================
+        # Resolve logical symbol to broker symbol
+        # ==============================================
+
+        resolved_symbol = self.resolve_symbol(
+            symbol
+        )
+
+        # ==============================================
+        # Make sure the symbol is available
+        # ==============================================
+
+        if not mt5.symbol_select(
+            resolved_symbol,
+            True,
+        ):
+            error = mt5.last_error()
+
+            raise RuntimeError(
+                f"Unable to select MT5 symbol "
+                f"{resolved_symbol}: {error}"
+            )
+
+        # ==============================================
+        # Get candle data
+        # ==============================================
+
         rates = mt5.copy_rates_from_pos(
-            symbol,
+            resolved_symbol,
             timeframe,
             0,
             count,
@@ -92,8 +153,19 @@ class MT5DataProvider:
             error = mt5.last_error()
 
             raise RuntimeError(
-                f"Unable to retrieve market data: {error}"
+                f"Unable to retrieve market data "
+                f"for {resolved_symbol}: {error}"
             )
+
+        if len(rates) == 0:
+            raise RuntimeError(
+                f"No market candles available "
+                f"for {resolved_symbol}."
+            )
+
+        # ==============================================
+        # Convert MT5 rates into Candle objects
+        # ==============================================
 
         candles = []
 
@@ -105,13 +177,23 @@ class MT5DataProvider:
             )
 
             candle = Candle(
-                symbol=symbol,
+                symbol=resolved_symbol,
                 timeframe=str(timeframe),
-                open_price=float(rate["open"]),
-                high_price=float(rate["high"]),
-                low_price=float(rate["low"]),
-                close_price=float(rate["close"]),
-                volume=float(rate["tick_volume"]),
+                open_price=float(
+                    rate["open"]
+                ),
+                high_price=float(
+                    rate["high"]
+                ),
+                low_price=float(
+                    rate["low"]
+                ),
+                close_price=float(
+                    rate["close"]
+                ),
+                volume=float(
+                    rate["tick_volume"]
+                ),
                 timestamp=timestamp,
             )
 

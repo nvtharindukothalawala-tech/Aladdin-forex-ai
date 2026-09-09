@@ -7,9 +7,9 @@ Author: Tharindu Kothalwala
 Project: Aladdin
 """
 
-from app.services.trading_service import (
-    TradingService,
-)
+from types import SimpleNamespace
+
+from app.services.trading_service import TradingService
 
 
 def test_ai_trade_setup_buy():
@@ -34,17 +34,47 @@ def test_ai_trade_setup_buy():
     )
 
     assert result["decision"].action == "BUY"
-
     assert result["market_intelligence"].market_bias == "BULLISH"
-
     assert "trade_plan" in result
-
     assert "risk_validation" in result
-
     assert "approval" in result
 
 
-def test_ai_trade_setup_hold():
+def test_ai_trade_setup_hold(monkeypatch):
+    """
+    Test that unsafe backend market intelligence
+    produces a HOLD decision and stops the workflow.
+    """
+
+    fake_intelligence = SimpleNamespace(
+        market_bias="BULLISH",
+        confidence=80.0,
+        risk_level="MEDIUM",
+        recommendation="Wait",
+        structure_direction="BULLISH",
+        structure_confirmation="BOS_BULLISH",
+        timeframe_alignment="FULL",
+        timeframe_confidence=100.0,
+        market_session="LONDON",
+        session_activity="HIGH",
+        session_condition="FAVORABLE",
+    )
+
+    fake_analysis_result = {
+        "intelligence": fake_intelligence,
+    }
+
+    class FakeMarketIntelligenceService:
+        def analyze(self, symbol):
+            return fake_analysis_result
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(
+        "app.services.trading_service.MarketIntelligenceService",
+        FakeMarketIntelligenceService,
+    )
 
     result = TradingService.generate_ai_trade_setup(
         symbol="EUR/USD",
@@ -66,6 +96,14 @@ def test_ai_trade_setup_hold():
     )
 
     assert result["decision"].action == "HOLD"
+    assert result["decision"].approved is False
+
+    assert "risk_level" in result["decision"].gates_failed
+
+    assert "trade_plan" not in result
+    assert "risk_gate" not in result
+    assert "approval" not in result
+
 
 def test_ai_trade_setup_rejects_low_risk_reward():
     """
@@ -93,7 +131,5 @@ def test_ai_trade_setup_rejects_low_risk_reward():
     )
 
     assert result["decision"].action == "BUY"
-
     assert result["trade_plan"].risk_reward == 1.5
-
     assert result["risk_validation"].approved is False

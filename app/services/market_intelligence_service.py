@@ -3,6 +3,7 @@ market_intelligence_service.py
 
 Combines real market technical analysis,
 market structure intelligence,
+economic news analysis,
 multi-timeframe analysis,
 and market session analysis.
 
@@ -11,6 +12,10 @@ Project: Aladdin
 """
 
 import MetaTrader5 as mt5
+
+from app.config.instrument_config import (
+    normalize_symbol,
+)
 
 from app.intelligence.market_intelligence import (
     MarketIntelligenceAgent,
@@ -28,12 +33,17 @@ from app.services.technical_analysis_service import (
     TechnicalAnalysisService,
 )
 
+from app.services.news_analysis_service import (
+    NewsAnalysisService,
+)
+
 
 class MarketIntelligenceService:
     """
     Combines technical, market structure,
-    multi-timeframe, and market session analysis
-    using real MetaTrader 5 data.
+    economic news, multi-timeframe, and
+    market session analysis using real
+    MetaTrader 5 data and development news data.
     """
 
     def __init__(self):
@@ -48,6 +58,45 @@ class MarketIntelligenceService:
         self.market_service = (
             self.technical_service.market_service
         )
+
+        self.news_service = (
+            NewsAnalysisService()
+        )
+
+    def _get_news_currency(
+        self,
+        symbol,
+    ):
+        """
+        Determine the currency to use for
+        economic news analysis.
+
+        Forex pairs contain two currencies.
+
+        For example:
+
+            EURUSD -> EUR
+            GBPUSD -> GBP
+            USDJPY -> USD
+
+        For XAUUSD, USD news is used because
+        XAU is a metal rather than a currency.
+        """
+
+        internal_symbol = normalize_symbol(
+            symbol
+        )
+
+        if internal_symbol == "XAUUSD":
+            return "USD"
+
+        if internal_symbol.endswith("USD"):
+            return internal_symbol[:3]
+
+        if internal_symbol.startswith("USD"):
+            return "USD"
+
+        return internal_symbol[:3]
 
     def analyze(
         self,
@@ -141,15 +190,18 @@ class MarketIntelligenceService:
         # Used for market session detection.
         # ==========================================
 
-        candles = self.market_service.provider.get_candles(
-            symbol=symbol,
-            timeframe=mt5.TIMEFRAME_H1,
-            count=1,
+        candles = (
+            self.market_service.provider.get_candles(
+                symbol=symbol,
+                timeframe=mt5.TIMEFRAME_H1,
+                count=1,
+            )
         )
 
         if not candles:
             raise ValueError(
-                f"No market candles available for {symbol}."
+                f"No market candles available "
+                f"for {symbol}."
             )
 
         latest_candle = candles[-1]
@@ -165,18 +217,29 @@ class MarketIntelligenceService:
         )
 
         # ==========================================
-        # Combined Market Intelligence
+        # Economic News Analysis
         # ==========================================
-        #
-        # News analysis is not connected yet.
-        # Therefore the final intelligence service
-        # must handle unavailable news safely.
+
+        news_currency = (
+            self._get_news_currency(
+                symbol
+            )
+        )
+
+        news_result = (
+            self.news_service.analyze(
+                currency=news_currency,
+            )
+        )
+
+        # ==========================================
+        # Combined Market Intelligence
         # ==========================================
 
         intelligence_result = (
             MarketIntelligenceAgent.analyze(
                 technical_result=technical_result,
-                news_result=None,
+                news_result=news_result,
                 structure_result=structure_result,
             )
         )
@@ -228,6 +291,8 @@ class MarketIntelligenceService:
 
             "market_structure": structure_result,
 
+            "news": news_result,
+
             "multi_timeframe": timeframe_result,
 
             "market_session": session_result,
@@ -237,7 +302,9 @@ class MarketIntelligenceService:
 
     def close(self):
         """
-        Close MetaTrader 5 connections.
+        Close MetaTrader 5 and news services.
         """
 
         self.technical_service.close()
+
+        self.news_service.close()

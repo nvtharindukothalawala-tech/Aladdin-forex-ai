@@ -230,3 +230,61 @@ def test_low_confidence_blocks_trade():
     assert "confidence" in (
         decision.gates_failed
     )
+
+def test_medium_risk_blocks_trade():
+    """
+    A MEDIUM risk level should block
+    an otherwise valid trade.
+    """
+
+    market_intelligence = (
+        create_bullish_market_intelligence()
+    )
+
+    market_intelligence.timeframe_alignment = "FULL"
+    market_intelligence.timeframe_confidence = 100
+
+    market_intelligence.risk_level = "MEDIUM"
+
+    decision = (
+        DecisionEngine.make_intelligent_decision(
+            market_intelligence
+        )
+    )
+
+    assert decision.action == "HOLD"
+    assert decision.approved is False
+    assert "risk_level" in (
+        decision.gates_failed
+    )
+
+
+def test_wrong_bos_confirmation_blocks_trade():
+    """
+    Bullish market direction with bearish BOS
+    confirmation should block the trade.
+    """
+
+    market_intelligence = (
+        create_bullish_market_intelligence()
+    )
+
+    market_intelligence.timeframe_alignment = "FULL"
+    market_intelligence.timeframe_confidence = 100
+
+    market_intelligence.structure_direction = "BULLISH"
+    market_intelligence.structure_confirmation = (
+        "BOS_BEARISH"
+    )
+
+    decision = (
+        DecisionEngine.make_intelligent_decision(
+            market_intelligence
+        )
+    )
+
+    assert decision.action == "HOLD"
+    assert decision.approved is False
+    assert "bos_confirmation" in (
+        decision.gates_failed
+    )

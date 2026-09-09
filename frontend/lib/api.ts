@@ -114,14 +114,22 @@ export type AITradeAnalysisResult = {
     technical_summary: string;
     news_summary: string;
     structure_summary: string;
+
+    structure_direction: string;
+    structure_confirmation: string;
+
     risk_level: string;
     recommendation: string;
+
     conflict_detected: boolean;
     conflict_summary: string;
+
     confidence_summary: string;
+
     timeframe_alignment: string;
     timeframe_confidence: number;
     timeframe_summary: string;
+
     market_session: string;
     session_activity: string;
     session_condition: string;
@@ -130,8 +138,15 @@ export type AITradeAnalysisResult = {
 
   decision: {
     action: string;
-    confidence: number;
+    approved: boolean;
     reason: string;
+
+    market_confidence: number;
+    timeframe_confidence: number;
+    decision_confidence: number;
+
+    gates_passed: string[];
+    gates_failed: string[];
   };
 
   trade_plan?: {

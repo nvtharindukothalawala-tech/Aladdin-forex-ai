@@ -153,28 +153,74 @@ def test_ai_execution_api_blocks_high_risk_trade():
     assert "execution_result" not in data
 
 
-def test_ai_execution_api_does_not_execute_hold_decision():
+def test_ai_execution_api_does_not_execute_hold_decision(monkeypatch):
     """
     Test that AI execution does not execute
-    when the final decision is HOLD.
+    when backend market intelligence causes
+    the Decision Gate to return HOLD.
     """
+
+    from pydantic import BaseModel
+
+    class FakeIntelligence(BaseModel):
+        market_bias: str
+        confidence: float
+        risk_level: str
+        recommendation: str
+        structure_direction: str
+        structure_confirmation: str
+        timeframe_alignment: str
+        timeframe_confidence: float
+        market_session: str
+        session_activity: str
+        session_condition: str
+
+    fake_intelligence = FakeIntelligence(
+        market_bias="BULLISH",
+        confidence=80.0,
+        risk_level="MEDIUM",
+        recommendation="Wait",
+        structure_direction="BULLISH",
+        structure_confirmation="BOS_BULLISH",
+        timeframe_alignment="FULL",
+        timeframe_confidence=100.0,
+        market_session="LONDON",
+        session_activity="HIGH",
+        session_condition="FAVORABLE",
+    )
+
+    fake_analysis_result = {
+        "intelligence": fake_intelligence,
+    }
+
+    class FakeMarketIntelligenceService:
+        def analyze(self, symbol):
+            return fake_analysis_result
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(
+        "app.services.trading_service.MarketIntelligenceService",
+        FakeMarketIntelligenceService,
+    )
 
     response = client.post(
         "/execution/ai-execute",
         json={
             "user_id": 1,
             "symbol": "EUR/USD",
-            "ema_signal": "BULLISH",
+            "ema_signal": "NEUTRAL",
             "rsi_value": 50,
-            "adx_value": 10,
-            "volatility": "HIGH",
-            "currency": "USD",
-            "event_type": "Economic Report",
-            "importance": "HIGH",
-            "sentiment": "BEARISH",
+            "adx_value": 0,
+            "volatility": "NORMAL",
+            "currency": "EUR",
+            "event_type": "Backend Market Analysis",
+            "importance": "LOW",
+            "sentiment": "NEUTRAL",
             "price_structure": "RANGE",
             "liquidity_sweep": False,
-            "order_block": "BEARISH",
+            "order_block": "BULLISH",
             "fair_value_gap": False,
             "entry_price": 1.1000,
             "stop_loss": 1.0950,
@@ -191,13 +237,12 @@ def test_ai_execution_api_does_not_execute_hold_decision():
     data = response.json()
 
     assert data["decision"]["action"] == "HOLD"
+    assert data["decision"]["approved"] is False
+    assert "risk_level" in data["decision"]["gates_failed"]
 
-    assert "approval" not in data
-
-    assert "execution" not in data
-
-    assert "execution_result" not in data
-
+    assert "approval" not in data or data["approval"] is None
+    assert "execution" not in data or data["execution"] is None
+    assert "execution_result" not in data or data["execution_result"] is None
 
 def test_ai_execution_api_rejects_invalid_lot_size():
     """

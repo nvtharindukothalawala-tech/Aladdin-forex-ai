@@ -4,7 +4,7 @@ news_analysis_service.py
 Connects economic calendar data with
 Aladdin's News Analysis Agent.
 
-Author: Tharindu Kothalawala
+Author: Tharindu Kothalwala
 Project: Aladdin
 """
 
@@ -16,19 +16,42 @@ from app.news.economic_news_provider import (
     EconomicNewsProvider,
 )
 
+from app.news.development_news_provider import (
+    DevelopmentNewsProvider,
+)
+
 
 class NewsAnalysisService:
     """
-    Connect real economic news data with
+    Connect economic news data with
     the News Analysis Agent.
+
+    Development mode uses sample news data
+    when a paid external API is not available.
     """
 
-    def __init__(self):
+    def __init__(
+        self,
+        use_development_provider=True,
+    ):
         """
-        Create the economic news provider.
+        Create the appropriate news provider.
+
+        Development provider is used by default
+        so Aladdin can run without a paid API.
         """
 
-        self.provider = EconomicNewsProvider()
+        if use_development_provider:
+
+            self.provider = (
+                DevelopmentNewsProvider()
+            )
+
+        else:
+
+            self.provider = (
+                EconomicNewsProvider()
+            )
 
     def analyze(
         self,
@@ -72,12 +95,15 @@ class NewsAnalysisService:
         ):
 
             if importance_value >= 3:
+
                 importance = "HIGH"
 
             elif importance_value == 2:
+
                 importance = "MEDIUM"
 
             else:
+
                 importance = "LOW"
 
         else:
@@ -91,6 +117,7 @@ class NewsAnalysisService:
                 "MEDIUM",
                 "LOW",
             }:
+
                 importance = "LOW"
 
         sentiment = "NEUTRAL"
@@ -114,9 +141,11 @@ class NewsAnalysisService:
                 )
 
                 if actual_value > forecast_value:
+
                     sentiment = "BULLISH"
 
                 elif actual_value < forecast_value:
+
                     sentiment = "BEARISH"
 
             except (
@@ -138,5 +167,4 @@ class NewsAnalysisService:
         Close the news provider.
         """
 
-        # No persistent connection is used.
-        pass
+        self.provider.close()

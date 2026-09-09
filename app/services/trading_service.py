@@ -50,6 +50,10 @@ from app.intelligence.reasoning_engine import (
     ReasoningEngine,
 )
 
+from app.services.market_intelligence_service import (
+    MarketIntelligenceService,
+)
+
 
 class TradingService:
     """
@@ -83,6 +87,10 @@ class TradingService:
         This method is kept backward compatible with
         the existing basic trading workflow.
         """
+
+        # ==========================================
+        # Basic Decision
+        # ==========================================
 
         decision = DecisionEngine.make_decision(
             trend=trend,
@@ -175,7 +183,7 @@ class TradingService:
         return result
 
     # ======================================================
-    # INTELLIGENT MARKET ANALYSIS
+    # LEGACY INTELLIGENT MARKET ANALYSIS
     # ======================================================
 
     @staticmethod
@@ -197,10 +205,14 @@ class TradingService:
         entry_timeframe_bias="BULLISH",
         hour_utc=None,
     ):
-
         """
         Generate intelligent market analysis
-        and an intelligent trading decision.
+        using manually supplied analysis values.
+
+        This method is kept for backward compatibility.
+
+        The main live AI workflow should use
+        MarketIntelligenceService instead.
         """
 
         market_intelligence = (
@@ -217,9 +229,15 @@ class TradingService:
                 liquidity_sweep=liquidity_sweep,
                 order_block=order_block,
                 fair_value_gap=fair_value_gap,
-                higher_timeframe_bias=higher_timeframe_bias,
-                middle_timeframe_bias=middle_timeframe_bias,
-                entry_timeframe_bias=entry_timeframe_bias,
+                higher_timeframe_bias=(
+                    higher_timeframe_bias
+                ),
+                middle_timeframe_bias=(
+                    middle_timeframe_bias
+                ),
+                entry_timeframe_bias=(
+                    entry_timeframe_bias
+                ),
                 hour_utc=hour_utc,
             )
         )
@@ -240,7 +258,6 @@ class TradingService:
     # ======================================================
 
     @staticmethod
-
     def generate_ai_trade_setup(
         symbol,
         ema_signal,
@@ -271,10 +288,18 @@ class TradingService:
         """
         Generate a complete AI-powered trade setup.
 
+        IMPORTANT:
+        The trading decision is generated from the
+        backend live market intelligence pipeline.
+
+        The legacy frontend analysis parameters are
+        still accepted temporarily for API compatibility,
+        but they do NOT control the live trading decision.
+
         Workflow:
 
-        1. Market intelligence
-        2. Intelligent decision
+        1. Live market intelligence
+        2. Decision Gate
         3. Trade planning
         4. Risk Gate
         5. Risk validation
@@ -285,39 +310,79 @@ class TradingService:
         """
 
         # ==========================================
-        # Market Intelligence
+        # Real Backend Market Intelligence
+        # ==========================================
+        #
+        # Do NOT build the live decision using:
+        #
+        # ema_signal
+        # rsi_value
+        # adx_value
+        # volatility
+        # sentiment
+        # price_structure
+        # higher_timeframe_bias
+        #
+        # Those parameters remain only for temporary
+        # backward compatibility with the frontend.
+        #
+        # Real analysis comes from:
+        #
+        # MT5
+        # Technical Analysis
+        # Market Structure
+        # Multi-Timeframe Analysis
+        # Market Session
+        # News Analysis
+        # Market Intelligence Agent
         # ==========================================
 
-        intelligence_result = (
-            TradingService.generate_intelligent_trade_setup(
-                ema_signal=ema_signal,
-                rsi_value=rsi_value,
-                adx_value=adx_value,
-                volatility=volatility,
-                currency=currency,
-                event_type=event_type,
-                importance=importance,
-                sentiment=sentiment,
-                price_structure=price_structure,
-                liquidity_sweep=liquidity_sweep,
-                order_block=order_block,
-                fair_value_gap=fair_value_gap,
-                higher_timeframe_bias=higher_timeframe_bias,
-                middle_timeframe_bias=middle_timeframe_bias,
-                entry_timeframe_bias=entry_timeframe_bias,
-                hour_utc=hour_utc,
+        market_service = MarketIntelligenceService()
+
+        try:
+
+            market_result = market_service.analyze(
+                symbol=symbol,
             )
-        )
 
-        result = intelligence_result.copy()
+            market_intelligence = (
+                market_result["intelligence"]
+            )
 
-        decision = result["decision"]
+            # ======================================
+            # Detailed Decision Gate
+            # ======================================
+
+            decision = (
+                DecisionEngine.evaluate_gate(
+                    market_intelligence,
+                )
+            )
+
+            result = {
+                "market_intelligence": (
+                    market_intelligence
+                ),
+                "decision": decision,
+            }
+
+        finally:
+
+            market_service.close()
 
         # ==========================================
-        # HOLD
+        # Decision Gate Returned HOLD
+        # ==========================================
+        #
+        # If the intelligent safety gate does not
+        # approve the market conditions, no trade
+        # planning or execution preparation occurs.
         # ==========================================
 
-        if decision.action == "HOLD":
+        if (
+            decision.action == "HOLD"
+            or not decision.approved
+        ):
             return result
 
         # ==========================================
@@ -351,14 +416,11 @@ class TradingService:
         # Risk Validation
         # ==========================================
         #
-        # IMPORTANT:
-        # Use the trade_risk_amount supplied to this
-        # workflow.
-        #
-        # Do NOT replace it with risk_gate.risk_amount.
-        #
-        # The Risk Gate and Risk Validator are two
+        # The Risk Gate and Risk Validator are
         # separate safety checks.
+        #
+        # Keep trade_risk_amount supplied to this
+        # workflow for RiskValidator.
         # ==========================================
 
         risk_validation = RiskValidator.validate(
@@ -369,14 +431,7 @@ class TradingService:
         )
 
         # ==========================================
-        # Final Approval
-        # ==========================================
-        #
-        # IMPORTANT:
-        # Approval MUST receive risk_validation.
-        #
-        # If risk_validation.approved is False,
-        # ApprovalManager must reject the trade.
+        # Approval Layer
         # ==========================================
 
         approval = ApprovalManager.approve_trade(
@@ -403,13 +458,19 @@ class TradingService:
 
         result["risk_gate"] = risk_gate
 
-        result["risk_validation"] = risk_validation
+        result["risk_validation"] = (
+            risk_validation
+        )
 
         result["approval"] = approval
 
         result["reasoning"] = reasoning
 
         return result
+
+    # ======================================================
+    # AI EXECUTION WORKFLOW
+    # ======================================================
 
     @staticmethod
     def generate_ai_execution_workflow(
@@ -438,78 +499,130 @@ class TradingService:
         liquidity_sweep=True,
         order_block="BULLISH",
         fair_value_gap=True,
+        higher_timeframe_bias="BULLISH",
+        middle_timeframe_bias="BULLISH",
+        entry_timeframe_bias="BULLISH",
+        hour_utc=None,
     ):
         """
         Generate the complete AI trading workflow.
 
-        The trade can only reach execution when
-        the Risk Gate and Approval layer approve it.
+        A trade can only reach MT5 execution when:
+
+        1. Decision Gate approves the trade.
+        2. Risk Gate approves the trade.
+        3. Risk Validation approves the trade.
+        4. Approval layer approves the trade.
+        5. Execution is explicitly requested.
         """
 
-        result = TradingService.generate_ai_trade_setup(
-            symbol=symbol,
-            ema_signal=ema_signal,
-            rsi_value=rsi_value,
-            adx_value=adx_value,
-            volatility=volatility,
-            currency=currency,
-            event_type=event_type,
-            importance=importance,
-            sentiment=sentiment,
-            price_structure=price_structure,
-            liquidity_sweep=liquidity_sweep,
-            order_block=order_block,
-            fair_value_gap=fair_value_gap,
-            entry_price=entry_price,
-            stop_loss=stop_loss,
-            take_profit=take_profit,
-            account_balance=account_balance,
-            risk_percent=risk_percent,
-            trade_risk_amount=trade_risk_amount,
-            lot_size=lot_size,
-            pip_value=pip_value,
+        # ==========================================
+        # Generate AI Trade Setup
+        # ==========================================
+
+        result = (
+            TradingService.generate_ai_trade_setup(
+                symbol=symbol,
+                ema_signal=ema_signal,
+                rsi_value=rsi_value,
+                adx_value=adx_value,
+                volatility=volatility,
+                currency=currency,
+                event_type=event_type,
+                importance=importance,
+                sentiment=sentiment,
+                price_structure=price_structure,
+                liquidity_sweep=liquidity_sweep,
+                order_block=order_block,
+                fair_value_gap=fair_value_gap,
+                higher_timeframe_bias=(
+                    higher_timeframe_bias
+                ),
+                middle_timeframe_bias=(
+                    middle_timeframe_bias
+                ),
+                entry_timeframe_bias=(
+                    entry_timeframe_bias
+                ),
+                hour_utc=hour_utc,
+                entry_price=entry_price,
+                stop_loss=stop_loss,
+                take_profit=take_profit,
+                account_balance=account_balance,
+                risk_percent=risk_percent,
+                trade_risk_amount=(
+                    trade_risk_amount
+                ),
+                lot_size=lot_size,
+                pip_value=pip_value,
+            )
+        )
+
+        decision = result.get(
+            "decision"
         )
 
         # ==========================================
-        # Explainable AI Reasoning
-        # ==========================================
-
-        decision = result.get("decision")
-
-        # ==========================================
-        # Explainable AI Reasoning
+        # Explainable AI Reasoning Fallback
         # ==========================================
         #
-        # generate_ai_trade_setup() already creates
-        # the complete AIReasonResult for BUY/SELL.
+        # BUY/SELL setups normally receive the
+        # richer AITradeReasonGenerator reasoning
+        # inside generate_ai_trade_setup().
         #
-        # Do not overwrite that richer reasoning
-        # with the older ReasoningEngine result.
-        #
-        # For HOLD decisions, generate_ai_trade_setup()
-        # returns before creating AIReasonResult, so
-        # ReasoningEngine is still used as a fallback.
+        # HOLD returns before risk processing, so
+        # ReasoningEngine is used as a fallback.
         # ==========================================
 
-        if decision and "reasoning" not in result:
+        if (
+            decision is not None
+            and "reasoning" not in result
+        ):
 
             risk_approved = False
 
             if "risk_gate" in result:
 
-                risk_approved = (
+                risk_approved = bool(
                     result["risk_gate"].approved
                 )
 
             elif "approval" in result:
 
-                risk_approved = (
+                risk_approved = bool(
                     result["approval"].approved
+                )
+
+            # ======================================
+            # Confidence Compatibility
+            # ======================================
+            #
+            # Old DecisionResult:
+            #     decision.confidence
+            #
+            # New Decision Gate result:
+            #     decision.decision_confidence
+            #
+            # Support both safely.
+            # ======================================
+
+            decision_confidence = getattr(
+                decision,
+                "decision_confidence",
+                None,
+            )
+
+            if decision_confidence is None:
+
+                decision_confidence = getattr(
+                    decision,
+                    "confidence",
+                    0.0,
                 )
 
             reasoning = ReasoningEngine.generate(
                 decision=decision.action,
-                confidence=decision.confidence,
+                confidence=decision_confidence,
                 ema_signal=ema_signal,
                 rsi_value=rsi_value,
                 adx_value=adx_value,
@@ -521,87 +634,154 @@ class TradingService:
             result["reasoning"] = reasoning
 
         # ==========================================
-        # No Approval
+        # No Trade Approval
         # ==========================================
 
         if "approval" not in result:
-
             return result
 
         # ==========================================
-        # Execute Approved Trade
+        # Decision Gate Safety Check
         # ==========================================
 
-        if result["approval"].approved and execute:
+        if (
+            decision is None
+            or decision.action == "HOLD"
+            or not getattr(
+                decision,
+                "approved",
+                False,
+            )
+        ):
+            return result
 
-            if execution_service is None:
+        # ==========================================
+        # Risk Gate Safety Check
+        # ==========================================
 
-                raise ValueError(
-                    "Execution service required."
-                )
+        risk_gate = result.get(
+            "risk_gate"
+        )
 
-            if user_id is None:
+        if (
+            risk_gate is None
+            or not risk_gate.approved
+        ):
+            return result
 
-                raise ValueError(
-                    "User ID required."
-                )
+        # ==========================================
+        # Final Approval Safety Check
+        # ==========================================
 
-            execution_request = (
-                ExecutionManager.prepare_execution(
-                    symbol=symbol,
-                    direction=result["decision"].action,
-                    lot_size=lot_size,
-                    approved=True,
-                )
+        approval = result.get(
+            "approval"
+        )
+
+        if (
+            approval is None
+            or not approval.approved
+        ):
+            return result
+
+        # ==========================================
+        # Do Not Execute Unless Requested
+        # ==========================================
+
+        if not execute:
+            return result
+
+        # ==========================================
+        # Validate Execution Dependencies
+        # ==========================================
+
+        if execution_service is None:
+            raise ValueError(
+                "Execution service required."
             )
 
-            execution_result = (
-                execution_service.execute_trade(
+        if user_id is None:
+            raise ValueError(
+                "User ID required."
+            )
+
+        # ==========================================
+        # Prepare Approved Execution
+        # ==========================================
+
+        execution_request = (
+            ExecutionManager.prepare_execution(
+                symbol=symbol,
+                direction=decision.action,
+                lot_size=lot_size,
+                approved=True,
+            )
+        )
+
+        # ==========================================
+        # Execute Through Execution Service
+        # ==========================================
+
+        execution_result = (
+            execution_service.execute_trade(
+                user_id=user_id,
+                execution_request=(
+                    execution_request
+                ),
+            )
+        )
+
+        result["execution"] = (
+            execution_request
+        )
+
+        result["execution_result"] = (
+            execution_result
+        )
+
+        # ==========================================
+        # Execution Notification
+        # ==========================================
+
+        if notification_service is not None:
+
+            if (
+                execution_result.status
+                == "EXECUTED"
+            ):
+
+                notification_service.create_notification(
                     user_id=user_id,
-                    execution_request=execution_request,
+                    notification_type=(
+                        "TRADE_EXECUTED"
+                    ),
+                    title="Trade Executed",
+                    message=(
+                        f"{symbol} "
+                        f"{decision.action} "
+                        "trade was successfully executed."
+                    ),
+                    priority="SUCCESS",
                 )
-            )
 
-            result["execution"] = execution_request
+            elif (
+                execution_result.status
+                == "FAILED"
+            ):
 
-            result["execution_result"] = (
-                execution_result
-            )
-
-            # ==========================================
-            # Execution Notification
-            # ==========================================
-
-            if notification_service is not None:
-
-                if execution_result.status == "EXECUTED":
-
-                    notification_service.create_notification(
-                        user_id=user_id,
-                        notification_type="TRADE_EXECUTED",
-                        title="Trade Executed",
-                        message=(
-                            f"{symbol} "
-                            f"{result['decision'].action} "
-                            "trade was successfully executed."
-                        ),
-                        priority="SUCCESS",
-                    )
-
-                elif execution_result.status == "FAILED":
-
-                    notification_service.create_notification(
-                        user_id=user_id,
-                        notification_type=(
-                            "TRADE_EXECUTION_FAILED"
-                        ),
-                        title="Trade Execution Failed",
-                        message=(
-                            f"{symbol} "
-                            f"{result['decision'].action} "
-                            "trade could not be executed."
-                        ),
-                        priority="WARNING",
-                    )
+                notification_service.create_notification(
+                    user_id=user_id,
+                    notification_type=(
+                        "TRADE_EXECUTION_FAILED"
+                    ),
+                    title=(
+                        "Trade Execution Failed"
+                    ),
+                    message=(
+                        f"{symbol} "
+                        f"{decision.action} "
+                        "trade could not be executed."
+                    ),
+                    priority="WARNING",
+                )
 
         return result
