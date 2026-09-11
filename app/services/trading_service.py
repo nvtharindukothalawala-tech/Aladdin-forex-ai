@@ -148,10 +148,13 @@ class TradingService:
 
             execution_request = (
                 ExecutionManager.prepare_execution(
-                    symbol=symbol,
-                    direction=decision.action,
+                    symbol=trade_plan.symbol,
+                    direction=trade_plan.direction,
                     lot_size=lot_size,
                     approved=True,
+                    entry_price=trade_plan.entry_price,
+                    stop_loss=trade_plan.stop_loss,
+                    take_profit=trade_plan.take_profit,
                 )
             )
 
@@ -705,15 +708,38 @@ class TradingService:
             )
 
         # ==========================================
+        # Retrieve Approved Trade Plan
+        # ==========================================
+        #
+        # generate_ai_trade_setup() created the
+        # TradePlan and stored it inside result.
+        #
+        # Use the approved TradePlan instead of
+        # rebuilding prices again here.
+        # ==========================================
+
+        trade_plan = result.get(
+            "trade_plan"
+        )
+
+        if trade_plan is None:
+            raise ValueError(
+                "Approved trade plan is missing."
+            )
+
+        # ==========================================
         # Prepare Approved Execution
         # ==========================================
 
         execution_request = (
             ExecutionManager.prepare_execution(
-                symbol=symbol,
-                direction=decision.action,
+                symbol=trade_plan.symbol,
+                direction=trade_plan.direction,
                 lot_size=lot_size,
                 approved=True,
+                entry_price=trade_plan.entry_price,
+                stop_loss=trade_plan.stop_loss,
+                take_profit=trade_plan.take_profit,
             )
         )
 

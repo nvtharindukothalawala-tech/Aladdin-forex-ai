@@ -48,6 +48,21 @@ class ExecutionRequestSchema(BaseModel):
 
     approved: bool
 
+    entry_price: float | None = Field(
+        default=None,
+        gt=0,
+    )
+
+    stop_loss: float | None = Field(
+        default=None,
+        gt=0,
+    )
+
+    take_profit: float | None = Field(
+        default=None,
+        gt=0,
+    )
+
 
 # ==========================================
 # Execution Response
@@ -260,6 +275,12 @@ class AIExecutionExecutionSchema(BaseModel):
 
     status: str
 
+    entry_price: float | None = None
+
+    stop_loss: float | None = None
+
+    take_profit: float | None = None
+
 
 # ==========================================
 # AI Reasoning Response
@@ -309,7 +330,7 @@ class AIReasoningResponseSchema(BaseModel):
     gates_failed: list[str] | None = None
 
     # ==========================================
-    # Legacy reasoning fields
+    # Legacy Reasoning Fields
     # ==========================================
 
     technical_reasons: list[str] | None = None
@@ -327,10 +348,11 @@ class AIReasoningResponseSchema(BaseModel):
 
 class AIExecutionResponseSchema(BaseModel):
     """
-    Response schema for the complete AI execution workflow.
+    Response schema for the complete
+    AI execution workflow.
 
-    Optional workflow stages are omitted from the
-    JSON response when they are not applicable.
+    Optional workflow stages are omitted
+    when they are not applicable.
     """
 
     model_config = ConfigDict(

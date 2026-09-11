@@ -7,7 +7,7 @@ Supports:
 - SQLite for local development
 - PostgreSQL for production deployment
 
-Author: Tharindu Kothalwala
+Author: Tharindu Kothalawala
 Project: Aladdin
 """
 
@@ -20,21 +20,29 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 
-# Load environment variables
+# ======================================================
+# ENVIRONMENT
+# ======================================================
+
 load_dotenv()
 
 
-DATABASE_URL = os.getenv(
-    "DATABASE_URL"
-) or "sqlite:///./aladdin.db"
+DATABASE_URL = (
+    os.getenv("DATABASE_URL")
+    or "sqlite:///./aladdin.db"
+)
 
 
-# SQLite requires this option
+# ======================================================
+# DATABASE ENGINE
+# ======================================================
+
 connect_args = {}
 
 if DATABASE_URL.startswith("sqlite"):
+
     connect_args = {
-        "check_same_thread": False
+        "check_same_thread": False,
     }
 
 
@@ -44,8 +52,33 @@ engine = create_engine(
 )
 
 
+# ======================================================
+# DATABASE SESSION
+# ======================================================
+
 SessionLocal = sessionmaker(
     autocommit=False,
     autoflush=False,
     bind=engine,
 )
+
+
+# ======================================================
+# ORM MODEL REGISTRATION
+# ======================================================
+#
+# SQLAlchemy relationships such as:
+#
+# relationship("UserModel")
+#
+# use class names stored in the SQLAlchemy model
+# registry.
+#
+# Therefore UserModel must be imported before
+# SQLAlchemy configures all model relationships.
+#
+# This import is intentionally placed after the
+# database engine/session configuration.
+# ======================================================
+
+from app.auth.models import UserModel  # noqa: E402, F401
