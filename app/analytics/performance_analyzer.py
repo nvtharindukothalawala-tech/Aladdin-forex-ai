@@ -59,9 +59,24 @@ class PerformanceAnalyzer:
     def average_risk_reward(self):
         """
         Calculate average risk reward.
+
+        Trades with unknown risk/reward values
+        are ignored.
         """
 
-        if not self.trades:
+        valid_trades = [
+            trade
+            for trade in self.trades
+            if trade.risk_reward is not None
+        ]
+
+        if not valid_trades:
             return 0
 
-        return sum(trade.risk_reward for trade in self.trades) / len(self.trades)
+        return (
+            sum(
+                trade.risk_reward
+                for trade in valid_trades
+            )
+            / len(valid_trades)
+        )

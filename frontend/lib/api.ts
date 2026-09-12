@@ -41,6 +41,7 @@ export type TradeCreateData = {
   take_profit: number;
 };
 
+
 export type AITradeAnalysisData = {
   symbol: string;
 
@@ -106,6 +107,7 @@ export type AITradeAnalysisData = {
    */
   pip_value: number;
 };
+
 
 export type AITradeAnalysisResult = {
   market_intelligence: {
@@ -188,6 +190,7 @@ export type AITradeAnalysisResult = {
   };
 };
 
+
 export type AIExecutionResult = {
   decision?: {
     action?: string;
@@ -261,6 +264,9 @@ export type AIExecutionResult = {
     order_type?: string;
     volume?: number;
     status?: string;
+    entry_price?: number | null;
+    stop_loss?: number | null;
+    take_profit?: number | null;
   };
 
   execution_result?: {
@@ -270,8 +276,19 @@ export type AIExecutionResult = {
     status?: string;
     broker_order_id?: string | null;
     execution_message?: string | null;
+
+    execution_mode?:
+      | "MOCK"
+      | "DEMO"
+      | string
+      | null;
+
+    demo_execution_enabled?:
+      | boolean
+      | null;
   };
 };
+
 
 export type TradeStatistics = {
   total_trades: number;
@@ -296,6 +313,7 @@ export type Notification = {
   is_read: number;
   created_at: string;
 };
+
 
 /* =========================================================
    LIVE DECISION GATE
@@ -350,6 +368,236 @@ export type LiveDecisionGateResult = {
 
 
 /* =========================================================
+   MT5 BROKER MONITORING
+   ========================================================= */
+
+export type BrokerAccount = {
+  execution_mode:
+    | "MOCK"
+    | "DEMO"
+    | string;
+
+  connected: boolean;
+
+  account_connected: boolean;
+
+  account_type:
+    | "MOCK"
+    | "DEMO"
+    | string;
+
+  login: number | null;
+  server: string | null;
+  name: string | null;
+  currency: string | null;
+
+  balance: number | null;
+  equity: number | null;
+  profit: number | null;
+
+  margin: number | null;
+  free_margin: number | null;
+  margin_level: number | null;
+
+  leverage: number | null;
+
+  trade_allowed: boolean;
+  expert_trading_allowed: boolean;
+
+  demo_execution_enabled: boolean;
+
+  message: string;
+};
+
+
+export type BrokerPosition = {
+  ticket: number;
+  symbol: string;
+
+  direction:
+    | "BUY"
+    | "SELL"
+    | string;
+
+  volume: number;
+
+  open_price: number;
+  current_price: number;
+
+  stop_loss: number;
+  take_profit: number;
+
+  profit: number;
+  swap: number;
+
+  magic: number;
+  comment: string;
+
+  identifier?: number;
+};
+
+
+export type BrokerStatus = {
+  execution_mode:
+    | "MOCK"
+    | "DEMO"
+    | string;
+
+  account: BrokerAccount;
+
+  position_count: number;
+
+  total_open_profit: number;
+
+  positions: BrokerPosition[];
+};
+
+
+export type BrokerClosedTrade = {
+  deal_ticket: number;
+
+  order_ticket: number;
+
+  position_id: number;
+
+  symbol: string;
+
+  direction:
+    | "BUY"
+    | "SELL"
+    | string;
+
+  volume: number;
+
+  close_price: number;
+
+  profit: number;
+
+  commission: number;
+
+  swap: number;
+
+  fee: number;
+
+  net_profit: number;
+
+  time: string;
+
+  magic: number;
+
+  comment: string;
+
+  is_aladdin_trade: boolean;
+};
+
+
+export type BrokerTradeHistory = {
+  execution_mode:
+    | "MOCK"
+    | "DEMO"
+    | string;
+
+  connected: boolean;
+
+  history_days: number;
+
+  closed_trade_count: number;
+
+  total_profit: number;
+
+  total_commission: number;
+
+  total_swap: number;
+
+  total_fee: number;
+
+  total_net_profit: number;
+
+  closed_trades: BrokerClosedTrade[];
+
+  message: string;
+};
+
+
+/* =========================================================
+   JOURNAL
+   ========================================================= */
+
+export type JournalTrade = {
+  symbol: string;
+
+  direction: string;
+
+  result: string;
+
+  profit_loss: number;
+
+  risk_reward: number | null;
+
+  source: string | null;
+
+  mt5_deal_ticket: number | null;
+
+  mt5_order_ticket: number | null;
+
+  mt5_position_id: number | null;
+
+  close_price: number | null;
+
+  commission: number | null;
+
+  swap: number | null;
+
+  fee: number | null;
+
+  closed_at: string | null;
+
+  is_aladdin_trade: number | null;
+};
+
+
+export type MT5JournalSyncResult = {
+  execution_mode:
+    | "MOCK"
+    | "DEMO"
+    | string;
+
+  history_days: number;
+
+  broker_closed_trade_count: number;
+
+  imported_count: number;
+
+  duplicate_count: number;
+
+  skipped_count: number;
+
+  include_other_trades: boolean;
+
+  imported_trades: unknown[];
+
+  skipped_trades: unknown[];
+
+  message: string;
+};
+
+
+/* =========================================================
+   AI COACHING
+   ========================================================= */
+
+export type CoachingResponse = {
+  summary: string;
+
+  strengths: string[];
+
+  weaknesses: string[];
+
+  recommendations: string[];
+};
+
+
+/* =========================================================
    AUTHENTICATION
    ========================================================= */
 
@@ -361,9 +609,12 @@ export async function login(
     `${API_URL}/auth/login`,
     {
       method: "POST",
+
       headers: {
-        "Content-Type": "application/json",
+        "Content-Type":
+          "application/json",
       },
+
       body: JSON.stringify({
         username,
         password,
@@ -372,19 +623,27 @@ export async function login(
   );
 
   if (!response.ok) {
-    let message = "Login failed.";
+    let message =
+      "Login failed.";
 
     try {
-      const data = await response.json();
+      const data =
+        await response.json();
 
-      if (typeof data.detail === "string") {
-        message = data.detail;
+      if (
+        typeof data.detail ===
+        "string"
+      ) {
+        message =
+          data.detail;
       }
     } catch {
       // Keep default error message.
     }
 
-    throw new Error(message);
+    throw new Error(
+      message
+    );
   }
 
   return response.json();
@@ -395,8 +654,13 @@ export async function login(
    TOKEN
    ========================================================= */
 
-export function getAccessToken(): string | null {
-  if (typeof window === "undefined") {
+export function getAccessToken():
+  | string
+  | null {
+  if (
+    typeof window ===
+    "undefined"
+  ) {
     return null;
   }
 
@@ -416,7 +680,8 @@ export function saveAccessToken(
 }
 
 
-export function removeAccessToken(): void {
+export function removeAccessToken():
+  void {
   localStorage.removeItem(
     "aladdin_access_token",
   );
@@ -431,25 +696,31 @@ export function removeAccessToken(): void {
    CURRENT USER
    ========================================================= */
 
-export async function getCurrentUserId(): Promise<number> {
-  const cachedUserId = localStorage.getItem(
-    "aladdin_user_id",
-  );
+export async function getCurrentUserId():
+  Promise<number> {
+  const cachedUserId =
+    localStorage.getItem(
+      "aladdin_user_id",
+    );
 
   if (cachedUserId) {
-    const parsedUserId = Number(cachedUserId);
+    const parsedUserId =
+      Number(cachedUserId);
 
     if (
-      Number.isInteger(parsedUserId) &&
+      Number.isInteger(
+        parsedUserId
+      ) &&
       parsedUserId > 0
     ) {
       return parsedUserId;
     }
   }
 
-  const response = await authenticatedFetch(
-    "/auth/me",
-  );
+  const response =
+    await authenticatedFetch(
+      "/auth/me",
+    );
 
   if (!response.ok) {
     throw new Error(
@@ -457,14 +728,19 @@ export async function getCurrentUserId(): Promise<number> {
     );
   }
 
-  const data = await response.json();
+  const data =
+    await response.json();
 
-  const userId = Number(
-    data.id ?? data.user_id,
-  );
+  const userId =
+    Number(
+      data.id ??
+      data.user_id,
+    );
 
   if (
-    !Number.isInteger(userId) ||
+    !Number.isInteger(
+      userId
+    ) ||
     userId <= 0
   ) {
     throw new Error(
@@ -489,11 +765,13 @@ async function authenticatedFetch(
   endpoint: string,
   options: RequestInit = {},
 ): Promise<Response> {
-  const token = getAccessToken();
+  const token =
+    getAccessToken();
 
-  const headers = new Headers(
-    options.headers,
-  );
+  const headers =
+    new Headers(
+      options.headers,
+    );
 
   headers.set(
     "Content-Type",
@@ -507,16 +785,19 @@ async function authenticatedFetch(
     );
   }
 
-  const response = await fetch(
-    `${API_URL}${endpoint}`,
-    {
-      ...options,
-      headers,
-      cache: "no-store",
-    },
-  );
+  const response =
+    await fetch(
+      `${API_URL}${endpoint}`,
+      {
+        ...options,
+        headers,
+        cache: "no-store",
+      },
+    );
 
-  if (response.status === 401) {
+  if (
+    response.status === 401
+  ) {
     removeAccessToken();
 
     throw new Error(
@@ -532,9 +813,8 @@ async function authenticatedFetch(
    GET ALL TRADES
    ========================================================= */
 
-export async function getTrades(): Promise<
-  Trade[]
-> {
+export async function getTrades():
+  Promise<Trade[]> {
   const response =
     await authenticatedFetch(
       "/trades/",
@@ -562,7 +842,11 @@ export async function createTrade(
       "/trades/",
       {
         method: "POST",
-        body: JSON.stringify(tradeData),
+
+        body:
+          JSON.stringify(
+            tradeData
+          ),
       },
     );
 
@@ -579,30 +863,50 @@ export async function createTrade(
         data,
       );
 
-      if (typeof data.detail === "string") {
-        message = data.detail;
-      } else if (Array.isArray(data.detail)) {
-        message = data.detail
-          .map((error: {
-            loc?: unknown[];
-            msg?: string;
-          }) => {
-            const location =
-              Array.isArray(error.loc)
-                ? error.loc.join(".")
-                : "field";
+      if (
+        typeof data.detail ===
+        "string"
+      ) {
+        message =
+          data.detail;
+      } else if (
+        Array.isArray(
+          data.detail
+        )
+      ) {
+        message =
+          data.detail
+            .map(
+              (
+                error: {
+                  loc?: unknown[];
+                  msg?: string;
+                }
+              ) => {
+                const location =
+                  Array.isArray(
+                    error.loc
+                  )
+                    ? error.loc.join(
+                        "."
+                      )
+                    : "field";
 
-            return `${location}: ${
-              error.msg ?? "Invalid value"
-            }`;
-          })
-          .join("; ");
+                return `${location}: ${
+                  error.msg ??
+                  "Invalid value"
+                }`;
+              },
+            )
+            .join("; ");
       }
     } catch {
       // Keep default error message.
     }
 
-    throw new Error(message);
+    throw new Error(
+      message
+    );
   }
 
   return response.json();
@@ -622,9 +926,12 @@ export async function closeTrade(
       `/trades/${tradeId}/close`,
       {
         method: "PUT",
-        body: JSON.stringify({
-          exit_price: exitPrice,
-        }),
+
+        body:
+          JSON.stringify({
+            exit_price:
+              exitPrice,
+          }),
       },
     );
 
@@ -637,15 +944,19 @@ export async function closeTrade(
         await response.json();
 
       if (
-        typeof data.detail === "string"
+        typeof data.detail ===
+        "string"
       ) {
-        message = data.detail;
+        message =
+          data.detail;
       }
     } catch {
       // Keep default error message.
     }
 
-    throw new Error(message);
+    throw new Error(
+      message
+    );
   }
 
   return response.json();
@@ -656,9 +967,8 @@ export async function closeTrade(
    TRADE STATISTICS
    ========================================================= */
 
-export async function getTradeStatistics(): Promise<
-  TradeStatistics
-> {
+export async function getTradeStatistics():
+  Promise<TradeStatistics> {
   const response =
     await authenticatedFetch(
       "/trades/statistics",
@@ -678,9 +988,8 @@ export async function getTradeStatistics(): Promise<
    GET ALL NOTIFICATIONS
    ========================================================= */
 
-export async function getNotifications(): Promise<
-  Notification[]
-> {
+export async function getNotifications():
+  Promise<Notification[]> {
   const response =
     await authenticatedFetch(
       "/notifications",
@@ -700,9 +1009,8 @@ export async function getNotifications(): Promise<
    GET UNREAD NOTIFICATIONS
    ========================================================= */
 
-export async function getUnreadNotifications(): Promise<
-  Notification[]
-> {
+export async function getUnreadNotifications():
+  Promise<Notification[]> {
   const response =
     await authenticatedFetch(
       "/notifications/unread",
@@ -722,7 +1030,8 @@ export async function getUnreadNotifications(): Promise<
    UNREAD NOTIFICATION COUNT
    ========================================================= */
 
-export async function getUnreadNotificationCount(): Promise<number> {
+export async function getUnreadNotificationCount():
+  Promise<number> {
   const response =
     await authenticatedFetch(
       "/notifications/unread/count",
@@ -734,7 +1043,8 @@ export async function getUnreadNotificationCount(): Promise<number> {
     );
   }
 
-  const data = await response.json();
+  const data =
+    await response.json();
 
   return Number(
     data.unread_count ?? 0,
@@ -771,10 +1081,11 @@ export async function markNotificationAsRead(
    MARK ALL NOTIFICATIONS AS READ
    ========================================================= */
 
-export async function markAllNotificationsAsRead(): Promise<{
-  message: string;
-  count: number;
-}> {
+export async function markAllNotificationsAsRead():
+  Promise<{
+    message: string;
+    count: number;
+  }> {
   const response =
     await authenticatedFetch(
       "/notifications/read-all",
@@ -792,6 +1103,7 @@ export async function markAllNotificationsAsRead(): Promise<{
   return response.json();
 }
 
+
 /* =========================================================
    LIVE INTELLIGENT DECISION
    ========================================================= */
@@ -799,10 +1111,11 @@ export async function markAllNotificationsAsRead(): Promise<{
 export async function getLiveIntelligentDecision(
   symbol: string,
 ): Promise<LiveDecisionGateResult> {
-  const normalizedSymbol = symbol
-    .replace("/", "")
-    .trim()
-    .toUpperCase();
+  const normalizedSymbol =
+    symbol
+      .replace("/", "")
+      .trim()
+      .toUpperCase();
 
   const response =
     await authenticatedFetch(
@@ -816,52 +1129,79 @@ export async function getLiveIntelligentDecision(
       `Live intelligent decision failed (${response.status}).`;
 
     try {
-      const data = await response.json();
+      const data =
+        await response.json();
 
-      if (typeof data.detail === "string") {
-        message = data.detail;
-      } else if (Array.isArray(data.detail)) {
-        message = data.detail
-          .map(
-            (error: {
-              loc?: unknown[];
-              msg?: string;
-            }) => {
-              const location =
-                Array.isArray(error.loc)
-                  ? error.loc.join(".")
-                  : "field";
+      if (
+        typeof data.detail ===
+        "string"
+      ) {
+        message =
+          data.detail;
+      } else if (
+        Array.isArray(
+          data.detail
+        )
+      ) {
+        message =
+          data.detail
+            .map(
+              (
+                error: {
+                  loc?: unknown[];
+                  msg?: string;
+                }
+              ) => {
+                const location =
+                  Array.isArray(
+                    error.loc
+                  )
+                    ? error.loc.join(
+                        "."
+                      )
+                    : "field";
 
-              return `${location}: ${
-                error.msg ?? "Invalid value"
-              }`;
-            },
-          )
-          .join("; ");
+                return `${location}: ${
+                  error.msg ??
+                  "Invalid value"
+                }`;
+              },
+            )
+            .join("; ");
       }
     } catch {
       // Keep default error message.
     }
 
-    throw new Error(message);
+    throw new Error(
+      message
+    );
   }
 
   return response.json();
 }
+
 
 /* =========================================================
    AI TRADE ANALYSIS
    ========================================================= */
 
 export async function analyzeAITrade(
-  tradeData: AITradeAnalysisData,
-): Promise<AITradeAnalysisResult> {
+  tradeData:
+    AITradeAnalysisData,
+): Promise<
+  AITradeAnalysisResult
+> {
   const response =
     await authenticatedFetch(
       "/trading/ai-analyze",
       {
         method: "POST",
-        body: JSON.stringify(tradeData),
+
+        body:
+          JSON.stringify(
+            tradeData
+          ),
       },
     );
 
@@ -874,90 +1214,366 @@ export async function analyzeAITrade(
         await response.json();
 
       if (
-        typeof data.detail === "string"
+        typeof data.detail ===
+        "string"
       ) {
-        message = data.detail;
+        message =
+          data.detail;
       } else if (
-        Array.isArray(data.detail)
+        Array.isArray(
+          data.detail
+        )
       ) {
-        message = data.detail
-          .map(
-            (error: {
-              loc?: unknown[];
-              msg?: string;
-            }) => {
-              const location =
-                Array.isArray(error.loc)
-                  ? error.loc.join(".")
-                  : "field";
+        message =
+          data.detail
+            .map(
+              (
+                error: {
+                  loc?: unknown[];
+                  msg?: string;
+                }
+              ) => {
+                const location =
+                  Array.isArray(
+                    error.loc
+                  )
+                    ? error.loc.join(
+                        "."
+                      )
+                    : "field";
 
-              return `${location}: ${
-                error.msg ?? "Invalid value"
-              }`;
-            },
-          )
-          .join("; ");
+                return `${location}: ${
+                  error.msg ??
+                  "Invalid value"
+                }`;
+              },
+            )
+            .join("; ");
       }
     } catch {
       // Keep default error message.
     }
 
-    throw new Error(message);
+    throw new Error(
+      message
+    );
   }
 
   return response.json();
 }
 
-export async function executeAITrade(
-  tradeData: AITradeAnalysisData,
-): Promise<AIExecutionResult> {
-  const userId = await getCurrentUserId();
 
-  const response = await authenticatedFetch(
-    "/execution/ai-execute",
-    {
-      method: "POST",
-      body: JSON.stringify({
-        user_id: userId,
-        ...tradeData,
-      }),
-    },
-  );
+/* =========================================================
+   AI TRADE EXECUTION
+   ========================================================= */
+
+export async function executeAITrade(
+  tradeData:
+    AITradeAnalysisData,
+): Promise<
+  AIExecutionResult
+> {
+  const userId =
+    await getCurrentUserId();
+
+  const response =
+    await authenticatedFetch(
+      "/execution/ai-execute",
+      {
+        method: "POST",
+
+        body:
+          JSON.stringify({
+            user_id:
+              userId,
+
+            ...tradeData,
+          }),
+      },
+    );
 
   if (!response.ok) {
     let message =
       `AI execution failed (${response.status}).`;
 
     try {
-      const data = await response.json();
+      const data =
+        await response.json();
 
-      if (typeof data.detail === "string") {
-        message = data.detail;
-      } else if (Array.isArray(data.detail)) {
-        message = data.detail
-          .map(
-            (error: {
-              loc?: unknown[];
-              msg?: string;
-            }) => {
-              const location =
-                Array.isArray(error.loc)
-                  ? error.loc.join(".")
-                  : "field";
+      if (
+        typeof data.detail ===
+        "string"
+      ) {
+        message =
+          data.detail;
+      } else if (
+        Array.isArray(
+          data.detail
+        )
+      ) {
+        message =
+          data.detail
+            .map(
+              (
+                error: {
+                  loc?: unknown[];
+                  msg?: string;
+                }
+              ) => {
+                const location =
+                  Array.isArray(
+                    error.loc
+                  )
+                    ? error.loc.join(
+                        "."
+                      )
+                    : "field";
 
-              return `${location}: ${
-                error.msg ?? "Invalid value."
-              }`;
-            },
-          )
-          .join(", ");
+                return `${location}: ${
+                  error.msg ??
+                  "Invalid value."
+                }`;
+              },
+            )
+            .join(", ");
       }
     } catch {
       // Keep default error message.
     }
 
-    throw new Error(message);
+    throw new Error(
+      message
+    );
   }
 
   return response.json();
 }
+
+
+/* =========================================================
+   MT5 BROKER STATUS
+   ========================================================= */
+
+export async function getBrokerStatus():
+  Promise<BrokerStatus> {
+  const response =
+    await authenticatedFetch(
+      "/broker/status",
+    );
+
+  if (!response.ok) {
+    let message =
+      `Failed to load MT5 broker status (${response.status}).`;
+
+    try {
+      const data =
+        await response.json();
+
+      if (
+        typeof data.detail ===
+        "string"
+      ) {
+        message =
+          data.detail;
+      }
+    } catch {
+      // Keep default error message.
+    }
+
+    throw new Error(
+      message
+    );
+  }
+
+  return response.json();
+}
+
+
+/* =========================================================
+   MT5 BROKER TRADE HISTORY
+   ========================================================= */
+
+export async function getBrokerTradeHistory(
+  days = 30,
+): Promise<
+  BrokerTradeHistory
+> {
+  const safeDays =
+    Math.max(
+      1,
+      Math.min(
+        Math.trunc(days),
+        3650,
+      ),
+    );
+
+  const response =
+    await authenticatedFetch(
+      `/broker/history?days=${encodeURIComponent(
+        String(safeDays),
+      )}`,
+    );
+
+  if (!response.ok) {
+    let message =
+      `Failed to load MT5 trade history (${response.status}).`;
+
+    try {
+      const data =
+        await response.json();
+
+      if (
+        typeof data.detail ===
+        "string"
+      ) {
+        message =
+          data.detail;
+      }
+    } catch {
+      // Keep default error message.
+    }
+
+    throw new Error(
+      message
+    );
+  }
+
+  return response.json();
+}
+
+
+/* =========================================================
+   GET JOURNAL TRADES
+   ========================================================= */
+
+export async function getJournalTrades():
+  Promise<JournalTrade[]> {
+  const response =
+    await authenticatedFetch(
+      "/journal/trades",
+    );
+
+  if (!response.ok) {
+    let message =
+      `Failed to load journal trades (${response.status}).`;
+
+    try {
+      const data =
+        await response.json();
+
+      if (
+        typeof data.detail ===
+        "string"
+      ) {
+        message =
+          data.detail;
+      }
+    } catch {
+      // Keep default error message.
+    }
+
+    throw new Error(
+      message
+    );
+  }
+
+  return response.json();
+}
+
+
+/* =========================================================
+   SYNC MT5 COMPLETED TRADES TO JOURNAL
+   ========================================================= */
+
+export async function syncMT5Journal(
+  days = 30,
+  includeOtherTrades = false,
+): Promise<
+  MT5JournalSyncResult
+> {
+  const safeDays =
+    Math.max(
+      1,
+      Math.min(
+        Math.trunc(days),
+        3650,
+      ),
+    );
+
+  const response =
+    await authenticatedFetch(
+      `/journal/sync-mt5?days=${encodeURIComponent(
+        String(safeDays),
+      )}&include_other_trades=${encodeURIComponent(
+        String(includeOtherTrades),
+      )}`,
+      {
+        method: "POST",
+      },
+    );
+
+  if (!response.ok) {
+    let message =
+      `Failed to synchronize MT5 journal (${response.status}).`;
+
+    try {
+      const data =
+        await response.json();
+
+      if (
+        typeof data.detail ===
+        "string"
+      ) {
+        message =
+          data.detail;
+      }
+    } catch {
+      // Keep default error message.
+    }
+
+    throw new Error(
+      message
+    );
+  }
+
+  return response.json();
+}
+
+/* =========================================================
+   AI COACHING REPORT
+   ========================================================= */
+
+export async function getCoachingReport():
+  Promise<CoachingResponse> {
+  const response =
+    await authenticatedFetch(
+      "/coaching/report",
+    );
+
+  if (!response.ok) {
+    let message =
+      `Failed to load AI coaching report (${response.status}).`;
+
+    try {
+      const data =
+        await response.json();
+
+      if (
+        typeof data.detail ===
+        "string"
+      ) {
+        message =
+          data.detail;
+      }
+    } catch {
+      // Keep default error message.
+    }
+
+    throw new Error(
+      message
+    );
+  }
+
+  return response.json();
+}
+

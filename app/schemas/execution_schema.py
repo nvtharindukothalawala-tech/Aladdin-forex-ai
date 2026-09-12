@@ -89,6 +89,10 @@ class ExecutionResponseSchema(BaseModel):
 
     execution_message: str | None = None
 
+    execution_mode: str | None = None
+
+    demo_execution_enabled: bool | None = None
+
 
 # ==========================================
 # Execution History Response

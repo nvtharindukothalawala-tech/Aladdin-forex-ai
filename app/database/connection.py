@@ -81,4 +81,17 @@ SessionLocal = sessionmaker(
 # database engine/session configuration.
 # ======================================================
 
-from app.auth.models import UserModel  # noqa: E402, F401
+# ORM model registration
+#
+# Import related models so SQLAlchemy can resolve
+# relationship names such as "TradeModel" and
+# "NotificationModel".
+
+from app.database.models import (  # noqa: E402, F401
+    TradeModel,
+    NotificationModel,
+)
+
+from app.auth.models import (  # noqa: E402, F401
+    UserModel,
+)

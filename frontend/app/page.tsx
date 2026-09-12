@@ -28,6 +28,11 @@ import {
   closeTrade,
   createTrade,
   getAccessToken,
+  getBrokerStatus,
+  getBrokerTradeHistory,
+  getCoachingReport,
+  getJournalTrades,
+  syncMT5Journal,
   getNotifications,
   getTradeStatistics,
   getTrades,
@@ -38,6 +43,11 @@ import {
   type AITradeAnalysisData,
   type AITradeAnalysisResult,
   type AIExecutionResult,
+  type BrokerStatus,
+  type BrokerTradeHistory,
+  type CoachingResponse,
+  type JournalTrade,
+  type MT5JournalSyncResult,
   type Notification,
   type Trade,
   type TradeCreateData,
@@ -472,6 +482,45 @@ export default function DashboardPage() {
   const [trades, setTrades] =
     useState<Trade[]>([]);
 
+  const [brokerStatus, setBrokerStatus] =
+    useState<BrokerStatus | null>(null);
+
+  const [brokerError, setBrokerError] =
+    useState("");
+
+  const [brokerHistory, setBrokerHistory] =
+    useState<BrokerTradeHistory | null>(null);
+
+  const [brokerHistoryLoading, setBrokerHistoryLoading] =
+    useState(false);
+
+  const [brokerHistoryError, setBrokerHistoryError] =
+    useState("");
+
+  const [journalTrades, setJournalTrades] =
+    useState<JournalTrade[]>([]);
+
+  const [journalLoading, setJournalLoading] =
+    useState(false);
+
+  const [journalSyncing, setJournalSyncing] =
+    useState(false);
+
+  const [journalError, setJournalError] =
+    useState("");
+
+  const [journalSyncResult, setJournalSyncResult] =
+    useState<MT5JournalSyncResult | null>(null);
+
+  const [coachingReport, setCoachingReport] =
+    useState<CoachingResponse | null>(null);
+
+  const [coachingLoading, setCoachingLoading] =
+    useState(false);
+
+  const [coachingError, setCoachingError] =
+    useState("");
+
   const [tradeForm, setTradeForm] =
     useState<TradeCreateData>({
       symbol: "EUR/USD",
@@ -836,9 +885,37 @@ export default function DashboardPage() {
       setAiExecutionResult(
         result as AIExecutionDisplayResult,
       );
-      setTradeActionMessage(
-        "AI trade execution completed successfully.",
-      );
+
+      const executionStatus = String(
+        result.execution_result?.status ?? "",
+      ).toUpperCase();
+
+      if (executionStatus === "EXECUTED") {
+        const executionMode = String(
+          result.execution_result?.execution_mode ?? "UNKNOWN",
+        ).toUpperCase();
+
+        if (executionMode === "DEMO") {
+          setTradeActionMessage(
+            "Trade executed successfully on the connected MT5 DEMO account.",
+          );
+        } else if (executionMode === "MOCK") {
+          setTradeActionMessage(
+            "Mock trade executed successfully. No MT5 broker order was sent.",
+          );
+        } else {
+          setTradeActionMessage(
+            "Trade execution completed through the Aladdin execution service.",
+          );
+        }
+      } else {
+        setTradeActionMessage("");
+
+        setTradeActionError(
+          result.execution_result?.execution_message ??
+            "The AI workflow completed, but the trade was not executed.",
+        );
+      }
 
       await loadDashboard();
 
@@ -891,10 +968,23 @@ export default function DashboardPage() {
         statisticsData,
         tradesData,
         unreadCount,
+        brokerResult,
       ] = await Promise.all([
         getTradeStatistics(),
         getTrades(),
         getUnreadNotificationCount(),
+        getBrokerStatus()
+          .then((data) => ({
+            data,
+            error: "",
+          }))
+          .catch((brokerLoadError) => ({
+            data: null,
+            error:
+              brokerLoadError instanceof Error
+                ? brokerLoadError.message
+                : "Unable to load MT5 broker status.",
+          })),
       ]);
 
       setStatistics(
@@ -907,6 +997,14 @@ export default function DashboardPage() {
 
       setNotificationCount(
         unreadCount,
+      );
+
+      setBrokerStatus(
+        brokerResult.data,
+      );
+
+      setBrokerError(
+        brokerResult.error,
       );
 
     } catch (err) {
@@ -1153,11 +1251,235 @@ export default function DashboardPage() {
 
 
   /* =======================================================
+     MT5 BROKER TRADE HISTORY
+     ======================================================= */
+
+  async function loadBrokerTradeHistory() {
+    try {
+      setBrokerHistoryLoading(true);
+      setBrokerHistoryError("");
+
+      const data =
+        await getBrokerTradeHistory(30);
+
+      setBrokerHistory(data);
+    } catch (err) {
+      console.error(
+        "Broker history loading error:",
+        err,
+      );
+
+      if (
+        err instanceof Error &&
+        err.message === "Authentication required."
+      ) {
+        window.location.href = "/login";
+        return;
+      }
+
+      setBrokerHistoryError(
+        err instanceof Error
+          ? err.message
+          : "Unable to load MT5 trade history.",
+      );
+    } finally {
+      setBrokerHistoryLoading(false);
+    }
+  }
+
+
+  /* =======================================================
+     MT5 JOURNAL
+     ======================================================= */
+
+  async function loadJournalTrades() {
+    try {
+      setJournalLoading(true);
+      setJournalError("");
+
+      const data =
+        await getJournalTrades();
+
+      setJournalTrades(data);
+    } catch (err) {
+      console.error(
+        "Journal loading error:",
+        err,
+      );
+
+      if (
+        err instanceof Error &&
+        err.message === "Authentication required."
+      ) {
+        window.location.href = "/login";
+        return;
+      }
+
+      setJournalError(
+        err instanceof Error
+          ? err.message
+          : "Unable to load the trade journal.",
+      );
+    } finally {
+      setJournalLoading(false);
+    }
+  }
+
+
+  async function handleSyncMT5Journal() {
+    try {
+      setJournalSyncing(true);
+      setJournalError("");
+      setJournalSyncResult(null);
+
+      /*
+       * Safety:
+       * This endpoint only reads completed MT5 history and
+       * imports eligible records into the Aladdin journal.
+       * It does not open, modify, or close broker positions.
+       */
+      const result =
+        await syncMT5Journal(
+          30,
+          false,
+        );
+
+      setJournalSyncResult(result);
+
+      await loadJournalTrades();
+
+      /*
+       * Refresh related dashboard data after an import.
+       *
+       * Coaching is also refreshed because newly imported
+       * completed trades may change the coaching report.
+       */
+      await loadDashboard();
+      await loadBrokerTradeHistory();
+      await loadCoachingReportData();
+    } catch (err) {
+      console.error(
+        "MT5 journal sync error:",
+        err,
+      );
+
+      if (
+        err instanceof Error &&
+        err.message === "Authentication required."
+      ) {
+        window.location.href = "/login";
+        return;
+      }
+
+      setJournalError(
+        err instanceof Error
+          ? err.message
+          : "Unable to synchronize MT5 journal history.",
+      );
+    } finally {
+      setJournalSyncing(false);
+    }
+  }
+
+
+  /* =======================================================
+     AI COACHING
+     ======================================================= */
+
+  async function loadCoachingReportData() {
+    try {
+      setCoachingLoading(true);
+      setCoachingError("");
+
+      const data =
+        await getCoachingReport();
+
+      setCoachingReport(data);
+    } catch (err) {
+      console.error(
+        "AI coaching loading error:",
+        err,
+      );
+
+      if (
+        err instanceof Error &&
+        err.message ===
+          "Authentication required."
+      ) {
+        window.location.href =
+          "/login";
+
+        return;
+      }
+
+      setCoachingError(
+        err instanceof Error
+          ? err.message
+          : "Unable to load AI coaching report.",
+      );
+    } finally {
+      setCoachingLoading(false);
+    }
+  }
+
+
+  /* =======================================================
+     MT5 BROKER AUTO REFRESH
+     ======================================================= */
+
+  async function loadBrokerStatusData() {
+    try {
+      const data = await getBrokerStatus();
+
+      setBrokerStatus(data);
+      setBrokerError("");
+    } catch (err) {
+      console.error(
+        "Broker status refresh error:",
+        err,
+      );
+
+      if (
+        err instanceof Error &&
+        err.message === "Authentication required."
+      ) {
+        window.location.href = "/login";
+        return;
+      }
+
+      setBrokerError(
+        err instanceof Error
+          ? err.message
+          : "Unable to refresh MT5 broker status.",
+      );
+    }
+  }
+
+
+  /* =======================================================
      INITIAL LOAD
      ======================================================= */
 
   useEffect(() => {
     loadDashboard();
+    loadBrokerTradeHistory();
+    loadJournalTrades();
+    loadCoachingReportData();
+
+    const brokerRefreshInterval =
+      window.setInterval(() => {
+        if (
+          document.visibilityState === "visible"
+        ) {
+          void loadBrokerStatusData();
+        }
+      }, 5000);
+
+    return () => {
+      window.clearInterval(
+        brokerRefreshInterval,
+      );
+    };
   }, []);
 
 
@@ -1168,7 +1490,12 @@ export default function DashboardPage() {
   async function handleRefresh() {
     setRefreshing(true);
 
-    await loadDashboard();
+    await Promise.all([
+      loadDashboard(),
+      loadBrokerTradeHistory(),
+      loadJournalTrades(),
+      loadCoachingReportData(),
+    ]);
 
     if (notificationOpen) {
       await loadNotifications();
@@ -2255,6 +2582,628 @@ export default function DashboardPage() {
           <div id="market-section" className="scroll-mt-24" aria-hidden="true" />
 
           {/* =================================================
+              MT5 BROKER MONITORING
+              ================================================= */}
+
+          <div
+            id="broker-section"
+            className="mt-8 rounded-2xl border border-white/10 bg-[#0a0e13] scroll-mt-24"
+          >
+            <div className="flex flex-col gap-4 border-b border-white/10 px-5 py-5 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <ShieldCheck
+                    size={18}
+                    className="text-emerald-400"
+                  />
+
+                  <h2 className="text-base font-semibold text-white">
+                    MT5 Broker Account
+                  </h2>
+                </div>
+
+                <p className="mt-1 text-xs text-gray-600">
+                  Read-only account monitoring and currently open MT5 positions.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <span
+                  className={`rounded-lg px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider ${
+                    brokerStatus?.execution_mode === "DEMO"
+                      ? "bg-amber-400/10 text-amber-400"
+                      : "bg-blue-400/10 text-blue-400"
+                  }`}
+                >
+                  {brokerStatus?.execution_mode ?? "LOADING"}
+                </span>
+
+                <span
+                  className={`rounded-lg px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider ${
+                    brokerStatus?.account.account_connected
+                      ? "bg-emerald-400/10 text-emerald-400"
+                      : "bg-white/5 text-gray-500"
+                  }`}
+                >
+                  {brokerStatus?.account.account_connected
+                    ? "Connected"
+                    : brokerStatus
+                      ? "No MT5 Account"
+                      : "Checking"}
+                </span>
+              </div>
+            </div>
+
+            {brokerError && (
+              <div className="m-5 rounded-xl border border-red-400/20 bg-red-400/5 p-4">
+                <p className="text-sm text-red-400">
+                  {brokerError}
+                </p>
+              </div>
+            )}
+
+            {!brokerError && !brokerStatus && (
+              <div className="flex items-center gap-3 p-5 text-sm text-gray-500">
+                <RefreshCw
+                  size={16}
+                  className="animate-spin"
+                />
+                Loading MT5 broker information...
+              </div>
+            )}
+
+            {brokerStatus && (
+              <>
+                <div className="grid gap-3 p-5 sm:grid-cols-2 xl:grid-cols-4">
+                  <BrokerMetric
+                    label="Balance"
+                    value={
+                      brokerStatus.account.balance === null
+                        ? "-"
+                        : formatMoney(brokerStatus.account.balance)
+                    }
+                  />
+
+                  <BrokerMetric
+                    label="Equity"
+                    value={
+                      brokerStatus.account.equity === null
+                        ? "-"
+                        : formatMoney(brokerStatus.account.equity)
+                    }
+                  />
+
+                  <BrokerMetric
+                    label="Open P/L"
+                    value={formatMoney(
+                      brokerStatus.total_open_profit,
+                    )}
+                    valueClassName={
+                      brokerStatus.total_open_profit > 0
+                        ? "text-emerald-400"
+                        : brokerStatus.total_open_profit < 0
+                          ? "text-red-400"
+                          : "text-white"
+                    }
+                  />
+
+                  <BrokerMetric
+                    label="Free Margin"
+                    value={
+                      brokerStatus.account.free_margin === null
+                        ? "-"
+                        : formatMoney(
+                            brokerStatus.account.free_margin,
+                          )
+                    }
+                  />
+
+                  <BrokerMetric
+                    label="Margin"
+                    value={
+                      brokerStatus.account.margin === null
+                        ? "-"
+                        : formatMoney(
+                            brokerStatus.account.margin,
+                          )
+                    }
+                  />
+
+                  <BrokerMetric
+                    label="Leverage"
+                    value={
+                      brokerStatus.account.leverage === null
+                        ? "-"
+                        : `1:${brokerStatus.account.leverage}`
+                    }
+                  />
+
+                  <BrokerMetric
+                    label="Open Positions"
+                    value={String(
+                      brokerStatus.position_count,
+                    )}
+                  />
+
+                  <BrokerMetric
+                    label="Demo Execution"
+                    value={
+                      brokerStatus.execution_mode !== "DEMO"
+                        ? "Not Active"
+                        : brokerStatus.account.demo_execution_enabled
+                          ? "Enabled"
+                          : "Safety Locked"
+                    }
+                    valueClassName={
+                      brokerStatus.execution_mode !== "DEMO"
+                        ? "text-gray-400"
+                        : brokerStatus.account.demo_execution_enabled
+                          ? "text-amber-400"
+                          : "text-emerald-400"
+                    }
+                  />
+                </div>
+
+                <div className="border-t border-white/10 px-5 py-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold text-white">
+                        Account Details
+                      </p>
+
+                      <p className="mt-1 text-[10px] text-gray-600">
+                        {brokerStatus.account.account_connected
+                          ? `${brokerStatus.account.name ?? "MT5 Demo"} • ${brokerStatus.account.server ?? "MT5"} • ${brokerStatus.account.currency ?? "-"}`
+                          : brokerStatus.account.message}
+                      </p>
+                    </div>
+
+                    {brokerStatus.account.login !== null && (
+                      <span className="rounded-lg bg-white/5 px-2.5 py-1 text-[10px] text-gray-500">
+                        Login {brokerStatus.account.login}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="border-t border-white/10">
+                  <div className="flex items-center justify-between px-5 py-4">
+                    <div>
+                      <h3 className="text-sm font-semibold text-white">
+                        Open Positions
+                      </h3>
+
+                      <p className="mt-1 text-[10px] text-gray-600">
+                        Live read-only positions reported by the connected MT5 DEMO account.
+                      </p>
+                    </div>
+
+                    <span className="rounded-full bg-white/5 px-2.5 py-1 text-[10px] text-gray-500">
+                      {brokerStatus.position_count}
+                    </span>
+                  </div>
+
+                  {brokerStatus.positions.length === 0 ? (
+                    <div className="border-t border-white/5 px-5 py-8 text-center">
+                      <p className="text-sm text-gray-500">
+                        No open MT5 positions.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto border-t border-white/5">
+                      <table className="min-w-[900px] w-full text-left">
+                        <thead className="bg-black/20">
+                          <tr className="text-[9px] uppercase tracking-wider text-gray-600">
+                            <th className="px-5 py-3 font-medium">
+                              Symbol
+                            </th>
+                            <th className="px-4 py-3 font-medium">
+                              Direction
+                            </th>
+                            <th className="px-4 py-3 font-medium">
+                              Volume
+                            </th>
+                            <th className="px-4 py-3 font-medium">
+                              Entry
+                            </th>
+                            <th className="px-4 py-3 font-medium">
+                              Current
+                            </th>
+                            <th className="px-4 py-3 font-medium">
+                              Stop Loss
+                            </th>
+                            <th className="px-4 py-3 font-medium">
+                              Take Profit
+                            </th>
+                            <th className="px-4 py-3 font-medium">
+                              P/L
+                            </th>
+                          </tr>
+                        </thead>
+
+                        <tbody>
+                          {brokerStatus.positions.map(
+                            (position) => {
+                              const isBuy =
+                                position.direction.toUpperCase() ===
+                                "BUY";
+
+                              return (
+                                <tr
+                                  key={position.ticket}
+                                  className="border-t border-white/5 text-xs text-gray-300"
+                                >
+                                  <td className="px-5 py-4">
+                                    <div>
+                                      <p className="font-semibold text-white">
+                                        {position.symbol}
+                                      </p>
+
+                                      <p className="mt-1 text-[9px] text-gray-700">
+                                        #{position.ticket}
+                                      </p>
+                                    </div>
+                                  </td>
+
+                                  <td className="px-4 py-4">
+                                    <span
+                                      className={`rounded-md px-2 py-1 text-[9px] font-semibold ${
+                                        isBuy
+                                          ? "bg-emerald-400/10 text-emerald-400"
+                                          : "bg-red-400/10 text-red-400"
+                                      }`}
+                                    >
+                                      {position.direction}
+                                    </span>
+                                  </td>
+
+                                  <td className="px-4 py-4">
+                                    {formatNumber(
+                                      position.volume,
+                                      2,
+                                    )}
+                                  </td>
+
+                                  <td className="px-4 py-4">
+                                    {formatNumber(
+                                      position.open_price,
+                                      5,
+                                    )}
+                                  </td>
+
+                                  <td className="px-4 py-4">
+                                    {formatNumber(
+                                      position.current_price,
+                                      5,
+                                    )}
+                                  </td>
+
+                                  <td className="px-4 py-4">
+                                    {position.stop_loss > 0
+                                      ? formatNumber(
+                                          position.stop_loss,
+                                          5,
+                                        )
+                                      : "-"}
+                                  </td>
+
+                                  <td className="px-4 py-4">
+                                    {position.take_profit > 0
+                                      ? formatNumber(
+                                          position.take_profit,
+                                          5,
+                                        )
+                                      : "-"}
+                                  </td>
+
+                                  <td
+                                    className={`px-4 py-4 font-semibold ${
+                                      position.profit > 0
+                                        ? "text-emerald-400"
+                                        : position.profit < 0
+                                          ? "text-red-400"
+                                          : "text-gray-400"
+                                    }`}
+                                  >
+                                    {formatMoney(
+                                      position.profit,
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            },
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+
+
+          {/* =================================================
+              MT5 TRADE HISTORY
+              ================================================= */}
+
+          <div className="mt-8 rounded-2xl border border-white/10 bg-[#0a0e13]">
+            <div className="flex flex-col gap-4 border-b border-white/10 px-5 py-5 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-base font-semibold text-white">
+                  MT5 Trade History
+                </h2>
+
+                <p className="mt-1 text-xs text-gray-600">
+                  Read-only closed trade history from the connected MT5 DEMO account.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={loadBrokerTradeHistory}
+                disabled={brokerHistoryLoading}
+                className="flex w-fit items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-gray-400 transition hover:border-white/20 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <RefreshCw
+                  size={14}
+                  className={
+                    brokerHistoryLoading
+                      ? "animate-spin"
+                      : ""
+                  }
+                />
+                Refresh History
+              </button>
+            </div>
+
+            {brokerHistoryError && (
+              <div className="m-5 rounded-xl border border-red-400/20 bg-red-400/5 p-4">
+                <p className="text-sm text-red-400">
+                  {brokerHistoryError}
+                </p>
+              </div>
+            )}
+
+            {!brokerHistoryError &&
+              brokerHistoryLoading &&
+              !brokerHistory && (
+                <div className="flex items-center gap-3 p-5 text-sm text-gray-500">
+                  <RefreshCw
+                    size={16}
+                    className="animate-spin"
+                  />
+                  Loading MT5 trade history...
+                </div>
+              )}
+
+            {brokerHistory && (
+              <>
+                <div className="grid gap-3 p-5 sm:grid-cols-2 xl:grid-cols-4">
+                  <BrokerMetric
+                    label="Closed Trades"
+                    value={String(
+                      brokerHistory.closed_trade_count,
+                    )}
+                  />
+
+                  <BrokerMetric
+                    label="Net Profit"
+                    value={formatMoney(
+                      brokerHistory.total_net_profit,
+                    )}
+                    valueClassName={
+                      brokerHistory.total_net_profit > 0
+                        ? "text-emerald-400"
+                        : brokerHistory.total_net_profit < 0
+                          ? "text-red-400"
+                          : "text-white"
+                    }
+                  />
+
+                  <BrokerMetric
+                    label="Commission"
+                    value={formatMoney(
+                      brokerHistory.total_commission,
+                    )}
+                  />
+
+                  <BrokerMetric
+                    label="Swap"
+                    value={formatMoney(
+                      brokerHistory.total_swap,
+                    )}
+                  />
+                </div>
+
+                <div className="border-t border-white/10">
+                  <div className="flex items-center justify-between px-5 py-4">
+                    <div>
+                      <h3 className="text-sm font-semibold text-white">
+                        Closed Positions
+                      </h3>
+
+                      <p className="mt-1 text-[10px] text-gray-600">
+                        Last {brokerHistory.history_days} days
+                      </p>
+                    </div>
+
+                    <span className="rounded-full bg-white/5 px-2.5 py-1 text-[10px] text-gray-500">
+                      {brokerHistory.closed_trade_count}
+                    </span>
+                  </div>
+
+                  {brokerHistory.closed_trades.length === 0 ? (
+                    <div className="border-t border-white/5 px-5 py-8 text-center">
+                      <p className="text-sm text-gray-500">
+                        No closed MT5 trades found in this period.
+                      </p>
+
+                      <p className="mt-1 text-[10px] text-gray-700">
+                        Your currently open EURUSD position will only appear here after it is closed.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto border-t border-white/5">
+                      <table className="min-w-[1050px] w-full text-left">
+                        <thead className="bg-black/20">
+                          <tr className="text-[9px] uppercase tracking-wider text-gray-600">
+                            <th className="px-5 py-3 font-medium">
+                              Symbol
+                            </th>
+                            <th className="px-4 py-3 font-medium">
+                              Direction
+                            </th>
+                            <th className="px-4 py-3 font-medium">
+                              Volume
+                            </th>
+                            <th className="px-4 py-3 font-medium">
+                              Close Price
+                            </th>
+                            <th className="px-4 py-3 font-medium">
+                              Profit
+                            </th>
+                            <th className="px-4 py-3 font-medium">
+                              Commission
+                            </th>
+                            <th className="px-4 py-3 font-medium">
+                              Swap
+                            </th>
+                            <th className="px-4 py-3 font-medium">
+                              Net
+                            </th>
+                            <th className="px-4 py-3 font-medium">
+                              Source
+                            </th>
+                            <th className="px-4 py-3 font-medium">
+                              Closed
+                            </th>
+                          </tr>
+                        </thead>
+
+                        <tbody>
+                          {brokerHistory.closed_trades.map(
+                            (trade) => (
+                              <tr
+                                key={trade.deal_ticket}
+                                className="border-t border-white/5 text-xs text-gray-300"
+                              >
+                                <td className="px-5 py-4">
+                                  <div>
+                                    <p className="font-semibold text-white">
+                                      {trade.symbol}
+                                    </p>
+
+                                    <p className="mt-1 text-[9px] text-gray-700">
+                                      Deal #{trade.deal_ticket}
+                                    </p>
+                                  </div>
+                                </td>
+
+                                <td className="px-4 py-4">
+                                  <span
+                                    className={`rounded-md px-2 py-1 text-[9px] font-semibold ${
+                                      trade.direction.toUpperCase() ===
+                                      "BUY"
+                                        ? "bg-emerald-400/10 text-emerald-400"
+                                        : "bg-red-400/10 text-red-400"
+                                    }`}
+                                  >
+                                    {trade.direction}
+                                  </span>
+                                </td>
+
+                                <td className="px-4 py-4">
+                                  {formatNumber(
+                                    trade.volume,
+                                    2,
+                                  )}
+                                </td>
+
+                                <td className="px-4 py-4">
+                                  {formatNumber(
+                                    trade.close_price,
+                                    trade.symbol.includes("JPY")
+                                      ? 3
+                                      : trade.symbol.includes("XAU")
+                                        ? 2
+                                        : 5,
+                                  )}
+                                </td>
+
+                                <td
+                                  className={`px-4 py-4 ${
+                                    trade.profit > 0
+                                      ? "text-emerald-400"
+                                      : trade.profit < 0
+                                        ? "text-red-400"
+                                        : "text-gray-400"
+                                  }`}
+                                >
+                                  {formatMoney(
+                                    trade.profit,
+                                  )}
+                                </td>
+
+                                <td className="px-4 py-4 text-gray-500">
+                                  {formatMoney(
+                                    trade.commission,
+                                  )}
+                                </td>
+
+                                <td className="px-4 py-4 text-gray-500">
+                                  {formatMoney(
+                                    trade.swap,
+                                  )}
+                                </td>
+
+                                <td
+                                  className={`px-4 py-4 font-semibold ${
+                                    trade.net_profit > 0
+                                      ? "text-emerald-400"
+                                      : trade.net_profit < 0
+                                        ? "text-red-400"
+                                        : "text-gray-400"
+                                  }`}
+                                >
+                                  {formatMoney(
+                                    trade.net_profit,
+                                  )}
+                                </td>
+
+                                <td className="px-4 py-4">
+                                  <span
+                                    className={`rounded-md px-2 py-1 text-[9px] font-semibold ${
+                                      trade.is_aladdin_trade
+                                        ? "bg-blue-400/10 text-blue-400"
+                                        : "bg-white/5 text-gray-500"
+                                    }`}
+                                  >
+                                    {trade.is_aladdin_trade
+                                      ? "ALADDIN"
+                                      : "OTHER"}
+                                  </span>
+                                </td>
+
+                                <td className="px-4 py-4 text-gray-500">
+                                  {formatDate(
+                                    trade.time,
+                                  )}
+                                </td>
+                              </tr>
+                            ),
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+
+
+          {/* =================================================
               CREATE TRADE
               ================================================= */}
 
@@ -3194,8 +4143,11 @@ export default function DashboardPage() {
                         <div className="mb-4">
                           <div className="flex items-center gap-2">
                             <TrendingUp size={16} className="text-emerald-400" />
-                            <p className="text-sm font-semibold text-white">Broker Execution</p>
+                            <p className="text-sm font-semibold text-white">
+                              Broker Execution
+                            </p>
                           </div>
+
                           <p className="mt-1 text-xs text-gray-600">
                             Details returned by the Aladdin execution service.
                           </p>
@@ -3203,15 +4155,37 @@ export default function DashboardPage() {
 
                         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                           <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
-                            <p className="text-[10px] uppercase tracking-wider text-gray-600">Symbol</p>
+                            <p className="text-[10px] uppercase tracking-wider text-gray-600">
+                              Symbol
+                            </p>
                             <p className="mt-2 text-sm font-semibold text-white">
-                              {aiExecutionResult.execution_result.symbol ?? "N/A"}
+                              {aiExecutionResult.execution_result.symbol ??
+                                aiExecutionResult.execution?.symbol ??
+                                "N/A"}
                             </p>
                           </div>
 
                           <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
-                            <p className="text-[10px] uppercase tracking-wider text-gray-600">Direction</p>
-                            <p className="mt-2 text-sm font-semibold text-white">
+                            <p className="text-[10px] uppercase tracking-wider text-gray-600">
+                              Direction
+                            </p>
+                            <p
+                              className={`mt-2 text-sm font-bold ${
+                                String(
+                                  aiExecutionResult.execution_result.direction ??
+                                    aiExecutionResult.execution?.order_type ??
+                                    "",
+                                ).toUpperCase() === "BUY"
+                                  ? "text-emerald-400"
+                                  : String(
+                                        aiExecutionResult.execution_result.direction ??
+                                          aiExecutionResult.execution?.order_type ??
+                                          "",
+                                      ).toUpperCase() === "SELL"
+                                    ? "text-red-400"
+                                    : "text-white"
+                              }`}
+                            >
                               {aiExecutionResult.execution_result.direction ??
                                 aiExecutionResult.execution?.order_type ??
                                 "N/A"}
@@ -3219,7 +4193,9 @@ export default function DashboardPage() {
                           </div>
 
                           <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
-                            <p className="text-[10px] uppercase tracking-wider text-gray-600">Volume</p>
+                            <p className="text-[10px] uppercase tracking-wider text-gray-600">
+                              Volume
+                            </p>
                             <p className="mt-2 text-sm font-semibold text-white">
                               {aiExecutionResult.execution_result.volume ??
                                 aiExecutionResult.execution?.volume ??
@@ -3228,16 +4204,182 @@ export default function DashboardPage() {
                           </div>
 
                           <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
-                            <p className="text-[10px] uppercase tracking-wider text-gray-600">Broker Order ID</p>
+                            <p className="text-[10px] uppercase tracking-wider text-gray-600">
+                              Execution Status
+                            </p>
+                            <p
+                              className={`mt-2 text-sm font-bold ${
+                                String(
+                                  aiExecutionResult.execution_result.status ?? "",
+                                ).toUpperCase() === "EXECUTED"
+                                  ? "text-emerald-400"
+                                  : "text-red-400"
+                              }`}
+                            >
+                              {aiExecutionResult.execution_result.status ?? "N/A"}
+                            </p>
+                          </div>
+
+                          {/* Execution Mode */}
+                          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                            <p className="text-[10px] uppercase tracking-wider text-gray-600">
+                              Execution Mode
+                            </p>
+                            <p
+                              className={`mt-2 text-sm font-bold ${
+                                String(
+                                  aiExecutionResult.execution_result.execution_mode ?? "",
+                                ).toUpperCase() === "DEMO"
+                                  ? "text-yellow-400"
+                                  : String(
+                                        aiExecutionResult.execution_result.execution_mode ?? "",
+                                      ).toUpperCase() === "MOCK"
+                                    ? "text-blue-400"
+                                    : "text-white"
+                              }`}
+                            >
+                              {aiExecutionResult.execution_result.execution_mode ??
+                                "N/A"}
+                            </p>
+                          </div>
+
+                          {/* Demo Execution Safety */}
+                          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                            <p className="text-[10px] uppercase tracking-wider text-gray-600">
+                              Demo Execution
+                            </p>
+                            <p
+                              className={`mt-2 text-sm font-bold ${
+                                String(
+                                  aiExecutionResult.execution_result.execution_mode ?? "",
+                                ).toUpperCase() !== "DEMO"
+                                  ? "text-gray-400"
+                                  : aiExecutionResult.execution_result.demo_execution_enabled
+                                    ? "text-emerald-400"
+                                    : "text-yellow-400"
+                              }`}
+                            >
+                              {String(
+                                aiExecutionResult.execution_result.execution_mode ?? "",
+                              ).toUpperCase() !== "DEMO"
+                                ? "NOT ACTIVE"
+                                : aiExecutionResult.execution_result.demo_execution_enabled
+                                  ? "ENABLED"
+                                  : "SAFETY LOCKED"}
+                            </p>
+                          </div>
+
+                          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                            <p className="text-[10px] uppercase tracking-wider text-gray-600">
+                              Entry Price
+                            </p>
+                            <p className="mt-2 text-sm font-semibold text-white">
+                              {aiExecutionResult.execution?.entry_price != null
+                                ? formatNumber(
+                                    aiExecutionResult.execution.entry_price,
+                                    getPriceDecimals(
+                                      aiExecutionResult.execution_result.symbol ??
+                                        aiExecutionResult.execution?.symbol ??
+                                        "EUR/USD",
+                                    ),
+                                  )
+                                : aiExecutionResult.trade_plan?.entry_price != null
+                                  ? formatNumber(
+                                      aiExecutionResult.trade_plan.entry_price,
+                                      getPriceDecimals(
+                                        aiExecutionResult.execution_result.symbol ??
+                                          aiExecutionResult.execution?.symbol ??
+                                          "EUR/USD",
+                                      ),
+                                    )
+                                  : "N/A"}
+                            </p>
+                          </div>
+
+                          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                            <p className="text-[10px] uppercase tracking-wider text-gray-600">
+                              Stop Loss
+                            </p>
+                            <p className="mt-2 text-sm font-semibold text-red-400">
+                              {aiExecutionResult.execution?.stop_loss != null
+                                ? formatNumber(
+                                    aiExecutionResult.execution.stop_loss,
+                                    getPriceDecimals(
+                                      aiExecutionResult.execution_result.symbol ??
+                                        aiExecutionResult.execution?.symbol ??
+                                        "EUR/USD",
+                                    ),
+                                  )
+                                : aiExecutionResult.trade_plan?.stop_loss != null
+                                  ? formatNumber(
+                                      aiExecutionResult.trade_plan.stop_loss,
+                                      getPriceDecimals(
+                                        aiExecutionResult.execution_result.symbol ??
+                                          aiExecutionResult.execution?.symbol ??
+                                          "EUR/USD",
+                                      ),
+                                    )
+                                  : "N/A"}
+                            </p>
+                          </div>
+
+                          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                            <p className="text-[10px] uppercase tracking-wider text-gray-600">
+                              Take Profit
+                            </p>
+                            <p className="mt-2 text-sm font-semibold text-emerald-400">
+                              {aiExecutionResult.execution?.take_profit != null
+                                ? formatNumber(
+                                    aiExecutionResult.execution.take_profit,
+                                    getPriceDecimals(
+                                      aiExecutionResult.execution_result.symbol ??
+                                        aiExecutionResult.execution?.symbol ??
+                                        "EUR/USD",
+                                    ),
+                                  )
+                                : aiExecutionResult.trade_plan?.take_profit != null
+                                  ? formatNumber(
+                                      aiExecutionResult.trade_plan.take_profit,
+                                      getPriceDecimals(
+                                        aiExecutionResult.execution_result.symbol ??
+                                          aiExecutionResult.execution?.symbol ??
+                                          "EUR/USD",
+                                      ),
+                                    )
+                                  : "N/A"}
+                            </p>
+                          </div>
+
+                          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                            <p className="text-[10px] uppercase tracking-wider text-gray-600">
+                              Broker Order ID
+                            </p>
                             <p className="mt-2 truncate text-sm font-semibold text-white">
-                              {aiExecutionResult.execution_result.broker_order_id ?? "N/A"}
+                              {aiExecutionResult.execution_result.broker_order_id ??
+                                "N/A"}
                             </p>
                           </div>
                         </div>
 
                         {aiExecutionResult.execution_result.execution_message && (
-                          <div className="mt-4 rounded-xl border border-emerald-400/10 bg-emerald-400/5 px-4 py-3">
-                            <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-400">
+                          <div
+                            className={`mt-4 rounded-xl border px-4 py-3 ${
+                              String(
+                                aiExecutionResult.execution_result.status ?? "",
+                              ).toUpperCase() === "EXECUTED"
+                                ? "border-emerald-400/10 bg-emerald-400/5"
+                                : "border-red-400/10 bg-red-400/5"
+                            }`}
+                          >
+                            <p
+                              className={`text-[10px] font-semibold uppercase tracking-wider ${
+                                String(
+                                  aiExecutionResult.execution_result.status ?? "",
+                                ).toUpperCase() === "EXECUTED"
+                                  ? "text-emerald-400"
+                                  : "text-red-400"
+                              }`}
+                            >
                               Execution Message
                             </p>
                             <p className="mt-1 text-xs leading-5 text-gray-400">
@@ -3255,10 +4397,384 @@ export default function DashboardPage() {
 
 
           {/* =================================================
+              MT5 TRADE JOURNAL
+              ================================================= */}
+
+          <section
+            id="trade-journal-section"
+            className="mt-8 overflow-hidden rounded-2xl border border-white/10 bg-[#0a0e13] scroll-mt-24"
+          >
+            <div className="flex flex-col gap-4 border-b border-white/10 px-5 py-5 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Clock3
+                    size={18}
+                    className="text-emerald-400"
+                  />
+
+                  <h2 className="text-base font-semibold text-white">
+                    MT5 Trade Journal
+                  </h2>
+                </div>
+
+                <p className="mt-1 max-w-2xl text-xs leading-5 text-gray-600">
+                  Synchronize completed Aladdin MT5 trades into the journal.
+                  The synchronization reads broker history only and does not
+                  open, modify, or close MT5 positions.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={loadJournalTrades}
+                  disabled={journalLoading || journalSyncing}
+                  className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-xs font-medium text-gray-300 transition hover:border-white/20 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <RefreshCw
+                    size={14}
+                    className={
+                      journalLoading && !journalSyncing
+                        ? "animate-spin"
+                        : ""
+                    }
+                  />
+
+                  Refresh Journal
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSyncMT5Journal}
+                  disabled={journalSyncing}
+                  className="inline-flex items-center gap-2 rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-2.5 text-xs font-bold text-emerald-400 transition hover:bg-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <RefreshCw
+                    size={14}
+                    className={
+                      journalSyncing
+                        ? "animate-spin"
+                        : ""
+                    }
+                  />
+
+                  {journalSyncing
+                    ? "Syncing MT5..."
+                    : "Sync MT5 Journal"}
+                </button>
+              </div>
+            </div>
+
+
+            {journalError && (
+              <div className="border-b border-red-400/10 bg-red-400/5 px-5 py-4">
+                <div className="flex items-start gap-2">
+                  <CircleAlert
+                    size={16}
+                    className="mt-0.5 shrink-0 text-red-400"
+                  />
+
+                  <p className="text-xs leading-5 text-red-400">
+                    {journalError}
+                  </p>
+                </div>
+              </div>
+            )}
+
+
+            {journalSyncResult && (
+              <div className="border-b border-white/10 px-5 py-5">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2
+                        size={16}
+                        className="text-emerald-400"
+                      />
+
+                      <p className="text-xs font-semibold text-emerald-400">
+                        MT5 journal synchronization completed
+                      </p>
+                    </div>
+
+                    <p className="mt-1 text-[10px] leading-5 text-gray-600">
+                      {journalSyncResult.message}
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    <JournalSyncMetric
+                      label="Broker Closed"
+                      value={
+                        journalSyncResult.broker_closed_trade_count
+                      }
+                    />
+
+                    <JournalSyncMetric
+                      label="Imported"
+                      value={
+                        journalSyncResult.imported_count
+                      }
+                    />
+
+                    <JournalSyncMetric
+                      label="Duplicates"
+                      value={
+                        journalSyncResult.duplicate_count
+                      }
+                    />
+
+                    <JournalSyncMetric
+                      label="Skipped"
+                      value={
+                        journalSyncResult.skipped_count
+                      }
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+
+            {journalLoading && (
+              <div className="p-10 text-center">
+                <RefreshCw
+                  size={22}
+                  className="mx-auto animate-spin text-gray-600"
+                />
+
+                <p className="mt-3 text-sm text-gray-600">
+                  Loading journal...
+                </p>
+              </div>
+            )}
+
+
+            {!journalLoading &&
+              journalTrades.length === 0 && (
+                <div className="p-10 text-center">
+                  <Clock3
+                    size={25}
+                    className="mx-auto text-gray-700"
+                  />
+
+                  <p className="mt-3 text-sm text-gray-500">
+                    No journal trades found.
+                  </p>
+
+                  <p className="mx-auto mt-2 max-w-lg text-[10px] leading-5 text-gray-700">
+                    Completed Aladdin MT5 positions will appear here after
+                    synchronization. Open MT5 positions are not imported as
+                    completed journal records.
+                  </p>
+                </div>
+              )}
+
+
+            {!journalLoading &&
+              journalTrades.length > 0 && (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[1050px] text-left">
+                    <thead className="bg-white/[0.02] text-[10px] uppercase tracking-wider text-gray-600">
+                      <tr>
+                        <th className="px-5 py-4 font-medium">
+                          Symbol
+                        </th>
+
+                        <th className="px-4 py-4 font-medium">
+                          Direction
+                        </th>
+
+                        <th className="px-4 py-4 font-medium">
+                          Result
+                        </th>
+
+                        <th className="px-4 py-4 font-medium">
+                          Net P/L
+                        </th>
+
+                        <th className="px-4 py-4 font-medium">
+                          R:R
+                        </th>
+
+                        <th className="px-4 py-4 font-medium">
+                          Close Price
+                        </th>
+
+                        <th className="px-4 py-4 font-medium">
+                          Charges
+                        </th>
+
+                        <th className="px-4 py-4 font-medium">
+                          Source
+                        </th>
+
+                        <th className="px-4 py-4 font-medium">
+                          Closed
+                        </th>
+
+                        <th className="px-5 py-4 font-medium">
+                          MT5 Deal
+                        </th>
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      {journalTrades.map(
+                        (trade, index) => {
+                          const isBuy =
+                            trade.direction
+                              .toUpperCase() === "BUY";
+
+                          const profit =
+                            Number(
+                              trade.profit_loss ?? 0,
+                            );
+
+                          const charges =
+                            Number(
+                              trade.commission ?? 0,
+                            ) +
+                            Number(
+                              trade.swap ?? 0,
+                            ) +
+                            Number(
+                              trade.fee ?? 0,
+                            );
+
+                          return (
+                            <tr
+                              key={
+                                trade.mt5_deal_ticket ??
+                                `${trade.symbol}-${trade.closed_at ?? index}-${index}`
+                              }
+                              className="border-t border-white/5 text-xs text-gray-300"
+                            >
+                              <td className="px-5 py-4">
+                                <div>
+                                  <p className="font-semibold text-white">
+                                    {trade.symbol}
+                                  </p>
+
+                                  {trade.mt5_position_id && (
+                                    <p className="mt-1 text-[9px] text-gray-700">
+                                      Position #{trade.mt5_position_id}
+                                    </p>
+                                  )}
+                                </div>
+                              </td>
+
+                              <td className="px-4 py-4">
+                                <span
+                                  className={`rounded-md px-2 py-1 text-[9px] font-semibold ${
+                                    isBuy
+                                      ? "bg-emerald-400/10 text-emerald-400"
+                                      : "bg-red-400/10 text-red-400"
+                                  }`}
+                                >
+                                  {trade.direction}
+                                </span>
+                              </td>
+
+                              <td className="px-4 py-4">
+                                <span
+                                  className={`font-semibold ${
+                                    trade.result.toUpperCase() === "WIN"
+                                      ? "text-emerald-400"
+                                      : trade.result.toUpperCase() === "LOSS"
+                                        ? "text-red-400"
+                                        : "text-gray-400"
+                                  }`}
+                                >
+                                  {trade.result}
+                                </span>
+                              </td>
+
+                              <td
+                                className={`px-4 py-4 font-semibold ${
+                                  profit > 0
+                                    ? "text-emerald-400"
+                                    : profit < 0
+                                      ? "text-red-400"
+                                      : "text-gray-400"
+                                }`}
+                              >
+                                {formatMoney(profit)}
+                              </td>
+
+                              <td className="px-4 py-4">
+                                {trade.risk_reward === null
+                                  ? "-"
+                                  : formatNumber(
+                                      trade.risk_reward,
+                                      2,
+                                    )}
+                              </td>
+
+                              <td className="px-4 py-4">
+                                {trade.close_price === null
+                                  ? "-"
+                                  : formatNumber(
+                                      trade.close_price,
+                                      5,
+                                    )}
+                              </td>
+
+                              <td
+                                className={`px-4 py-4 ${
+                                  charges < 0
+                                    ? "text-red-300"
+                                    : "text-gray-400"
+                                }`}
+                              >
+                                {formatMoney(charges)}
+                              </td>
+
+                              <td className="px-4 py-4">
+                                <div className="flex items-center gap-2">
+                                  <span className="rounded-md bg-white/5 px-2 py-1 text-[9px] font-semibold text-gray-400">
+                                    {trade.source ?? "ALADDIN"}
+                                  </span>
+
+                                  {Number(
+                                    trade.is_aladdin_trade ?? 0,
+                                  ) === 1 && (
+                                    <span className="rounded-md bg-emerald-400/10 px-2 py-1 text-[9px] font-semibold text-emerald-400">
+                                      Aladdin
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+
+                              <td className="px-4 py-4 text-gray-500">
+                                {trade.closed_at
+                                  ? formatDate(
+                                      trade.closed_at,
+                                    )
+                                  : "-"}
+                              </td>
+
+                              <td className="px-5 py-4 text-gray-500">
+                                {trade.mt5_deal_ticket
+                                  ? `#${trade.mt5_deal_ticket}`
+                                  : "-"}
+                              </td>
+                            </tr>
+                          );
+                        },
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+          </section>
+
+
+          {/* =================================================
               RECENT TRADES
               ================================================= */}
 
-          <div id="trade-journal-section" className="mt-8 overflow-hidden rounded-2xl border border-white/10 bg-[#0a0e13]">
+          <div id="recent-trades-section" className="mt-8 overflow-hidden rounded-2xl border border-white/10 bg-[#0a0e13]">
 
             <div className="flex flex-col gap-3 border-b border-white/10 px-5 py-5 sm:flex-row sm:items-center sm:justify-between">
 
@@ -3395,7 +4911,309 @@ export default function DashboardPage() {
           </div>
 
 
-          <div id="ai-coaching-section" className="scroll-mt-24" aria-hidden="true" />
+          {/* =================================================
+              AI COACHING
+              ================================================= */}
+
+          <section
+            id="ai-coaching-section"
+            className="scroll-mt-24"
+          >
+            <div className="mt-8 rounded-2xl border border-white/10 bg-[#0a0e13]">
+
+              <div className="flex flex-col gap-4 border-b border-white/10 p-5 sm:flex-row sm:items-center sm:justify-between">
+
+                <div className="flex items-start gap-3">
+
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-400/10 text-violet-400">
+                    <BrainCircuit size={19} />
+                  </div>
+
+                  <div>
+                    <h2 className="text-sm font-semibold text-white">
+                      AI Trading Coach
+                    </h2>
+
+                    <p className="mt-1 text-xs leading-5 text-gray-500">
+                      Performance-based coaching generated from your
+                      completed and journaled trades.
+                    </p>
+                  </div>
+
+                </div>
+
+
+                <button
+                  type="button"
+                  onClick={loadCoachingReportData}
+                  disabled={coachingLoading}
+                  className="inline-flex w-fit items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-xs font-medium text-gray-300 transition hover:border-white/20 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <RefreshCw
+                    size={14}
+                    className={
+                      coachingLoading
+                        ? "animate-spin"
+                        : ""
+                    }
+                  />
+
+                  {coachingLoading
+                    ? "Refreshing..."
+                    : "Refresh Coaching"}
+                </button>
+
+              </div>
+
+
+              {coachingError && (
+                <div className="m-5 rounded-xl border border-red-400/20 bg-red-400/5 p-4">
+
+                  <div className="flex items-start gap-3">
+
+                    <CircleAlert
+                      size={17}
+                      className="mt-0.5 shrink-0 text-red-400"
+                    />
+
+                    <div>
+                      <p className="text-xs font-semibold text-red-400">
+                        Unable to load coaching report
+                      </p>
+
+                      <p className="mt-1 text-xs leading-5 text-red-300/70">
+                        {coachingError}
+                      </p>
+                    </div>
+
+                  </div>
+
+                </div>
+              )}
+
+
+              {coachingLoading &&
+                !coachingReport &&
+                !coachingError && (
+                  <div className="p-10 text-center">
+
+                    <RefreshCw
+                      size={22}
+                      className="mx-auto animate-spin text-gray-600"
+                    />
+
+                    <p className="mt-3 text-sm text-gray-600">
+                      Analyzing trading performance...
+                    </p>
+
+                  </div>
+                )}
+
+
+              {coachingReport && (
+                <div className="p-5">
+
+                  <div className="rounded-xl border border-violet-400/10 bg-violet-400/5 p-5">
+
+                    <div className="flex items-start gap-3">
+
+                      <BrainCircuit
+                        size={18}
+                        className="mt-0.5 shrink-0 text-violet-400"
+                      />
+
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-violet-400">
+                          Coaching Summary
+                        </p>
+
+                        <p className="mt-2 text-sm leading-6 text-gray-300">
+                          {coachingReport.summary}
+                        </p>
+                      </div>
+
+                    </div>
+
+                  </div>
+
+
+                  <div className="mt-5 grid gap-5 lg:grid-cols-3">
+
+                    <div className="rounded-xl border border-emerald-400/10 bg-black/20 p-5">
+
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2
+                          size={17}
+                          className="text-emerald-400"
+                        />
+
+                        <h3 className="text-xs font-semibold uppercase tracking-wider text-emerald-400">
+                          Strengths
+                        </h3>
+                      </div>
+
+
+                      {coachingReport.strengths.length > 0 ? (
+                        <div className="mt-4 space-y-3">
+
+                          {coachingReport.strengths.map(
+                            (strength, index) => (
+                              <div
+                                key={`${strength}-${index}`}
+                                className="flex items-start gap-2"
+                              >
+                                <Check
+                                  size={14}
+                                  className="mt-0.5 shrink-0 text-emerald-400"
+                                />
+
+                                <p className="text-xs leading-5 text-gray-400">
+                                  {strength}
+                                </p>
+                              </div>
+                            ),
+                          )}
+
+                        </div>
+                      ) : (
+                        <p className="mt-4 text-xs leading-5 text-gray-600">
+                          No strengths can be evaluated yet.
+                        </p>
+                      )}
+
+                    </div>
+
+
+                    <div className="rounded-xl border border-amber-400/10 bg-black/20 p-5">
+
+                      <div className="flex items-center gap-2">
+                        <AlertTriangle
+                          size={17}
+                          className="text-amber-400"
+                        />
+
+                        <h3 className="text-xs font-semibold uppercase tracking-wider text-amber-400">
+                          Areas to Improve
+                        </h3>
+                      </div>
+
+
+                      {coachingReport.weaknesses.length > 0 ? (
+                        <div className="mt-4 space-y-3">
+
+                          {coachingReport.weaknesses.map(
+                            (weakness, index) => (
+                              <div
+                                key={`${weakness}-${index}`}
+                                className="flex items-start gap-2"
+                              >
+                                <AlertTriangle
+                                  size={14}
+                                  className="mt-0.5 shrink-0 text-amber-400"
+                                />
+
+                                <p className="text-xs leading-5 text-gray-400">
+                                  {weakness}
+                                </p>
+                              </div>
+                            ),
+                          )}
+
+                        </div>
+                      ) : (
+                        <p className="mt-4 text-xs leading-5 text-gray-600">
+                          No weaknesses can be evaluated yet.
+                        </p>
+                      )}
+
+                    </div>
+
+
+                    <div className="rounded-xl border border-blue-400/10 bg-black/20 p-5">
+
+                      <div className="flex items-center gap-2">
+                        <TrendingUp
+                          size={17}
+                          className="text-blue-400"
+                        />
+
+                        <h3 className="text-xs font-semibold uppercase tracking-wider text-blue-400">
+                          Recommendations
+                        </h3>
+                      </div>
+
+
+                      {coachingReport.recommendations.length > 0 ? (
+                        <div className="mt-4 space-y-3">
+
+                          {coachingReport.recommendations.map(
+                            (recommendation, index) => (
+                              <div
+                                key={`${recommendation}-${index}`}
+                                className="flex items-start gap-2"
+                              >
+                                <TrendingUp
+                                  size={14}
+                                  className="mt-0.5 shrink-0 text-blue-400"
+                                />
+
+                                <p className="text-xs leading-5 text-gray-400">
+                                  {recommendation}
+                                </p>
+                              </div>
+                            ),
+                          )}
+
+                        </div>
+                      ) : (
+                        <p className="mt-4 text-xs leading-5 text-gray-600">
+                          No recommendations are available yet.
+                        </p>
+                      )}
+
+                    </div>
+
+                  </div>
+
+
+                  <div className="mt-5 flex items-start gap-3 rounded-xl border border-white/5 bg-black/20 p-4">
+
+                    <Info
+                      size={15}
+                      className="mt-0.5 shrink-0 text-gray-500"
+                    />
+
+                    <p className="text-[11px] leading-5 text-gray-600">
+                      Aladdin coaching is decision-support information
+                      based on journaled trading performance. It does not
+                      guarantee future trading results or profitability.
+                    </p>
+
+                  </div>
+
+                </div>
+              )}
+
+
+              {!coachingLoading &&
+                !coachingError &&
+                !coachingReport && (
+                  <div className="p-10 text-center">
+
+                    <BrainCircuit
+                      size={24}
+                      className="mx-auto text-gray-700"
+                    />
+
+                    <p className="mt-3 text-sm text-gray-600">
+                      No coaching report is available.
+                    </p>
+
+                  </div>
+                )}
+
+            </div>
+          </section>
 
           {/* =================================================
               SYSTEM STATUS
@@ -3530,6 +5348,32 @@ function SidebarItem({
 /* =========================================================
    STAT CARD
    ========================================================= */
+
+
+function BrokerMetric({
+  label,
+  value,
+  valueClassName = "text-white",
+}: {
+  label: string;
+  value: ReactNode;
+  valueClassName?: string;
+}) {
+  return (
+    <div className="rounded-xl border border-white/5 bg-black/20 p-4">
+      <p className="text-[9px] font-medium uppercase tracking-wider text-gray-600">
+        {label}
+      </p>
+
+      <p
+        className={`mt-2 text-lg font-semibold ${valueClassName}`}
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
+
 
 function StatCard({
   title,
@@ -3736,6 +5580,31 @@ function GateListCard({
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+
+/* =========================================================
+   JOURNAL SYNC METRIC
+   ========================================================= */
+
+function JournalSyncMetric({
+  label,
+  value,
+}: {
+  label: string;
+  value: number;
+}) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/[0.025] px-3 py-2.5">
+      <p className="text-[8px] font-semibold uppercase tracking-wider text-gray-700">
+        {label}
+      </p>
+
+      <p className="mt-1 text-sm font-semibold text-white">
+        {value}
+      </p>
     </div>
   );
 }

@@ -3,12 +3,11 @@ models.py
 
 Database table models for Aladdin.
 
-Author: Tharindu Kothalwala
+Author: Tharindu Kothalawala
 Project: Aladdin
 """
 
 from datetime import datetime, timezone
-
 
 from sqlalchemy import (
     Column,
@@ -18,7 +17,6 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
 )
-
 
 from sqlalchemy.orm import (
     declarative_base,
@@ -32,6 +30,10 @@ Base = declarative_base()
 class TradeModel(Base):
     """
     Database model for completed trades.
+
+    Supports:
+    - Existing Aladdin journal records
+    - MT5 synchronized closed trades
     """
 
     __tablename__ = "trades"
@@ -70,19 +72,95 @@ class TradeModel(Base):
 
     risk_reward = Column(
         Float,
-        nullable=False,
+        nullable=True,
     )
 
     created_at = Column(
         DateTime,
-        default=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(
+            timezone.utc
+        ),
     )
 
-    # Relationship with UserModel
+    # ==================================================
+    # JOURNAL SOURCE
+    # ==================================================
+
+    source = Column(
+        String,
+        nullable=True,
+        default="ALADDIN",
+    )
+
+    # ==================================================
+    # MT5 IDENTIFIERS
+    # ==================================================
+
+    mt5_deal_ticket = Column(
+        Integer,
+        nullable=True,
+        unique=True,
+        index=True,
+    )
+
+    mt5_order_ticket = Column(
+        Integer,
+        nullable=True,
+    )
+
+    mt5_position_id = Column(
+        Integer,
+        nullable=True,
+        index=True,
+    )
+
+    # ==================================================
+    # MT5 CLOSED TRADE INFORMATION
+    # ==================================================
+
+    close_price = Column(
+        Float,
+        nullable=True,
+    )
+
+    commission = Column(
+        Float,
+        nullable=True,
+        default=0.0,
+    )
+
+    swap = Column(
+        Float,
+        nullable=True,
+        default=0.0,
+    )
+
+    fee = Column(
+        Float,
+        nullable=True,
+        default=0.0,
+    )
+
+    closed_at = Column(
+        DateTime,
+        nullable=True,
+    )
+
+    is_aladdin_trade = Column(
+        Integer,
+        nullable=True,
+        default=0,
+    )
+
+    # ==================================================
+    # RELATIONSHIP
+    # ==================================================
+
     user = relationship(
         "UserModel",
         back_populates="trades",
     )
+
 
 class NotificationModel(Base):
     """
@@ -137,10 +215,11 @@ class NotificationModel(Base):
 
     created_at = Column(
         DateTime,
-        default=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(
+            timezone.utc
+        ),
     )
 
-    # Relationship with UserModel
     user = relationship(
         "UserModel",
         back_populates="notifications",

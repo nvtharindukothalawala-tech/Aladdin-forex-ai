@@ -26,6 +26,7 @@ from app.api.routes import (
     coaching_routes,
     execution_routes,
     notification_routes,
+    broker_routes,
 )
 
 from app.auth import routes as auth_routes
@@ -255,6 +256,11 @@ app.include_router(
     execution_routes.router
 )
 
+# Broker monitoring APIs
+
+app.include_router(
+    broker_routes.router
+)
 
 # Notification APIs
 
