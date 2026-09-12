@@ -8,7 +8,10 @@ Author: Tharindu Kothalawala
 Project: Aladdin
 """
 
-import MetaTrader5 as mt5
+try:
+    import MetaTrader5 as mt5
+except ImportError:
+    mt5 = None
 
 from app.intelligence.technical_agent import (
     TechnicalAgent,
@@ -23,6 +26,12 @@ class TechnicalAnalysisService:
     """
     Connect real market data with
     the Technical Analysis Agent.
+
+    MetaTrader5 is optional during import so
+    Linux CI environments can load the project.
+
+    Real MT5 analysis still requires Windows
+    with MetaTrader5 installed.
     """
 
     def __init__(self):
@@ -34,15 +43,51 @@ class TechnicalAnalysisService:
             MarketAnalysisService()
         )
 
+    # ======================================================
+    # MT5 TIMEFRAME
+    # ======================================================
+
+    @staticmethod
+    def _resolve_timeframe(timeframe):
+        """
+        Return the requested MT5 timeframe.
+
+        If no timeframe is provided,
+        H1 is used by default.
+        """
+
+        if timeframe is not None:
+            return timeframe
+
+        if mt5 is None:
+            raise RuntimeError(
+                "MetaTrader5 is not installed on this platform. "
+                "Real technical analysis requires Windows with "
+                "the MetaTrader5 Python package installed."
+            )
+
+        return mt5.TIMEFRAME_H1
+
+    # ======================================================
+    # TECHNICAL ANALYSIS
+    # ======================================================
+
     def analyze(
         self,
         symbol,
-        timeframe=mt5.TIMEFRAME_H1,
+        timeframe=None,
     ):
         """
         Get real market data for a selected
         timeframe and perform technical analysis.
+
+        If no timeframe is supplied,
+        H1 is used by default.
         """
+
+        timeframe = self._resolve_timeframe(
+            timeframe
+        )
 
         # ==========================================
         # Get real market analysis
@@ -87,6 +132,10 @@ class TechnicalAnalysisService:
         )
 
         return technical_result
+
+    # ======================================================
+    # CLEANUP
+    # ======================================================
 
     def close(self):
         """

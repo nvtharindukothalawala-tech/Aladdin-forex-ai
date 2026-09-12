@@ -12,7 +12,10 @@ Project: Aladdin
 import os
 from dataclasses import dataclass
 
-import MetaTrader5 as mt5
+try:
+    import MetaTrader5 as mt5
+except ImportError:
+    mt5 = None
 
 
 @dataclass
@@ -97,6 +100,29 @@ class MT5Connector:
         self.account_info = None
 
     # ======================================================
+    # MT5 AVAILABILITY
+    # ======================================================
+
+    @staticmethod
+    def _require_mt5():
+        """
+        Ensure the MetaTrader5 Python package is available.
+
+        MOCK mode does not require MetaTrader5. This allows
+        Linux CI environments to import and test Aladdin while
+        real/demo MT5 functionality remains available on Windows.
+        """
+
+        if mt5 is None:
+            raise RuntimeError(
+                "MetaTrader5 is not installed on this platform. "
+                "MT5 DEMO mode requires Windows with the "
+                "MetaTrader5 Python package installed."
+            )
+
+        return mt5
+
+    # ======================================================
     # CONNECTION
     # ======================================================
 
@@ -118,6 +144,8 @@ class MT5Connector:
             self.connected = True
 
             return True
+
+        self._require_mt5()
 
         initialized = mt5.initialize()
 
@@ -212,7 +240,10 @@ class MT5Connector:
         Disconnect from MT5.
         """
 
-        if self.mode == "DEMO":
+        if (
+            self.mode == "DEMO"
+            and mt5 is not None
+        ):
 
             mt5.shutdown()
 
@@ -370,6 +401,8 @@ class MT5Connector:
         RETURN is used as fallback.
         """
 
+        MT5Connector._require_mt5()
+
         filling_flags = int(
             symbol_info.filling_mode
         )
@@ -500,6 +533,12 @@ class MT5Connector:
                 stop_loss=stop_loss,
                 take_profit=take_profit,
             )
+
+        # ==========================================
+        # DEMO Requires MT5
+        # ==========================================
+
+        self._require_mt5()
 
         # ==========================================
         # DEMO Requires SL / TP
@@ -752,6 +791,8 @@ class MT5Connector:
         account after connecting.
         """
 
+        MT5Connector._require_mt5()
+
         account = mt5.account_info()
 
         if account is None:
@@ -799,6 +840,8 @@ class MT5Connector:
         Convert the Aladdin order into an
         MT5 market-order request.
         """
+
+        self._require_mt5()
 
         mt5_symbol = (
             order_request.mt5_symbol

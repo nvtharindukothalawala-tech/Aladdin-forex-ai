@@ -8,7 +8,10 @@ Author: Tharindu Kothalawala
 Project: Aladdin
 """
 
-import MetaTrader5 as mt5
+try:
+    import MetaTrader5 as mt5
+except ImportError:
+    mt5 = None
 
 from app.analysis.market_analyzer import MarketAnalyzer
 from app.market.indicators import TechnicalIndicators
@@ -19,10 +22,19 @@ from app.services.market_structure_service import (
 from app.intelligence.market_structure_agent import (
     MarketStructureAgent,
 )
+
+
 class MarketAnalysisService:
     """
     Provides complete market analysis using
     real MetaTrader 5 market data.
+
+    The MetaTrader5 package is optional during
+    import so Linux CI environments can load and
+    test the Aladdin project.
+
+    Real MT5 analysis still requires Windows with
+    MetaTrader5 installed.
     """
 
     def __init__(self):
@@ -32,10 +44,41 @@ class MarketAnalysisService:
 
         self.provider = MT5DataProvider()
 
+    # ======================================================
+    # MT5 TIMEFRAME
+    # ======================================================
+
+    @staticmethod
+    def _resolve_timeframe(timeframe):
+        """
+        Return the requested MT5 timeframe.
+
+        If no timeframe is supplied, use H1.
+
+        The MT5 package is checked only when a real
+        market analysis operation is requested.
+        """
+
+        if timeframe is not None:
+            return timeframe
+
+        if mt5 is None:
+            raise RuntimeError(
+                "MetaTrader5 is not installed on this platform. "
+                "Real MT5 market analysis requires Windows with "
+                "the MetaTrader5 Python package installed."
+            )
+
+        return mt5.TIMEFRAME_H1
+
+    # ======================================================
+    # TECHNICAL ANALYSIS
+    # ======================================================
+
     def analyze(
         self,
         symbol,
-        timeframe=mt5.TIMEFRAME_H1,
+        timeframe=None,
         candle_count=1000,
     ):
         """
@@ -48,12 +91,18 @@ class MarketAnalysisService:
             timeframe:
                 MT5 timeframe.
 
+                If not supplied, H1 is used.
+
             candle_count:
                 Number of candles used for analysis.
 
         Returns:
             MarketSignal containing the analysis.
         """
+
+        timeframe = self._resolve_timeframe(
+            timeframe
+        )
 
         candles = self.provider.get_candles(
             symbol=symbol,
@@ -71,7 +120,9 @@ class MarketAnalysisService:
             for candle in candles
         ]
 
-        # Calculate technical indicators
+        # ==========================================
+        # Technical Indicators
+        # ==========================================
 
         ema = TechnicalIndicators.calculate_ema(
             prices,
@@ -93,11 +144,17 @@ class MarketAnalysisService:
             14,
         )
 
-        # Latest closing price
+        # ==========================================
+        # Latest Closing Price
+        # ==========================================
 
-        current_price = candles[-1].close_price
+        current_price = (
+            candles[-1].close_price
+        )
 
-        # Generate market signal
+        # ==========================================
+        # Generate Market Signal
+        # ==========================================
 
         signal = MarketAnalyzer.analyze(
             symbol=symbol,
@@ -110,10 +167,14 @@ class MarketAnalysisService:
 
         return signal
 
+    # ======================================================
+    # MARKET STRUCTURE ANALYSIS
+    # ======================================================
+
     def analyze_structure(
         self,
         symbol,
-        timeframe=mt5.TIMEFRAME_H1,
+        timeframe=None,
         candle_count=1000,
         lookback=2,
     ):
@@ -131,6 +192,10 @@ class MarketAnalysisService:
         - Order Block
         - Fair Value Gap
         """
+
+        timeframe = self._resolve_timeframe(
+            timeframe
+        )
 
         candles = self.provider.get_candles(
             symbol=symbol,
@@ -214,7 +279,7 @@ class MarketAnalysisService:
         )
 
         # ==========================================
-        # Convert BOS to structure input
+        # Convert BOS / CHoCH to Structure Input
         # ==========================================
 
         if choch is not None:
@@ -243,51 +308,83 @@ class MarketAnalysisService:
 
         if order_block is not None:
 
-            if order_block["type"] == "ORDER_BLOCK_BULLISH":
+            if (
+                order_block["type"]
+                == "ORDER_BLOCK_BULLISH"
+            ):
 
-                order_block_direction = "BULLISH"
+                order_block_direction = (
+                    "BULLISH"
+                )
 
-            elif order_block["type"] == "ORDER_BLOCK_BEARISH":
+            elif (
+                order_block["type"]
+                == "ORDER_BLOCK_BEARISH"
+            ):
 
-                order_block_direction = "BEARISH"
+                order_block_direction = (
+                    "BEARISH"
+                )
 
             else:
 
-                order_block_direction = "NONE"
+                order_block_direction = (
+                    "NONE"
+                )
 
         else:
 
             order_block_direction = "NONE"
 
         # ==========================================
-        # FVG Detection
+        # Fair Value Gap Status
         # ==========================================
 
-        has_fvg = fvg is not None
+        has_fvg = (
+            fvg is not None
+        )
 
         # ==========================================
         # Generate Market Structure Intelligence
         # ==========================================
 
-        structure_result = MarketStructureAgent.analyze(
-            price_structure=price_structure,
-            liquidity_sweep=has_liquidity_sweep,
-            order_block=order_block_direction,
-            fair_value_gap=has_fvg,
-            bos=bos,
-            choch=choch,
-            liquidity_sweep_details=liquidity_sweep,
-            order_block_details=order_block,
-            fvg_details=fvg,
-            swing_highs=swing_highs,
-            swing_lows=swing_lows,
+        structure_result = (
+            MarketStructureAgent.analyze(
+                price_structure=(
+                    price_structure
+                ),
+                liquidity_sweep=(
+                    has_liquidity_sweep
+                ),
+                order_block=(
+                    order_block_direction
+                ),
+                fair_value_gap=(
+                    has_fvg
+                ),
+                bos=bos,
+                choch=choch,
+                liquidity_sweep_details=(
+                    liquidity_sweep
+                ),
+                order_block_details=(
+                    order_block
+                ),
+                fvg_details=fvg,
+                swing_highs=(
+                    swing_highs
+                ),
+                swing_lows=(
+                    swing_lows
+                ),
+            )
         )
 
-        # ==========================================
-        # Return Structure Result
-        # ==========================================
-
         return structure_result
+
+    # ======================================================
+    # CLEANUP
+    # ======================================================
 
     def close(self):
         """

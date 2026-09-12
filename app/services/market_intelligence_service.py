@@ -11,7 +11,10 @@ Author: Tharindu Kothalawala
 Project: Aladdin
 """
 
-import MetaTrader5 as mt5
+try:
+    import MetaTrader5 as mt5
+except ImportError:
+    mt5 = None
 
 from app.config.instrument_config import (
     normalize_symbol,
@@ -44,6 +47,12 @@ class MarketIntelligenceService:
     economic news, multi-timeframe, and
     market session analysis using real
     MetaTrader 5 data and development news data.
+
+    MetaTrader5 is optional during import so
+    Linux CI environments can load the project.
+
+    Real MT5 market intelligence still requires
+    Windows with MetaTrader5 installed.
     """
 
     def __init__(self):
@@ -62,6 +71,30 @@ class MarketIntelligenceService:
         self.news_service = (
             NewsAnalysisService()
         )
+
+    # ======================================================
+    # MT5 AVAILABILITY
+    # ======================================================
+
+    @staticmethod
+    def _require_mt5():
+        """
+        Ensure MetaTrader5 is available before
+        requesting real MT5 market analysis.
+        """
+
+        if mt5 is None:
+            raise RuntimeError(
+                "MetaTrader5 is not installed on this platform. "
+                "Real market intelligence requires Windows with "
+                "the MetaTrader5 Python package installed."
+            )
+
+        return mt5
+
+    # ======================================================
+    # NEWS CURRENCY
+    # ======================================================
 
     def _get_news_currency(
         self,
@@ -98,6 +131,10 @@ class MarketIntelligenceService:
 
         return internal_symbol[:3]
 
+    # ======================================================
+    # COMPLETE MARKET INTELLIGENCE
+    # ======================================================
+
     def analyze(
         self,
         symbol,
@@ -108,6 +145,12 @@ class MarketIntelligenceService:
         Generate complete market intelligence.
         """
 
+        self._require_mt5()
+
+        timeframe_m15 = mt5.TIMEFRAME_M15
+        timeframe_h1 = mt5.TIMEFRAME_H1
+        timeframe_h4 = mt5.TIMEFRAME_H4
+
         # ==========================================
         # Entry Timeframe Technical Analysis
         # ==========================================
@@ -115,7 +158,7 @@ class MarketIntelligenceService:
         entry_timeframe_result = (
             self.technical_service.analyze(
                 symbol=symbol,
-                timeframe=mt5.TIMEFRAME_M15,
+                timeframe=timeframe_m15,
             )
         )
 
@@ -126,7 +169,7 @@ class MarketIntelligenceService:
         middle_timeframe_result = (
             self.technical_service.analyze(
                 symbol=symbol,
-                timeframe=mt5.TIMEFRAME_H1,
+                timeframe=timeframe_h1,
             )
         )
 
@@ -137,7 +180,7 @@ class MarketIntelligenceService:
         higher_timeframe_result = (
             self.technical_service.analyze(
                 symbol=symbol,
-                timeframe=mt5.TIMEFRAME_H4,
+                timeframe=timeframe_h4,
             )
         )
 
@@ -160,7 +203,7 @@ class MarketIntelligenceService:
         structure_result = (
             self.market_service.analyze_structure(
                 symbol=symbol,
-                timeframe=mt5.TIMEFRAME_H1,
+                timeframe=timeframe_h1,
                 candle_count=candle_count,
                 lookback=lookback,
             )
@@ -185,7 +228,7 @@ class MarketIntelligenceService:
         )
 
         # ==========================================
-        # Get latest H1 candle
+        # Get Latest H1 Candle
         #
         # Used for market session detection.
         # ==========================================
@@ -193,7 +236,7 @@ class MarketIntelligenceService:
         candles = (
             self.market_service.provider.get_candles(
                 symbol=symbol,
-                timeframe=mt5.TIMEFRAME_H1,
+                timeframe=timeframe_h1,
                 count=1,
             )
         )
@@ -299,6 +342,10 @@ class MarketIntelligenceService:
 
             "intelligence": intelligence_result,
         }
+
+    # ======================================================
+    # CLEANUP
+    # ======================================================
 
     def close(self):
         """

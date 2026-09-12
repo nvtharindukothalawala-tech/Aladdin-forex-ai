@@ -10,7 +10,10 @@ Project: Aladdin
 
 from datetime import datetime, timezone
 
-import MetaTrader5 as mt5
+try:
+    import MetaTrader5 as mt5
+except ImportError:
+    mt5 = None
 
 from app.market.candle import Candle
 from app.market.mt5_symbol_resolver import (
@@ -21,6 +24,13 @@ from app.market.mt5_symbol_resolver import (
 class MT5DataProvider:
     """
     Get Forex market candle data from MetaTrader 5.
+
+    MetaTrader5 is an optional dependency so that
+    Aladdin can still be imported and tested on
+    non-Windows environments such as GitHub Actions.
+
+    Real MT5 market data requires Windows with the
+    MetaTrader5 Python package installed.
     """
 
     def __init__(self):
@@ -29,6 +39,25 @@ class MT5DataProvider:
         """
 
         self.connected = False
+
+    # ======================================================
+    # MT5 AVAILABILITY
+    # ======================================================
+
+    @staticmethod
+    def _require_mt5():
+        """
+        Ensure the MetaTrader5 package is available.
+        """
+
+        if mt5 is None:
+            raise RuntimeError(
+                "MetaTrader5 is not installed on this platform. "
+                "Real MT5 market data requires Windows with the "
+                "MetaTrader5 Python package installed."
+            )
+
+        return mt5
 
     # ======================================================
     # CONNECTION
@@ -41,6 +70,8 @@ class MT5DataProvider:
 
         if self.connected:
             return True
+
+        self._require_mt5()
 
         if not mt5.initialize():
             error = mt5.last_error()
@@ -58,10 +89,13 @@ class MT5DataProvider:
         Disconnect from MetaTrader 5.
         """
 
-        if self.connected:
+        if (
+            self.connected
+            and mt5 is not None
+        ):
             mt5.shutdown()
 
-            self.connected = False
+        self.connected = False
 
     # ======================================================
     # SYMBOL RESOLUTION

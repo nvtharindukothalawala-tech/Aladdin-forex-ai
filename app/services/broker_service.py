@@ -23,7 +23,10 @@ from datetime import (
     timezone,
 )
 
-import MetaTrader5 as mt5
+try:
+    import MetaTrader5 as mt5
+except ImportError:
+    mt5 = None
 
 from app.mt5.mt5_connector import MT5Connector
 
