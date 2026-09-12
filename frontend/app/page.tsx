@@ -31,6 +31,7 @@ import {
   getBrokerStatus,
   getBrokerTradeHistory,
   getCoachingReport,
+  getPerformanceReport,
   getJournalTrades,
   syncMT5Journal,
   getNotifications,
@@ -46,6 +47,7 @@ import {
   type BrokerStatus,
   type BrokerTradeHistory,
   type CoachingResponse,
+  type PerformanceResponse,
   type JournalTrade,
   type MT5JournalSyncResult,
   type Notification,
@@ -511,6 +513,15 @@ export default function DashboardPage() {
 
   const [journalSyncResult, setJournalSyncResult] =
     useState<MT5JournalSyncResult | null>(null);
+
+  const [performanceReport, setPerformanceReport] =
+    useState<PerformanceResponse | null>(null);
+
+  const [performanceLoading, setPerformanceLoading] =
+    useState(false);
+
+  const [performanceError, setPerformanceError] =
+    useState("");
 
   const [coachingReport, setCoachingReport] =
     useState<CoachingResponse | null>(null);
@@ -1356,6 +1367,7 @@ export default function DashboardPage() {
        */
       await loadDashboard();
       await loadBrokerTradeHistory();
+      await loadPerformanceReportData();
       await loadCoachingReportData();
     } catch (err) {
       console.error(
@@ -1378,6 +1390,47 @@ export default function DashboardPage() {
       );
     } finally {
       setJournalSyncing(false);
+    }
+  }
+
+
+  /* =======================================================
+     PERFORMANCE ANALYTICS
+     ======================================================= */
+
+  async function loadPerformanceReportData() {
+    try {
+      setPerformanceLoading(true);
+      setPerformanceError("");
+
+      const data =
+        await getPerformanceReport();
+
+      setPerformanceReport(data);
+    } catch (err) {
+      console.error(
+        "Performance analytics loading error:",
+        err,
+      );
+
+      if (
+        err instanceof Error &&
+        err.message ===
+          "Authentication required."
+      ) {
+        window.location.href =
+          "/login";
+
+        return;
+      }
+
+      setPerformanceError(
+        err instanceof Error
+          ? err.message
+          : "Unable to load performance analytics.",
+      );
+    } finally {
+      setPerformanceLoading(false);
     }
   }
 
@@ -1464,6 +1517,7 @@ export default function DashboardPage() {
     loadDashboard();
     loadBrokerTradeHistory();
     loadJournalTrades();
+    loadPerformanceReportData();
     loadCoachingReportData();
 
     const brokerRefreshInterval =
@@ -1494,6 +1548,7 @@ export default function DashboardPage() {
       loadDashboard(),
       loadBrokerTradeHistory(),
       loadJournalTrades(),
+      loadPerformanceReportData(),
       loadCoachingReportData(),
     ]);
 
@@ -2542,42 +2597,190 @@ export default function DashboardPage() {
 
 
           {/* =================================================
-              SECONDARY METRICS
+              PERFORMANCE ANALYTICS
               ================================================= */}
 
-          <div id="performance-section" className="mt-5 grid gap-5 md:grid-cols-3 scroll-mt-24">
+          <section
+            id="performance-section"
+            className="mt-8 scroll-mt-24 overflow-hidden rounded-2xl border border-white/10 bg-[#0a0e13]"
+          >
+            <div className="flex flex-col gap-4 border-b border-white/10 px-5 py-5 sm:flex-row sm:items-center sm:justify-between">
 
-            <SmallMetric
-              label="Winning Trades"
-              value={
-                loading
-                  ? "..."
-                  : statistics.winning_trades
-              }
-            />
+              <div className="flex items-start gap-3">
 
-            <SmallMetric
-              label="Losing Trades"
-              value={
-                loading
-                  ? "..."
-                  : statistics.losing_trades
-              }
-            />
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-400/10 text-emerald-400">
+                  <BarChart3 size={19} />
+                </div>
 
-            <SmallMetric
-              label="Profit Factor"
-              value={
-                loading
-                  ? "..."
-                  : formatNumber(
-                      statistics.profit_factor,
-                      2,
-                    )
-              }
-            />
+                <div>
+                  <h2 className="text-base font-semibold text-white">
+                    Performance Analytics
+                  </h2>
 
-          </div>
+                  <p className="mt-1 max-w-2xl text-xs leading-5 text-gray-600">
+                    Journal-based trading statistics for your authenticated
+                    Aladdin account. These values are calculated by the
+                    backend from your stored trade records.
+                  </p>
+                </div>
+
+              </div>
+
+
+              <button
+                type="button"
+                onClick={loadPerformanceReportData}
+                disabled={performanceLoading}
+                className="inline-flex w-fit items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-xs font-medium text-gray-300 transition hover:border-white/20 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <RefreshCw
+                  size={14}
+                  className={
+                    performanceLoading
+                      ? "animate-spin"
+                      : ""
+                  }
+                />
+
+                {performanceLoading
+                  ? "Refreshing..."
+                  : "Refresh Performance"}
+              </button>
+
+            </div>
+
+
+            {performanceError && (
+              <div className="m-5 rounded-xl border border-red-400/20 bg-red-400/5 p-4">
+
+                <div className="flex items-start gap-3">
+
+                  <CircleAlert
+                    size={17}
+                    className="mt-0.5 shrink-0 text-red-400"
+                  />
+
+                  <div>
+                    <p className="text-xs font-semibold text-red-400">
+                      Unable to load performance analytics
+                    </p>
+
+                    <p className="mt-1 text-xs leading-5 text-red-300/70">
+                      {performanceError}
+                    </p>
+                  </div>
+
+                </div>
+
+              </div>
+            )}
+
+
+            {performanceLoading &&
+              !performanceReport &&
+              !performanceError && (
+                <div className="p-10 text-center">
+
+                  <RefreshCw
+                    size={22}
+                    className="mx-auto animate-spin text-gray-600"
+                  />
+
+                  <p className="mt-3 text-sm text-gray-600">
+                    Loading performance analytics...
+                  </p>
+
+                </div>
+              )}
+
+
+            {performanceReport && (
+              <div className="p-5">
+
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+
+                  <SmallMetric
+                    label="Completed / Journal Trades"
+                    value={performanceReport.total_trades}
+                  />
+
+                  <SmallMetric
+                    label="Winning Trades"
+                    value={performanceReport.winning_trades}
+                  />
+
+                  <SmallMetric
+                    label="Losing Trades"
+                    value={performanceReport.losing_trades}
+                  />
+
+                  <SmallMetric
+                    label="Win Rate"
+                    value={`${formatNumber(
+                      performanceReport.win_rate,
+                      1,
+                    )}%`}
+                  />
+
+                  <SmallMetric
+                    label="Total Profit / Loss"
+                    value={formatMoney(
+                      performanceReport.total_profit,
+                    )}
+                  />
+
+                  <SmallMetric
+                    label="Average Risk : Reward"
+                    value={
+                      performanceReport.average_risk_reward > 0
+                        ? `1 : ${formatNumber(
+                            performanceReport.average_risk_reward,
+                            2,
+                          )}`
+                        : "Not enough data"
+                    }
+                  />
+
+                </div>
+
+
+                <div className="mt-4 flex items-start gap-3 rounded-xl border border-white/5 bg-black/20 p-4">
+
+                  <Info
+                    size={15}
+                    className="mt-0.5 shrink-0 text-gray-500"
+                  />
+
+                  <p className="text-[11px] leading-5 text-gray-600">
+                    Performance values describe historical journaled trades
+                    only. They do not predict or guarantee future trading
+                    results.
+                  </p>
+
+                </div>
+
+              </div>
+            )}
+
+
+            {!performanceLoading &&
+              !performanceError &&
+              !performanceReport && (
+                <div className="p-10 text-center">
+
+                  <BarChart3
+                    size={24}
+                    className="mx-auto text-gray-700"
+                  />
+
+                  <p className="mt-3 text-sm text-gray-600">
+                    No performance report is available.
+                  </p>
+
+                </div>
+              )}
+
+          </section>
 
           <div id="market-section" className="scroll-mt-24" aria-hidden="true" />
 
@@ -5242,7 +5445,7 @@ export default function DashboardPage() {
 
                   <p className="mt-1 text-xs leading-5 text-gray-600">
                     FastAPI backend is connected
-                    and providing live trading data.
+                    and responding to dashboard requests.
                   </p>
 
                 </div>

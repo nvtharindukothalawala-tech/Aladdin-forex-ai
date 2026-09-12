@@ -51,4 +51,4 @@ def get_user_performance(
 
     service = PerformanceService(repository)
 
-    return service.get_performance()
+    return service.get_performance(current_user.id)

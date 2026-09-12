@@ -4,16 +4,72 @@ test_ai_reason_integration.py
 Tests AI reasoning integration
 with complete AI trading workflow.
 
-Author: Tharindu Kothalwala
+Author: Tharindu Kothalawala
 Project: Aladdin
 """
+
+from types import SimpleNamespace
 
 from app.services.trading_service import (
     TradingService,
 )
 
 
-def test_ai_reason_integration():
+def test_ai_reason_integration(monkeypatch):
+
+    fake_intelligence = SimpleNamespace(
+        market_bias="BULLISH",
+        confidence=82.0,
+
+        technical_summary=(
+            "Technical analysis supports a bullish setup."
+        ),
+
+        news_summary=(
+            "News conditions are supportive."
+        ),
+
+        structure_summary=(
+            "Market structure confirms bullish continuation."
+        ),
+
+        risk_level="LOW",
+        recommendation="Bullish opportunity",
+
+        structure_direction="BULLISH",
+        structure_confirmation="BOS_BULLISH",
+
+        timeframe_alignment="FULL",
+        timeframe_confidence=100.0,
+
+        timeframe_summary=(
+            "Higher and lower timeframes are aligned bullish."
+        ),
+
+        market_session="LONDON",
+        session_activity="HIGH",
+        session_condition="FAVORABLE",
+
+        session_summary=(
+            "London session activity is favorable."
+        ),
+    )
+
+    fake_analysis_result = {
+        "intelligence": fake_intelligence,
+    }
+
+    class FakeMarketIntelligenceService:
+        def analyze(self, symbol):
+            return fake_analysis_result
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(
+        "app.services.trading_service.MarketIntelligenceService",
+        FakeMarketIntelligenceService,
+    )
 
     result = TradingService.generate_ai_trade_setup(
         symbol="EUR/USD",
@@ -44,10 +100,30 @@ def test_ai_reason_integration():
 
     assert reasoning.confidence > 0
 
-    assert len(reasoning.technical_reason) > 0
+    assert len(
+        reasoning.technical_reason
+    ) > 0
 
-    assert len(reasoning.news_reason) > 0
+    assert len(
+        reasoning.news_reason
+    ) > 0
 
-    assert len(reasoning.structure_reason) > 0
+    assert len(
+        reasoning.structure_reason
+    ) > 0
 
-    assert len(reasoning.risk_reason) > 0
+    assert len(
+        reasoning.risk_reason
+    ) > 0
+
+    assert len(
+        reasoning.timeframe_reason
+    ) > 0
+
+    assert len(
+        reasoning.session_reason
+    ) > 0
+
+    assert len(
+        reasoning.gate_reason
+    ) > 0

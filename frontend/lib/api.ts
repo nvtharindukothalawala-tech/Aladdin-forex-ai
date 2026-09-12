@@ -583,6 +583,25 @@ export type MT5JournalSyncResult = {
 
 
 /* =========================================================
+   PERFORMANCE ANALYTICS
+   ========================================================= */
+
+export type PerformanceResponse = {
+  total_trades: number;
+
+  winning_trades: number;
+
+  losing_trades: number;
+
+  win_rate: number;
+
+  total_profit: number;
+
+  average_risk_reward: number;
+};
+
+
+/* =========================================================
    AI COACHING
    ========================================================= */
 
@@ -1538,6 +1557,45 @@ export async function syncMT5Journal(
 
   return response.json();
 }
+
+/* =========================================================
+   PERFORMANCE ANALYTICS
+   ========================================================= */
+
+export async function getPerformanceReport():
+  Promise<PerformanceResponse> {
+  const response =
+    await authenticatedFetch(
+      "/performance/",
+    );
+
+  if (!response.ok) {
+    let message =
+      `Failed to load performance analytics (${response.status}).`;
+
+    try {
+      const data =
+        await response.json();
+
+      if (
+        typeof data.detail ===
+        "string"
+      ) {
+        message =
+          data.detail;
+      }
+    } catch {
+      // Keep default error message.
+    }
+
+    throw new Error(
+      message
+    );
+  }
+
+  return response.json();
+}
+
 
 /* =========================================================
    AI COACHING REPORT

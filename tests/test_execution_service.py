@@ -57,7 +57,7 @@ def test_execute_trade_service():
 
     assert (
         execution.execution_message
-        == "Order executed successfully."
+        == "Mock order executed successfully."
     )
 
     session.close()

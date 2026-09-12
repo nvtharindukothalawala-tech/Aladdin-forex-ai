@@ -8,11 +8,95 @@ Project: Aladdin
 """
 
 from fastapi.testclient import TestClient
+from pydantic import BaseModel
 
 from app.api.main import app
 
 client = TestClient(app)
 
+
+def install_bullish_low_risk_intelligence(monkeypatch):
+    """
+    Install deterministic bullish, low-risk market intelligence
+    for AI execution route tests.
+
+    This keeps the API tests independent from live/current market
+    conditions while still exercising Aladdin's real Decision Gate,
+    risk validation, approval, and execution workflow.
+    """
+
+    class FakeIntelligence(BaseModel):
+        market_bias: str
+        confidence: float
+
+        technical_summary: str
+        news_summary: str
+        structure_summary: str
+
+        risk_level: str
+        recommendation: str
+
+        structure_direction: str
+        structure_confirmation: str
+
+        timeframe_alignment: str
+        timeframe_confidence: float
+        timeframe_summary: str
+
+        market_session: str
+        session_activity: str
+        session_condition: str
+        session_summary: str
+
+    fake_intelligence = FakeIntelligence(
+        market_bias="BULLISH",
+        confidence=82.0,
+
+        technical_summary=(
+            "Technical analysis supports a bullish setup."
+        ),
+        news_summary=(
+            "News conditions are supportive."
+        ),
+        structure_summary=(
+            "Market structure confirms bullish continuation."
+        ),
+
+        risk_level="LOW",
+        recommendation="Bullish opportunity",
+
+        structure_direction="BULLISH",
+        structure_confirmation="BOS_BULLISH",
+
+        timeframe_alignment="FULL",
+        timeframe_confidence=100.0,
+        timeframe_summary=(
+            "Higher and lower timeframes are aligned bullish."
+        ),
+
+        market_session="LONDON",
+        session_activity="HIGH",
+        session_condition="FAVORABLE",
+        session_summary=(
+            "London session activity is favorable."
+        ),
+    )
+
+    fake_analysis_result = {
+        "intelligence": fake_intelligence,
+    }
+
+    class FakeMarketIntelligenceService:
+        def analyze(self, symbol):
+            return fake_analysis_result
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(
+        "app.services.trading_service.MarketIntelligenceService",
+        FakeMarketIntelligenceService,
+    )
 
 def test_execute_trade_api():
     """
@@ -65,11 +149,17 @@ def test_execution_api_rejects_unapproved_trade():
     assert response.status_code == 403
 
 
-def test_ai_execution_api_runs_server_side_approval_workflow():
+def test_ai_execution_api_runs_server_side_approval_workflow(
+    monkeypatch,
+):
     """
     Test that AI execution uses Aladdin's
     internal analysis and approval workflow.
     """
+
+    install_bullish_low_risk_intelligence(
+        monkeypatch,
+    )
 
     response = client.post(
         "/execution/ai-execute",
@@ -109,11 +199,17 @@ def test_ai_execution_api_runs_server_side_approval_workflow():
     assert data["execution_result"]["status"] == "EXECUTED"
 
 
-def test_ai_execution_api_blocks_high_risk_trade():
+def test_ai_execution_api_blocks_high_risk_trade(
+    monkeypatch,
+):
     """
     Test that AI execution does not execute
     when risk validation rejects the trade.
     """
+
+    install_bullish_low_risk_intelligence(
+        monkeypatch,
+    )
 
     response = client.post(
         "/execution/ai-execute",

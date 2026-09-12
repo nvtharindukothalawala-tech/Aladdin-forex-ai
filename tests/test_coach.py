@@ -3,7 +3,7 @@ test_coach.py
 
 Tests AI coaching engine.
 
-Author: Tharindu Kothalwala
+Author: Tharindu Kothalawala
 Project: Aladdin
 """
 
@@ -11,6 +11,10 @@ from app.coaching.coach import AICoach
 
 
 def test_positive_trading_report():
+    """
+    Test coaching feedback for positive
+    journal performance.
+    """
 
     report = AICoach.generate_report(
         win_rate=70,
@@ -18,14 +22,40 @@ def test_positive_trading_report():
         total_profit=1000,
     )
 
-    assert report.summary == "Trading performance is positive."
+    assert (
+        report.summary
+        == (
+            "Current journal performance is positive, "
+            "but results should continue to be evaluated "
+            "across more completed trades."
+        )
+    )
 
-    assert "Good trade accuracy." in report.strengths
+    assert (
+        "The current journal shows a strong win rate."
+        in report.strengths
+    )
 
-    assert "Good risk reward management." in report.strengths
+    assert (
+        "The recorded trades show an average risk/reward ratio of at least 1:2."
+        in report.strengths
+    )
+
+    assert (
+        "The journal currently shows positive net performance."
+        in report.strengths
+    )
+
+    assert report.weaknesses == []
+
+    assert len(report.recommendations) > 0
 
 
 def test_negative_trading_report():
+    """
+    Test coaching feedback for negative
+    journal performance.
+    """
 
     report = AICoach.generate_report(
         win_rate=40,
@@ -33,6 +63,70 @@ def test_negative_trading_report():
         total_profit=-200,
     )
 
-    assert "Low win rate needs improvement." in report.weaknesses
+    assert (
+        report.summary
+        == (
+            "Current journal performance is negative "
+            "and shows areas that should be reviewed."
+        )
+    )
 
-    assert "Avoid trades below 1:2 risk reward." in report.recommendations
+    assert (
+        "The current journal shows a low win rate."
+        in report.weaknesses
+    )
+
+    assert (
+        "The average recorded risk/reward ratio is below 1:2."
+        in report.weaknesses
+    )
+
+    assert (
+        "The journal currently shows negative net performance."
+        in report.weaknesses
+    )
+
+    assert (
+        "Review losing trades to identify repeated setup "
+        "or execution mistakes."
+        in report.recommendations
+    )
+
+    assert (
+        "Review lower risk/reward setups and compare them "
+        "with better-performing trades."
+        in report.recommendations
+    )
+
+
+def test_no_completed_trades_report():
+    """
+    Test that the coach does not judge performance
+    when there are no completed journal trades.
+    """
+
+    report = AICoach.generate_report(
+        win_rate=0,
+        average_risk_reward=0,
+        total_profit=0,
+        trade_count=0,
+        risk_reward_trade_count=0,
+    )
+
+    assert (
+        report.summary
+        == (
+            "Not enough completed trade data is "
+            "available for coaching yet."
+        )
+    )
+
+    assert report.strengths == []
+
+    assert report.weaknesses == []
+
+    assert (
+        "Complete and journal more trades before "
+        "evaluating trading performance."
+        in report.recommendations
+    )
