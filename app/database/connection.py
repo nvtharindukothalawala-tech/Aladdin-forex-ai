@@ -14,9 +14,7 @@ Project: Aladdin
 import os
 
 from dotenv import load_dotenv
-
 from sqlalchemy import create_engine
-
 from sqlalchemy.orm import sessionmaker
 
 
@@ -40,7 +38,6 @@ DATABASE_URL = (
 connect_args = {}
 
 if DATABASE_URL.startswith("sqlite"):
-
     connect_args = {
         "check_same_thread": False,
     }
@@ -67,27 +64,21 @@ SessionLocal = sessionmaker(
 # ORM MODEL REGISTRATION
 # ======================================================
 #
-# SQLAlchemy relationships such as:
+# All SQLAlchemy models that use the shared Base
+# must be imported before Base.metadata.create_all().
 #
-# relationship("UserModel")
+# This ensures SQLAlchemy knows about:
+# - users
+# - trades
+# - notifications
+# - execution_orders
 #
-# use class names stored in the SQLAlchemy model
-# registry.
-#
-# Therefore UserModel must be imported before
-# SQLAlchemy configures all model relationships.
-#
-# This import is intentionally placed after the
-# database engine/session configuration.
+# This is especially important for fresh databases
+# such as GitHub Actions CI.
 # ======================================================
 
-# ORM model registration
-#
-# Import related models so SQLAlchemy can resolve
-# relationship names such as "TradeModel" and
-# "NotificationModel".
-
 from app.database.models import (  # noqa: E402, F401
+    Base,
     TradeModel,
     NotificationModel,
 )
@@ -95,3 +86,57 @@ from app.database.models import (  # noqa: E402, F401
 from app.auth.models import (  # noqa: E402, F401
     UserModel,
 )
+
+from app.execution.models import (  # noqa: E402, F401
+    ExecutionModel,
+)
+
+
+# ======================================================
+# DATABASE TABLE INITIALIZATION
+# ======================================================
+
+def create_database_tables():
+    """
+    Create all registered database tables.
+
+    Existing tables are not deleted.
+    SQLAlchemy only creates tables that are missing.
+    """
+
+    Base.metadata.create_all(
+        bind=engine,
+    )
+
+
+# Automatically create missing tables when this
+# database module is loaded.
+#
+# This allows fresh environments such as GitHub CI
+# to create execution_orders and the other tables
+# before services and tests use them.
+
+create_database_tables()
+
+
+# ======================================================
+# DATABASE DEPENDENCY
+# ======================================================
+
+def get_db():
+    """
+    Provide a database session.
+
+    Used as a FastAPI dependency.
+
+    The session is always closed after the request
+    finishes.
+    """
+
+    db = SessionLocal()
+
+    try:
+        yield db
+
+    finally:
+        db.close()
