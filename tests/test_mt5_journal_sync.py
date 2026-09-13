@@ -13,6 +13,8 @@ Author: Tharindu Kothalawala
 Project: Aladdin
 """
 
+import pytest
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -167,9 +169,25 @@ def test_mt5_sync_imports_completed_aladdin_trade(
 
         assert trade.mt5_position_id == 900000003
 
-        assert trade.close_price == 1.16500
+        assert trade.close_price == pytest.approx(
+            1.16500
+        )
 
-        assert trade.profit_loss == 18.5
+        assert trade.commission == pytest.approx(
+            -1.0
+        )
+
+        assert trade.swap == pytest.approx(
+            -0.5
+        )
+
+        assert trade.fee == pytest.approx(
+            0.0
+        )
+
+        assert trade.profit_loss == pytest.approx(
+            18.5
+        )
 
         assert trade.result == "WIN"
 
@@ -308,6 +326,158 @@ def test_mt5_sync_skips_non_aladdin_trade(
         )
 
         assert len(trades) == 0
+
+    finally:
+        session.close()
+
+
+# ======================================================
+# TEST 4
+# NEGATIVE NET PROFIT IS STORED AS LOSS
+# ======================================================
+
+def test_mt5_sync_classifies_negative_net_profit_as_loss(
+    monkeypatch,
+):
+    session, user = create_test_session()
+
+    try:
+        history = fake_aladdin_history()
+
+        trade = history["closed_trades"][0]
+
+        trade["deal_ticket"] = 900000020
+        trade["order_ticket"] = 900000021
+        trade["position_id"] = 900000022
+
+        trade["profit"] = -10.0
+        trade["commission"] = -1.0
+        trade["swap"] = -0.5
+        trade["fee"] = -0.25
+        trade["net_profit"] = -11.75
+
+        monkeypatch.setattr(
+            BrokerService,
+            "get_trade_history",
+            lambda days=30: history,
+        )
+
+        repository = TradeRepository(
+            session
+        )
+
+        service = JournalService(
+            repository
+        )
+
+        result = service.sync_mt5_closed_trades(
+            user_id=user.id,
+            days=30,
+        )
+
+        assert result["imported_count"] == 1
+
+        trades = repository.get_user_trades(
+            user.id
+        )
+
+        assert len(trades) == 1
+
+        imported_trade = trades[0]
+
+        assert imported_trade.result == "LOSS"
+
+        assert imported_trade.profit_loss == pytest.approx(
+            -11.75
+        )
+
+        assert imported_trade.commission == pytest.approx(
+            -1.0
+        )
+
+        assert imported_trade.swap == pytest.approx(
+            -0.5
+        )
+
+        assert imported_trade.fee == pytest.approx(
+            -0.25
+        )
+
+    finally:
+        session.close()
+
+
+# ======================================================
+# TEST 5
+# ZERO NET PROFIT IS STORED AS BREAKEVEN
+# ======================================================
+
+def test_mt5_sync_classifies_zero_net_profit_as_breakeven(
+    monkeypatch,
+):
+    session, user = create_test_session()
+
+    try:
+        history = fake_aladdin_history()
+
+        trade = history["closed_trades"][0]
+
+        trade["deal_ticket"] = 900000030
+        trade["order_ticket"] = 900000031
+        trade["position_id"] = 900000032
+
+        trade["profit"] = 2.0
+        trade["commission"] = -1.0
+        trade["swap"] = -0.5
+        trade["fee"] = -0.5
+        trade["net_profit"] = 0.0
+
+        monkeypatch.setattr(
+            BrokerService,
+            "get_trade_history",
+            lambda days=30: history,
+        )
+
+        repository = TradeRepository(
+            session
+        )
+
+        service = JournalService(
+            repository
+        )
+
+        result = service.sync_mt5_closed_trades(
+            user_id=user.id,
+            days=30,
+        )
+
+        assert result["imported_count"] == 1
+
+        trades = repository.get_user_trades(
+            user.id
+        )
+
+        assert len(trades) == 1
+
+        imported_trade = trades[0]
+
+        assert imported_trade.result == "BREAKEVEN"
+
+        assert imported_trade.profit_loss == pytest.approx(
+            0.0
+        )
+
+        assert imported_trade.commission == pytest.approx(
+            -1.0
+        )
+
+        assert imported_trade.swap == pytest.approx(
+            -0.5
+        )
+
+        assert imported_trade.fee == pytest.approx(
+            -0.5
+        )
 
     finally:
         session.close()
