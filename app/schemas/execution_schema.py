@@ -23,11 +23,22 @@ from pydantic import (
 class ExecutionRequestSchema(BaseModel):
     """
     Input schema for direct execution request.
+
+    idempotency_key is optional for backward
+    compatibility. Clients that provide it receive
+    duplicate-execution protection.
     """
 
     user_id: int = Field(
         ...,
         gt=0,
+    )
+
+    idempotency_key: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=128,
+        pattern=r".*\S.*",
     )
 
     symbol: str = Field(
@@ -268,11 +279,23 @@ class AIExecutionRequestSchema(BaseModel):
 
     Approval is not provided by the client.
     Aladdin determines approval internally.
+
+    idempotency_key is optional for backward
+    compatibility. Clients that provide it receive
+    duplicate-execution protection if the workflow
+    reaches the execution stage.
     """
 
     user_id: int = Field(
         ...,
         gt=0,
+    )
+
+    idempotency_key: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=128,
+        pattern=r".*\S.*",
     )
 
     symbol: str = Field(

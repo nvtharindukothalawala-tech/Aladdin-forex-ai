@@ -44,6 +44,7 @@ from app.execution.repository import (
 )
 
 from app.services.execution_service import (
+    ExecutionIdempotencyConflictError,
     ExecutionService,
 )
 
@@ -165,6 +166,11 @@ def execute_trade(
 
     Execution ownership is derived from the
     authenticated JWT user.
+
+    When an idempotency key is supplied, repeated
+    requests for the same execution return the
+    existing execution instead of contacting the
+    broker again.
     """
 
     user_id = verify_execution_ownership(
@@ -198,10 +204,22 @@ def execute_trade(
             detail=str(error),
         ) from error
 
-    result = service.execute_trade(
-        user_id=user_id,
-        execution_request=execution_request,
-    )
+    try:
+
+        result = service.execute_trade(
+            user_id=user_id,
+            execution_request=execution_request,
+            idempotency_key=(
+                request.idempotency_key
+            ),
+        )
+
+    except ExecutionIdempotencyConflictError as error:
+
+        raise HTTPException(
+            status_code=409,
+            detail=str(error),
+        ) from error
 
     return result
 
@@ -236,6 +254,10 @@ def execute_ai_trade(
     The request user_id is retained for backward
     compatibility and must match the authenticated
     user.
+
+    When the workflow reaches execution, the optional
+    idempotency key is passed to the execution service
+    to prevent accidental duplicate broker orders.
     """
 
     user_id = verify_execution_ownership(
@@ -283,48 +305,60 @@ def execute_ai_trade(
     # Complete AI Trading Workflow
     # ==========================================
 
-    result = (
-        TradingService.generate_ai_execution_workflow(
-            symbol=request.symbol,
-            ema_signal=request.ema_signal,
-            rsi_value=request.rsi_value,
-            adx_value=request.adx_value,
-            volatility=request.volatility,
-            currency=request.currency,
-            event_type=request.event_type,
-            importance=request.importance,
-            sentiment=request.sentiment,
-            price_structure=(
-                request.price_structure
-            ),
-            liquidity_sweep=(
-                request.liquidity_sweep
-            ),
-            order_block=request.order_block,
-            fair_value_gap=(
-                request.fair_value_gap
-            ),
-            entry_price=request.entry_price,
-            stop_loss=request.stop_loss,
-            take_profit=request.take_profit,
-            account_balance=(
-                request.account_balance
-            ),
-            risk_percent=request.risk_percent,
-            trade_risk_amount=(
-                request.trade_risk_amount
-            ),
-            lot_size=request.lot_size,
-            execute=True,
-            execution_service=(
-                execution_service
-            ),
-            notification_service=(
-                notification_service
-            ),
-            user_id=user_id,
+    try:
+
+        result = (
+            TradingService.generate_ai_execution_workflow(
+                symbol=request.symbol,
+                ema_signal=request.ema_signal,
+                rsi_value=request.rsi_value,
+                adx_value=request.adx_value,
+                volatility=request.volatility,
+                currency=request.currency,
+                event_type=request.event_type,
+                importance=request.importance,
+                sentiment=request.sentiment,
+                price_structure=(
+                    request.price_structure
+                ),
+                liquidity_sweep=(
+                    request.liquidity_sweep
+                ),
+                order_block=request.order_block,
+                fair_value_gap=(
+                    request.fair_value_gap
+                ),
+                entry_price=request.entry_price,
+                stop_loss=request.stop_loss,
+                take_profit=request.take_profit,
+                account_balance=(
+                    request.account_balance
+                ),
+                risk_percent=request.risk_percent,
+                trade_risk_amount=(
+                    request.trade_risk_amount
+                ),
+                lot_size=request.lot_size,
+                execute=True,
+                execution_service=(
+                    execution_service
+                ),
+                notification_service=(
+                    notification_service
+                ),
+                user_id=user_id,
+                idempotency_key=(
+                    request.idempotency_key
+                ),
+            )
         )
-    )
+
+    except ExecutionIdempotencyConflictError as error:
+
+        raise HTTPException(
+            status_code=409,
+            detail=str(error),
+        ) from error
 
     return result
 

@@ -506,6 +506,7 @@ class TradingService:
         middle_timeframe_bias="BULLISH",
         entry_timeframe_bias="BULLISH",
         hour_utc=None,
+        idempotency_key=None,
     ):
         """
         Generate the complete AI trading workflow.
@@ -752,6 +753,9 @@ class TradingService:
                 user_id=user_id,
                 execution_request=(
                     execution_request
+                ),
+                idempotency_key=(
+                    idempotency_key
                 ),
             )
         )

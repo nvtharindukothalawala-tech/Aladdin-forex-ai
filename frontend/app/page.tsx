@@ -56,6 +56,7 @@ import {
 
 import {
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -546,6 +547,9 @@ export default function DashboardPage() {
   const [tradeExecuting, setTradeExecuting] =
     useState(false);
 
+  const aiExecutionIdempotencyKeyRef =
+    useRef<string | null>(null);
+
   const [notificationCount, setNotificationCount] =
     useState(0);
 
@@ -586,6 +590,7 @@ export default function DashboardPage() {
   setTradeForm(next);
   setAiAnalysis(null);
   setAiTradeData(null);
+  aiExecutionIdempotencyKeyRef.current = null;
   setAiExecutionResult(null);
   setAiAnalysisError("");
   setTradeActionError("");
@@ -772,6 +777,7 @@ export default function DashboardPage() {
           getPipValue(symbol),
       };
 
+      aiExecutionIdempotencyKeyRef.current = null;
       setAiTradeData(aiData);
       setAiExecutionResult(null);
 
@@ -860,9 +866,18 @@ export default function DashboardPage() {
       setTradeExecuting(true);
       setAiExecutionResult(null);
 
+      if (!aiExecutionIdempotencyKeyRef.current) {
+        aiExecutionIdempotencyKeyRef.current =
+          crypto.randomUUID();
+      }
+
+      const idempotencyKey =
+        aiExecutionIdempotencyKeyRef.current;
+
       const result =
         await executeAITrade(
           aiTradeData,
+          idempotencyKey,
         );
 
       console.log(
@@ -1094,6 +1109,7 @@ export default function DashboardPage() {
 
       setAiAnalysis(null);
       setAiTradeData(null);
+      aiExecutionIdempotencyKeyRef.current = null;
       setAiExecutionResult(null);
       setAiAnalysisError("");
 

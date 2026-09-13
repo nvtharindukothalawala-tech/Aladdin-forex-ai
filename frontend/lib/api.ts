@@ -1289,11 +1289,31 @@ export async function analyzeAITrade(
 export async function executeAITrade(
   tradeData:
     AITradeAnalysisData,
+  idempotencyKey: string,
 ): Promise<
   AIExecutionResult
 > {
   const userId =
     await getCurrentUserId();
+
+  const normalizedIdempotencyKey =
+    idempotencyKey.trim();
+
+  if (
+    normalizedIdempotencyKey.length === 0
+  ) {
+    throw new Error(
+      "Execution idempotency key is required.",
+    );
+  }
+
+  if (
+    normalizedIdempotencyKey.length > 128
+  ) {
+    throw new Error(
+      "Execution idempotency key cannot exceed 128 characters.",
+    );
+  }
 
   const response =
     await authenticatedFetch(
@@ -1307,6 +1327,9 @@ export async function executeAITrade(
               userId,
 
             ...tradeData,
+
+            idempotency_key:
+              normalizedIdempotencyKey,
           }),
       },
     );
@@ -1558,6 +1581,7 @@ export async function syncMT5Journal(
   return response.json();
 }
 
+
 /* =========================================================
    PERFORMANCE ANALYTICS
    ========================================================= */
@@ -1634,4 +1658,3 @@ export async function getCoachingReport():
 
   return response.json();
 }
-

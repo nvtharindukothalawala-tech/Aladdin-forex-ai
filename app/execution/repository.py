@@ -30,9 +30,18 @@ class ExecutionRepository:
         status: str,
         broker_order_id: str | None = None,
         execution_message: str | None = None,
+        idempotency_key: str | None = None,
+        request_fingerprint: str | None = None,
     ):
         """
         Create and persist a new execution record.
+
+        The idempotency fields are optional so legacy execution
+        requests continue to work.
+
+        When an idempotency key is supplied, the database unique
+        index on user_id + idempotency_key prevents two records
+        from being created for the same logical execution attempt.
         """
 
         execution = ExecutionModel(
@@ -43,6 +52,8 @@ class ExecutionRepository:
             status=status,
             broker_order_id=broker_order_id,
             execution_message=execution_message,
+            idempotency_key=idempotency_key,
+            request_fingerprint=request_fingerprint,
         )
 
         try:
@@ -84,6 +95,27 @@ class ExecutionRepository:
         except Exception:
             self.session.rollback()
             raise
+
+    def get_execution_by_idempotency_key(
+        self,
+        user_id: int,
+        idempotency_key: str,
+    ):
+        """
+        Return one execution matching the user's idempotency key.
+
+        The database unique index guarantees that at most one
+        execution can exist for the same user and key.
+        """
+
+        return (
+            self.session.query(ExecutionModel)
+            .filter(
+                ExecutionModel.user_id == user_id,
+                ExecutionModel.idempotency_key == idempotency_key,
+            )
+            .one_or_none()
+        )
 
     def get_user_executions(
         self,
