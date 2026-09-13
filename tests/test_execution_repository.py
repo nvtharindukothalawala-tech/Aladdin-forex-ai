@@ -7,6 +7,8 @@ Author: Tharindu Kothalawala
 Project: Aladdin
 """
 
+from uuid import uuid4
+
 from app.database.connection import SessionLocal
 
 from app.execution.repository import (
@@ -142,6 +144,120 @@ def test_get_user_executions():
     )
 
     session.close()
+
+
+def test_get_pending_executions():
+
+    session = SessionLocal()
+
+    repository = ExecutionRepository(session)
+
+    # Use a unique user ID so records left by
+    # previous test runs cannot affect this test.
+    test_user_id = (
+        uuid4().int % 2_000_000_000
+    ) + 1
+
+    created_executions = []
+
+    try:
+
+        first_pending = (
+            repository.save_execution(
+                user_id=test_user_id,
+                symbol="EURUSD",
+                direction="BUY",
+                volume=0.01,
+                status="PENDING",
+            )
+        )
+
+        created_executions.append(
+            first_pending
+        )
+
+        executed = (
+            repository.save_execution(
+                user_id=test_user_id,
+                symbol="GBPUSD",
+                direction="SELL",
+                volume=0.02,
+                status="EXECUTED",
+                broker_order_id="TEST_ORDER",
+            )
+        )
+
+        created_executions.append(
+            executed
+        )
+
+        second_pending = (
+            repository.save_execution(
+                user_id=test_user_id,
+                symbol="USDJPY",
+                direction="SELL",
+                volume=0.03,
+                status="PENDING",
+            )
+        )
+
+        created_executions.append(
+            second_pending
+        )
+
+        other_user_pending = (
+            repository.save_execution(
+                user_id=test_user_id + 1,
+                symbol="AUDUSD",
+                direction="BUY",
+                volume=0.04,
+                status="PENDING",
+            )
+        )
+
+        created_executions.append(
+            other_user_pending
+        )
+
+        executions = (
+            repository
+            .get_pending_executions(
+                user_id=test_user_id
+            )
+        )
+
+        assert len(executions) == 2
+
+        assert (
+            executions[0].id
+            == first_pending.id
+        )
+
+        assert (
+            executions[1].id
+            == second_pending.id
+        )
+
+        assert all(
+            execution.user_id
+            == test_user_id
+            for execution in executions
+        )
+
+        assert all(
+            execution.status
+            == "PENDING"
+            for execution in executions
+        )
+
+    finally:
+
+        for execution in created_executions:
+            session.delete(execution)
+
+        session.commit()
+
+        session.close()
 
 
 def test_count_user_executions():

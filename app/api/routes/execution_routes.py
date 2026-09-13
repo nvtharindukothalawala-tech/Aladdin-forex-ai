@@ -12,6 +12,7 @@ from fastapi import (
     Depends,
     HTTPException,
     Path,
+    Query,
 )
 
 from sqlalchemy.orm import Session
@@ -38,6 +39,10 @@ from app.services.execution_analytics_service import (
     ExecutionAnalyticsService,
 )
 
+from app.services.execution_reconciliation_service import (
+    ExecutionReconciliationService,
+)
+
 from app.services.notification_service import (
     NotificationService,
 )
@@ -51,6 +56,7 @@ from app.schemas.execution_schema import (
     ExecutionResponseSchema,
     ExecutionHistoryResponseSchema,
     ExecutionStatisticsResponseSchema,
+    ExecutionReconciliationResponseSchema,
     AIExecutionRequestSchema,
     AIExecutionResponseSchema,
 )
@@ -228,6 +234,83 @@ def execute_ai_trade(
     )
 
     return result
+
+
+# ==========================================
+# Execution Reconciliation
+# ==========================================
+
+@router.post(
+    "/reconcile-mt5/{user_id}",
+    response_model=(
+        ExecutionReconciliationResponseSchema
+    ),
+    response_model_exclude_none=True,
+)
+def reconcile_mt5_executions(
+    user_id: int = Path(
+        ...,
+        gt=0,
+    ),
+    days: int = Query(
+        default=30,
+        ge=1,
+        le=3650,
+    ),
+    database: Session = Depends(get_database),
+):
+    """
+    Manually reconcile local PENDING execution
+    records with read-only MT5 DEMO evidence.
+
+    This operation:
+    - Requires DEMO execution mode.
+    - Reads MT5 positions and trade history.
+    - Uses ALADDIN E<execution_id> correlation.
+    - Updates only confirmed local records.
+    - Never opens, modifies, or closes broker trades.
+    """
+
+    repository = ExecutionRepository(
+        database
+    )
+
+    service = (
+        ExecutionReconciliationService(
+            repository
+        )
+    )
+
+    try:
+
+        return (
+            service
+            .reconcile_pending_executions(
+                user_id=user_id,
+                days=days,
+            )
+        )
+
+    except ValueError as error:
+
+        raise HTTPException(
+            status_code=400,
+            detail=str(error),
+        ) from error
+
+    except PermissionError as error:
+
+        raise HTTPException(
+            status_code=403,
+            detail=str(error),
+        ) from error
+
+    except RuntimeError as error:
+
+        raise HTTPException(
+            status_code=503,
+            detail=str(error),
+        ) from error
 
 
 # ==========================================

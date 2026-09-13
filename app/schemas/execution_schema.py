@@ -139,6 +139,125 @@ class ExecutionStatisticsResponseSchema(BaseModel):
 
 
 # ==========================================
+# Execution Reconciliation Item
+# ==========================================
+
+class ExecutionReconciledItemSchema(BaseModel):
+    """
+    One successfully reconciled execution.
+    """
+
+    execution_id: int
+
+    symbol: str
+
+    direction: str
+
+    volume: float
+
+    broker_order_id: str
+
+    evidence_source: str
+
+
+# ==========================================
+# Execution Reconciliation Unmatched Item
+# ==========================================
+
+class ExecutionUnmatchedItemSchema(BaseModel):
+    """
+    One PENDING execution with no exact
+    broker correlation.
+    """
+
+    execution_id: int
+
+    symbol: str
+
+    direction: str
+
+    volume: float
+
+    reason: str
+
+
+# ==========================================
+# Execution Reconciliation Conflict Item
+# ==========================================
+
+class ExecutionConflictItemSchema(BaseModel):
+    """
+    One reconciliation conflict.
+
+    A conflict may occur because:
+    - Multiple broker records use the same
+      execution correlation ID.
+    - Broker symbol/direction/volume does not
+      match the local execution.
+    - A broker identifier is unavailable.
+    """
+
+    execution_id: int
+
+    symbol: str
+
+    direction: str
+
+    volume: float
+
+    reason: str
+
+    evidence_source: str | None = None
+
+    evidence_count: int | None = None
+
+    errors: list[str] | None = None
+
+
+# ==========================================
+# Execution Reconciliation Response
+# ==========================================
+
+class ExecutionReconciliationResponseSchema(
+    BaseModel
+):
+    """
+    Response from manual MT5 execution
+    reconciliation.
+
+    Reconciliation is read-only on the broker
+    side. Only confirmed local PENDING records
+    are changed to EXECUTED.
+    """
+
+    execution_mode: str
+
+    history_days: int
+
+    scanned_pending: int
+
+    reconciled_count: int
+
+    unmatched_count: int
+
+    conflict_count: int
+
+    reconciled: list[
+        ExecutionReconciledItemSchema
+    ]
+
+    unmatched: list[
+        ExecutionUnmatchedItemSchema
+    ]
+
+    conflicts: list[
+        ExecutionConflictItemSchema
+    ]
+
+    message: str
+
+
+# ==========================================
 # AI Execution Request
 # ==========================================
 
@@ -208,7 +327,10 @@ class AIExecutionRequestSchema(BaseModel):
 
     price_structure: str = Field(
         default="BOS_BULLISH",
-        pattern="^(BOS_BULLISH|BOS_BEARISH|CHOCH|RANGE)$",
+        pattern=(
+            "^(BOS_BULLISH|BOS_BEARISH|"
+            "CHOCH|RANGE)$"
+        ),
     )
 
     liquidity_sweep: bool = True
@@ -374,8 +496,17 @@ class AIExecutionResponseSchema(BaseModel):
 
     approval: Any | None = None
 
-    reasoning: AIReasoningResponseSchema | None = None
+    reasoning: (
+        AIReasoningResponseSchema
+        | None
+    ) = None
 
-    execution: AIExecutionExecutionSchema | None = None
+    execution: (
+        AIExecutionExecutionSchema
+        | None
+    ) = None
 
-    execution_result: ExecutionResponseSchema | None = None
+    execution_result: (
+        ExecutionResponseSchema
+        | None
+    ) = None

@@ -101,6 +101,33 @@ class ExecutionRepository:
             .all()
         )
 
+    def get_pending_executions(
+        self,
+        user_id: int,
+    ):
+        """
+        Return PENDING executions for a user.
+
+        These records may require broker
+        reconciliation if MT5 execution completed
+        but the final database update failed.
+
+        Oldest records are returned first so the
+        reconciliation order is deterministic.
+        """
+
+        return (
+            self.session.query(ExecutionModel)
+            .filter(
+                ExecutionModel.user_id == user_id,
+                ExecutionModel.status == "PENDING",
+            )
+            .order_by(
+                ExecutionModel.id.asc()
+            )
+            .all()
+        )
+
     def count_user_executions(
         self,
         user_id: int,

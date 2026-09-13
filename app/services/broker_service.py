@@ -910,6 +910,12 @@ class BrokerService:
                     "order_ticket": int(
                         final_closing_deal.order
                     ),
+                    "opening_deal_ticket": int(
+                        first_opening_deal.ticket
+                    ),
+                    "opening_order_ticket": int(
+                        first_opening_deal.order
+                    ),
                     "position_id": int(
                         position_id
                     ),
