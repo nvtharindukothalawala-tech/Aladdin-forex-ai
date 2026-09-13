@@ -7,12 +7,51 @@ Author: Tharindu Kothalwala
 Project: Aladdin
 """
 
+from types import SimpleNamespace
+
+import pytest
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
 
 from app.api.main import app
+from app.auth.dependencies import get_current_user
+
 
 client = TestClient(app)
+
+
+# ==========================================
+# Authentication Test Fixture
+# ==========================================
+
+
+@pytest.fixture(autouse=True)
+def authenticated_execution_user():
+    """
+    Supply a deterministic authenticated user
+    for existing execution route tests.
+
+    Existing tests use user_id=1, so this fixture
+    keeps those tests focused on execution,
+    validation, approval, and response behavior.
+
+    The override is removed after every test
+    to prevent authentication state leaking
+    into other test modules.
+    """
+
+    app.dependency_overrides[
+        get_current_user
+    ] = lambda: SimpleNamespace(
+        id=1,
+    )
+
+    yield
+
+    app.dependency_overrides.pop(
+        get_current_user,
+        None,
+    )
 
 
 def install_bullish_low_risk_intelligence(monkeypatch):
@@ -97,6 +136,7 @@ def install_bullish_low_risk_intelligence(monkeypatch):
         "app.services.trading_service.MarketIntelligenceService",
         FakeMarketIntelligenceService,
     )
+
 
 def test_execute_trade_api():
     """
@@ -256,8 +296,6 @@ def test_ai_execution_api_does_not_execute_hold_decision(monkeypatch):
     the Decision Gate to return HOLD.
     """
 
-    from pydantic import BaseModel
-
     class FakeIntelligence(BaseModel):
         market_bias: str
         confidence: float
@@ -339,6 +377,7 @@ def test_ai_execution_api_does_not_execute_hold_decision(monkeypatch):
     assert "approval" not in data or data["approval"] is None
     assert "execution" not in data or data["execution"] is None
     assert "execution_result" not in data or data["execution_result"] is None
+
 
 def test_ai_execution_api_rejects_invalid_lot_size():
     """
@@ -1218,7 +1257,9 @@ def test_execution_history_rejects_invalid_user_id():
     invalid user IDs.
     """
 
-    response = client.get("/execution/history/0")
+    response = client.get(
+        "/execution/history/0"
+    )
 
     assert response.status_code == 422
 
@@ -1229,7 +1270,9 @@ def test_execution_statistics_rejects_invalid_user_id():
     invalid user IDs.
     """
 
-    response = client.get("/execution/statistics/0")
+    response = client.get(
+        "/execution/statistics/0"
+    )
 
     assert response.status_code == 422
 
@@ -1251,10 +1294,18 @@ def test_ai_execution_response_schema_contains_reasoning():
         reasoning={
             "decision": "BUY",
             "confidence": 85,
-            "technical_reasons": ["EMA trend confirms bullish momentum."],
-            "structure_reasons": ["Liquidity sweep detected."],
-            "risk_reasons": ["Risk validation passed."],
-            "final_message": ("BUY decision generated."),
+            "technical_reasons": [
+                "EMA trend confirms bullish momentum."
+            ],
+            "structure_reasons": [
+                "Liquidity sweep detected."
+            ],
+            "risk_reasons": [
+                "Risk validation passed."
+            ],
+            "final_message": (
+                "BUY decision generated."
+            ),
         },
     )
 
@@ -1298,8 +1349,27 @@ def test_ai_execution_response_schema_supports_execution_result():
     assert response.execution is not None
     assert response.execution_result is not None
 
-    assert response.execution_result.symbol == "EUR/USD"
-    assert response.execution_result.direction == "BUY"
-    assert response.execution_result.volume == 0.10
-    assert response.execution_result.status == "EXECUTED"
-    assert response.execution_result.broker_order_id == "TEST-001"
+    assert (
+        response.execution_result.symbol
+        == "EUR/USD"
+    )
+
+    assert (
+        response.execution_result.direction
+        == "BUY"
+    )
+
+    assert (
+        response.execution_result.volume
+        == 0.10
+    )
+
+    assert (
+        response.execution_result.status
+        == "EXECUTED"
+    )
+
+    assert (
+        response.execution_result.broker_order_id
+        == "TEST-001"
+    )

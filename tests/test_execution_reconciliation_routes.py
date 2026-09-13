@@ -7,9 +7,14 @@ All broker reconciliation behavior is mocked.
 These tests do not contact real MT5 and do not
 open, modify, or close broker trades.
 
+Execution reconciliation requires JWT
+authentication and validates execution ownership.
+
 Author: Tharindu Kothalawala
 Project: Aladdin
 """
+
+from uuid import uuid4
 
 from fastapi.testclient import TestClient
 
@@ -23,13 +28,103 @@ from app.services.execution_reconciliation_service import (
 client = TestClient(app)
 
 
+# ==========================================
+# Authentication Helper
+# ==========================================
+
+
+def get_auth_context():
+    """
+    Create a unique test user and return
+    authentication headers and the real
+    database user ID.
+    """
+
+    unique_value = uuid4().hex
+
+    username = (
+        f"reconciliation_{unique_value}"
+    )
+
+    email = (
+        f"reconciliation_{unique_value}"
+        "@example.com"
+    )
+
+    password = "password123"
+
+    register_response = client.post(
+        "/auth/register",
+        json={
+            "username": username,
+            "email": email,
+            "password": password,
+        },
+    )
+
+    assert (
+        register_response.status_code
+        == 200
+    )
+
+    login_response = client.post(
+        "/auth/login",
+        json={
+            "username": username,
+            "password": password,
+        },
+    )
+
+    assert (
+        login_response.status_code
+        == 200
+    )
+
+    token = (
+        login_response
+        .json()["access_token"]
+    )
+
+    headers = {
+        "Authorization": (
+            f"Bearer {token}"
+        ),
+    }
+
+    me_response = client.get(
+        "/auth/me",
+        headers=headers,
+    )
+
+    assert (
+        me_response.status_code
+        == 200
+    )
+
+    user_id = (
+        me_response
+        .json()["id"]
+    )
+
+    return headers, user_id
+
+
+# ==========================================
+# Successful Reconciliation
+# ==========================================
+
+
 def test_reconciliation_api_returns_summary(
     monkeypatch,
 ):
     """
     Test successful manual reconciliation
-    API response.
+    API response for the authenticated user.
     """
+
+    headers, user_id = (
+        get_auth_context()
+    )
 
     captured = {
         "user_id": None,
@@ -57,7 +152,9 @@ def test_reconciliation_api_returns_summary(
                     "symbol": "EURUSD",
                     "direction": "BUY",
                     "volume": 0.01,
-                    "broker_order_id": "123456",
+                    "broker_order_id": (
+                        "123456"
+                    ),
                     "evidence_source": (
                         "CLOSED_TRADE"
                     ),
@@ -78,15 +175,23 @@ def test_reconciliation_api_returns_summary(
     )
 
     response = client.post(
-        "/execution/reconcile-mt5/1"
-        "?days=45"
+        (
+            "/execution/"
+            f"reconcile-mt5/{user_id}"
+            "?days=45"
+        ),
+        headers=headers,
     )
 
     assert response.status_code == 200
 
     data = response.json()
 
-    assert captured["user_id"] == 1
+    assert (
+        captured["user_id"]
+        == user_id
+    )
+
     assert captured["days"] == 45
 
     assert (
@@ -139,6 +244,10 @@ def test_reconciliation_api_uses_default_days(
     30-day broker history window.
     """
 
+    headers, user_id = (
+        get_auth_context()
+    )
+
     captured = {
         "days": None,
     }
@@ -173,7 +282,11 @@ def test_reconciliation_api_uses_default_days(
     )
 
     response = client.post(
-        "/execution/reconcile-mt5/1"
+        (
+            "/execution/"
+            f"reconcile-mt5/{user_id}"
+        ),
+        headers=headers,
     )
 
     assert response.status_code == 200
@@ -186,6 +299,60 @@ def test_reconciliation_api_uses_default_days(
     )
 
 
+# ==========================================
+# Authentication and Ownership
+# ==========================================
+
+
+def test_reconciliation_api_requires_authentication():
+    """
+    Reconciliation must not be available
+    without JWT authentication.
+    """
+
+    response = client.post(
+        "/execution/reconcile-mt5/1"
+    )
+
+    assert response.status_code == 401
+
+
+def test_reconciliation_api_rejects_other_user():
+    """
+    An authenticated user must not reconcile
+    another user's execution records.
+    """
+
+    headers, user_id = (
+        get_auth_context()
+    )
+
+    other_user_id = user_id + 1000000
+
+    response = client.post(
+        (
+            "/execution/"
+            f"reconcile-mt5/{other_user_id}"
+        ),
+        headers=headers,
+    )
+
+    assert response.status_code == 403
+
+    assert (
+        response.json()["detail"]
+        == (
+            "You are not authorized to access "
+            "execution data for this user."
+        )
+    )
+
+
+# ==========================================
+# Service Error Mapping
+# ==========================================
+
+
 def test_reconciliation_api_rejects_mock_mode(
     monkeypatch,
 ):
@@ -193,6 +360,10 @@ def test_reconciliation_api_rejects_mock_mode(
     PermissionError from MOCK mode should
     become HTTP 403.
     """
+
+    headers, user_id = (
+        get_auth_context()
+    )
 
     def fake_reconcile(
         self,
@@ -211,7 +382,11 @@ def test_reconciliation_api_rejects_mock_mode(
     )
 
     response = client.post(
-        "/execution/reconcile-mt5/1"
+        (
+            "/execution/"
+            f"reconcile-mt5/{user_id}"
+        ),
+        headers=headers,
     )
 
     assert response.status_code == 403
@@ -233,6 +408,10 @@ def test_reconciliation_api_maps_value_error(
     HTTP 400 responses.
     """
 
+    headers, user_id = (
+        get_auth_context()
+    )
+
     def fake_reconcile(
         self,
         user_id,
@@ -249,14 +428,20 @@ def test_reconciliation_api_maps_value_error(
     )
 
     response = client.post(
-        "/execution/reconcile-mt5/1"
+        (
+            "/execution/"
+            f"reconcile-mt5/{user_id}"
+        ),
+        headers=headers,
     )
 
     assert response.status_code == 400
 
     assert (
         response.json()["detail"]
-        == "Invalid reconciliation request."
+        == (
+            "Invalid reconciliation request."
+        )
     )
 
 
@@ -267,6 +452,10 @@ def test_reconciliation_api_maps_runtime_error(
     Broker/runtime failures should become
     HTTP 503 responses.
     """
+
+    headers, user_id = (
+        get_auth_context()
+    )
 
     def fake_reconcile(
         self,
@@ -284,7 +473,11 @@ def test_reconciliation_api_maps_runtime_error(
     )
 
     response = client.post(
-        "/execution/reconcile-mt5/1"
+        (
+            "/execution/"
+            f"reconcile-mt5/{user_id}"
+        ),
+        headers=headers,
     )
 
     assert response.status_code == 503
@@ -295,14 +488,25 @@ def test_reconciliation_api_maps_runtime_error(
     )
 
 
+# ==========================================
+# Request Validation
+# ==========================================
+
+
 def test_reconciliation_api_rejects_invalid_user_id():
     """
     FastAPI should reject zero or negative
     reconciliation user IDs.
+
+    Authentication is supplied so this test
+    specifically verifies path validation.
     """
 
+    headers, _ = get_auth_context()
+
     response = client.post(
-        "/execution/reconcile-mt5/0"
+        "/execution/reconcile-mt5/0",
+        headers=headers,
     )
 
     assert response.status_code == 422
@@ -313,9 +517,17 @@ def test_reconciliation_api_rejects_days_below_range():
     History window must be at least one day.
     """
 
+    headers, user_id = (
+        get_auth_context()
+    )
+
     response = client.post(
-        "/execution/reconcile-mt5/1"
-        "?days=0"
+        (
+            "/execution/"
+            f"reconcile-mt5/{user_id}"
+            "?days=0"
+        ),
+        headers=headers,
     )
 
     assert response.status_code == 422
@@ -327,9 +539,17 @@ def test_reconciliation_api_rejects_days_above_range():
     3650 days.
     """
 
+    headers, user_id = (
+        get_auth_context()
+    )
+
     response = client.post(
-        "/execution/reconcile-mt5/1"
-        "?days=3651"
+        (
+            "/execution/"
+            f"reconcile-mt5/{user_id}"
+            "?days=3651"
+        ),
+        headers=headers,
     )
 
     assert response.status_code == 422

@@ -3,6 +3,13 @@ execution_routes.py
 
 API endpoints for trade execution.
 
+Execution ownership is protected using the
+authenticated JWT user.
+
+Client-supplied user IDs are retained for API
+compatibility, but they must match the authenticated
+user before any user-owned execution data is accessed.
+
 Author: Tharindu Kothalawala
 Project: Aladdin
 """
@@ -17,7 +24,12 @@ from fastapi import (
 
 from sqlalchemy.orm import Session
 
-from app.database.connection import SessionLocal
+from app.auth.dependencies import (
+    get_database,
+    get_current_user,
+)
+
+from app.auth.models import UserModel
 
 from app.database.notification_repository import (
     NotificationRepository,
@@ -73,26 +85,67 @@ router = APIRouter(
 
 
 # ==========================================
-# Database Dependency
+# Ownership Validation
 # ==========================================
 
-def get_database():
+
+def verify_execution_ownership(
+    requested_user_id: int,
+    current_user: UserModel,
+) -> int:
     """
-    Provide database session.
+    Verify that a client-supplied user ID belongs
+    to the currently authenticated user.
+
+    The client user ID is kept only for backward
+    API compatibility.
+
+    The authenticated JWT user remains the
+    authoritative identity.
+
+    Args:
+        requested_user_id:
+            User ID supplied by the API request
+            or URL path.
+
+        current_user:
+            User resolved from the authenticated
+            JWT token.
+
+    Returns:
+        int:
+            Authenticated user's database ID.
+
+    Raises:
+        HTTPException:
+            403 when the requested user does not
+            match the authenticated user.
     """
 
-    session = SessionLocal()
+    authenticated_user_id = int(
+        current_user.id
+    )
 
-    try:
-        yield session
+    if (
+        requested_user_id
+        != authenticated_user_id
+    ):
 
-    finally:
-        session.close()
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "You are not authorized to access "
+                "execution data for this user."
+            ),
+        )
+
+    return authenticated_user_id
 
 
 # ==========================================
 # Direct Trade Execution
 # ==========================================
+
 
 @router.post(
     "/execute",
@@ -100,11 +153,24 @@ def get_database():
 )
 def execute_trade(
     request: ExecutionRequestSchema,
-    database: Session = Depends(get_database),
+    database: Session = Depends(
+        get_database
+    ),
+    current_user: UserModel = Depends(
+        get_current_user
+    ),
 ):
     """
-    Execute approved trade through MT5 layer.
+    Execute an approved trade through the MT5 layer.
+
+    Execution ownership is derived from the
+    authenticated JWT user.
     """
+
+    user_id = verify_execution_ownership(
+        request.user_id,
+        current_user,
+    )
 
     repository = ExecutionRepository(
         database
@@ -130,10 +196,10 @@ def execute_trade(
         raise HTTPException(
             status_code=403,
             detail=str(error),
-        )
+        ) from error
 
     result = service.execute_trade(
-        user_id=request.user_id,
+        user_id=user_id,
         execution_request=execution_request,
     )
 
@@ -144,6 +210,7 @@ def execute_trade(
 # AI Trade Execution
 # ==========================================
 
+
 @router.post(
     "/ai-execute",
     response_model=AIExecutionResponseSchema,
@@ -151,16 +218,30 @@ def execute_trade(
 )
 def execute_ai_trade(
     request: AIExecutionRequestSchema,
-    database: Session = Depends(get_database),
+    database: Session = Depends(
+        get_database
+    ),
+    current_user: UserModel = Depends(
+        get_current_user
+    ),
 ):
     """
     Run complete AI analysis,
     risk validation, approval,
     and execution workflow.
 
-    The user_id comes from the existing
-    AIExecutionRequestSchema contract.
+    The authenticated JWT user is the authoritative
+    owner of the execution.
+
+    The request user_id is retained for backward
+    compatibility and must match the authenticated
+    user.
     """
+
+    user_id = verify_execution_ownership(
+        request.user_id,
+        current_user,
+    )
 
     # ==========================================
     # Execution Repository
@@ -213,23 +294,35 @@ def execute_ai_trade(
             event_type=request.event_type,
             importance=request.importance,
             sentiment=request.sentiment,
-            price_structure=request.price_structure,
-            liquidity_sweep=request.liquidity_sweep,
+            price_structure=(
+                request.price_structure
+            ),
+            liquidity_sweep=(
+                request.liquidity_sweep
+            ),
             order_block=request.order_block,
-            fair_value_gap=request.fair_value_gap,
+            fair_value_gap=(
+                request.fair_value_gap
+            ),
             entry_price=request.entry_price,
             stop_loss=request.stop_loss,
             take_profit=request.take_profit,
-            account_balance=request.account_balance,
+            account_balance=(
+                request.account_balance
+            ),
             risk_percent=request.risk_percent,
             trade_risk_amount=(
                 request.trade_risk_amount
             ),
             lot_size=request.lot_size,
             execute=True,
-            execution_service=execution_service,
-            notification_service=notification_service,
-            user_id=request.user_id,
+            execution_service=(
+                execution_service
+            ),
+            notification_service=(
+                notification_service
+            ),
+            user_id=user_id,
         )
     )
 
@@ -239,6 +332,7 @@ def execute_ai_trade(
 # ==========================================
 # Execution Reconciliation
 # ==========================================
+
 
 @router.post(
     "/reconcile-mt5/{user_id}",
@@ -257,19 +351,36 @@ def reconcile_mt5_executions(
         ge=1,
         le=3650,
     ),
-    database: Session = Depends(get_database),
+    database: Session = Depends(
+        get_database
+    ),
+    current_user: UserModel = Depends(
+        get_current_user
+    ),
 ):
     """
     Manually reconcile local PENDING execution
     records with read-only MT5 DEMO evidence.
 
-    This operation:
+    Security:
+    - Authentication is required.
+    - The requested user must match the
+      authenticated JWT user.
+
+    Reconciliation:
     - Requires DEMO execution mode.
     - Reads MT5 positions and trade history.
     - Uses ALADDIN E<execution_id> correlation.
     - Updates only confirmed local records.
     - Never opens, modifies, or closes broker trades.
     """
+
+    authenticated_user_id = (
+        verify_execution_ownership(
+            user_id,
+            current_user,
+        )
+    )
 
     repository = ExecutionRepository(
         database
@@ -286,7 +397,9 @@ def reconcile_mt5_executions(
         return (
             service
             .reconcile_pending_executions(
-                user_id=user_id,
+                user_id=(
+                    authenticated_user_id
+                ),
                 days=days,
             )
         )
@@ -317,6 +430,7 @@ def reconcile_mt5_executions(
 # Execution History
 # ==========================================
 
+
 @router.get(
     "/history/{user_id}",
     response_model=list[
@@ -328,11 +442,27 @@ def get_execution_history(
         ...,
         gt=0,
     ),
-    database: Session = Depends(get_database),
+    database: Session = Depends(
+        get_database
+    ),
+    current_user: UserModel = Depends(
+        get_current_user
+    ),
 ):
     """
-    Return execution history for a user.
+    Return execution history for the
+    authenticated user.
+
+    The requested user ID must match the
+    authenticated JWT user.
     """
+
+    authenticated_user_id = (
+        verify_execution_ownership(
+            user_id,
+            current_user,
+        )
+    )
 
     repository = ExecutionRepository(
         database
@@ -340,7 +470,7 @@ def get_execution_history(
 
     executions = (
         repository.get_user_executions(
-            user_id
+            authenticated_user_id
         )
     )
 
@@ -351,20 +481,39 @@ def get_execution_history(
 # Execution Statistics
 # ==========================================
 
+
 @router.get(
     "/statistics/{user_id}",
-    response_model=ExecutionStatisticsResponseSchema,
+    response_model=(
+        ExecutionStatisticsResponseSchema
+    ),
 )
 def get_execution_statistics(
     user_id: int = Path(
         ...,
         gt=0,
     ),
-    database: Session = Depends(get_database),
+    database: Session = Depends(
+        get_database
+    ),
+    current_user: UserModel = Depends(
+        get_current_user
+    ),
 ):
     """
-    Return execution statistics for a user.
+    Return execution statistics for the
+    authenticated user.
+
+    The requested user ID must match the
+    authenticated JWT user.
     """
+
+    authenticated_user_id = (
+        verify_execution_ownership(
+            user_id,
+            current_user,
+        )
+    )
 
     repository = ExecutionRepository(
         database
@@ -375,5 +524,5 @@ def get_execution_statistics(
     )
 
     return service.get_statistics(
-        user_id
+        authenticated_user_id
     )
