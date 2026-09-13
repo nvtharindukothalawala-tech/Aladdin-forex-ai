@@ -72,12 +72,25 @@ class ExecutionService:
         its execution lifecycle.
 
         A PENDING record is committed before
-        contacting the broker. The same record
-        is then finalized as EXECUTED or FAILED.
+        contacting the broker.
 
-        This provides an audit record if the
-        broker accepts an order but the final
-        database update cannot be completed.
+        The database execution ID is then
+        attached to the execution request so
+        MT5 can store the same reference in
+        the broker order comment.
+
+        Example:
+
+            Database execution ID:
+                123
+
+            MT5 comment:
+                ALADDIN E123
+
+        This allows a PENDING execution to be
+        correlated with MT5 if the broker order
+        succeeds but the final database update
+        fails.
         """
 
         execution_mode = (
@@ -105,6 +118,22 @@ class ExecutionService:
                     "Awaiting broker result."
                 ),
             )
+        )
+
+        # ==========================================
+        # Attach Correlation ID
+        # ==========================================
+        #
+        # The PENDING execution has already been
+        # committed, so execution.id is stable.
+        #
+        # This ID is passed through the execution
+        # pipeline and written into the MT5 order
+        # comment.
+        #
+
+        execution_request.execution_id = (
+            execution.id
         )
 
         # ==========================================

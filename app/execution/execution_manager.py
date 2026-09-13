@@ -29,6 +29,11 @@ class ExecutionRequest:
     stop_loss: float | None = None
     take_profit: float | None = None
 
+    # Database execution ID used to correlate
+    # the local PENDING audit record with the
+    # corresponding MT5 broker order.
+    execution_id: int | None = None
+
 
 class ExecutionManager:
     """
@@ -186,6 +191,7 @@ class ExecutionManager:
             entry_price=entry_price,
             stop_loss=stop_loss,
             take_profit=take_profit,
+            execution_id=None,
         )
 
     @staticmethod
@@ -199,9 +205,17 @@ class ExecutionManager:
             Returns a fake successful execution.
 
         DEMO mode:
-            Passes Entry, SL and TP into the
-            MT5 connector for broker validation
-            and optional demo execution.
+            Passes Entry, SL, TP and the local
+            execution ID into the MT5 connector.
+
+        The execution ID is used to create an
+        MT5 comment such as:
+
+            ALADDIN E123
+
+        This allows a PENDING database execution
+        to be correlated with broker information
+        if the final database update fails.
         """
 
         if (
@@ -232,6 +246,9 @@ class ExecutionManager:
                 ),
                 take_profit=(
                     execution_request.take_profit
+                ),
+                execution_id=(
+                    execution_request.execution_id
                 ),
             )
 

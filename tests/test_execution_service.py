@@ -64,6 +64,8 @@ def test_execute_trade_service():
         == "Mock order executed successfully."
     )
 
+    assert request.execution_id == execution.id
+
     session.close()
 
 
@@ -89,9 +91,17 @@ def test_execution_service_saves_failed_broker_execution(
         approved=True,
     )
 
+    captured_execution_id = {
+        "value": None,
+    }
+
     def fake_execute_with_mt5(
         execution_request
     ):
+        captured_execution_id[
+            "value"
+        ] = execution_request.execution_id
+
         return MT5ExecutionResult(
             success=False,
             message="Broker execution failed.",
@@ -118,6 +128,11 @@ def test_execution_service_saves_failed_broker_execution(
         == "Broker execution failed."
     )
 
+    assert (
+        captured_execution_id["value"]
+        == execution.id
+    )
+
     session.close()
 
 
@@ -142,9 +157,17 @@ def test_execution_service_saves_broker_exception_as_failed(
         approved=True,
     )
 
+    captured_execution_id = {
+        "value": None,
+    }
+
     def fake_execute_with_mt5(
         execution_request
     ):
+        captured_execution_id[
+            "value"
+        ] = execution_request.execution_id
+
         raise RuntimeError(
             "MT5 connection error."
         )
@@ -169,6 +192,11 @@ def test_execution_service_saves_broker_exception_as_failed(
         == "MT5 connection error."
     )
 
+    assert (
+        captured_execution_id["value"]
+        == execution.id
+    )
+
     session.close()
 
 
@@ -177,7 +205,9 @@ def test_execution_service_creates_pending_before_broker_call(
 ):
     """
     Verify that the execution audit record
-    exists before the broker is contacted.
+    exists before the broker is contacted
+    and that its ID is passed into the
+    execution request.
     """
 
     session = SessionLocal()
@@ -194,6 +224,10 @@ def test_execution_service_creates_pending_before_broker_call(
     )
 
     broker_checked_pending_record = {
+        "value": False,
+    }
+
+    correlation_matches_pending = {
         "value": False,
     }
 
@@ -219,6 +253,18 @@ def test_execution_service_creates_pending_before_broker_call(
             "value"
         ] = bool(pending_records)
 
+        if pending_records:
+            latest_pending = (
+                pending_records[-1]
+            )
+
+            correlation_matches_pending[
+                "value"
+            ] = (
+                execution_request.execution_id
+                == latest_pending.id
+            )
+
         return MT5ExecutionResult(
             success=True,
             message=(
@@ -243,12 +289,19 @@ def test_execution_service_creates_pending_before_broker_call(
         is True
     )
 
+    assert (
+        correlation_matches_pending["value"]
+        is True
+    )
+
     assert execution.status == "EXECUTED"
 
     assert (
         execution.broker_order_id
         == "MOCK_ORDER_PENDING_TEST"
     )
+
+    assert request.execution_id == execution.id
 
     session.close()
 
@@ -322,3 +375,5 @@ def test_execution_service_does_not_contact_broker_when_pending_save_fails(
         )
 
     assert broker_called["value"] is False
+
+    assert request.execution_id is None

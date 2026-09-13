@@ -35,6 +35,14 @@ class MT5OrderRequest:
     stop_loss: float | None = None
     take_profit: float | None = None
 
+    # Local execution database ID.
+    #
+    # When available, this value is written
+    # into the MT5 order comment so a broker
+    # order can be correlated with its local
+    # PENDING audit record.
+    execution_id: int | None = None
+
 
 @dataclass
 class MT5ExecutionResult:
@@ -75,7 +83,6 @@ class MT5Connector:
         self,
         mode: str | None = None,
     ):
-
         configured_mode = (
             mode
             or os.getenv(
@@ -96,7 +103,6 @@ class MT5Connector:
             )
 
         self.connected = False
-
         self.account_info = None
 
     # ======================================================
@@ -140,9 +146,7 @@ class MT5Connector:
         """
 
         if self.mode == "MOCK":
-
             self.connected = True
-
             return True
 
         self._require_mt5()
@@ -150,7 +154,6 @@ class MT5Connector:
         initialized = mt5.initialize()
 
         if not initialized:
-
             error = mt5.last_error()
 
             raise ConnectionError(
@@ -161,7 +164,6 @@ class MT5Connector:
         account = mt5.account_info()
 
         if account is None:
-
             mt5.shutdown()
 
             raise ConnectionError(
@@ -177,7 +179,6 @@ class MT5Connector:
             account.trade_mode
             != mt5.ACCOUNT_TRADE_MODE_DEMO
         ):
-
             mt5.shutdown()
 
             raise PermissionError(
@@ -187,7 +188,6 @@ class MT5Connector:
             )
 
         if not account.trade_allowed:
-
             mt5.shutdown()
 
             raise PermissionError(
@@ -196,7 +196,6 @@ class MT5Connector:
             )
 
         if not account.trade_expert:
-
             mt5.shutdown()
 
             raise PermissionError(
@@ -208,7 +207,6 @@ class MT5Connector:
         terminal = mt5.terminal_info()
 
         if terminal is None:
-
             mt5.shutdown()
 
             raise ConnectionError(
@@ -217,7 +215,6 @@ class MT5Connector:
             )
 
         if not terminal.connected:
-
             mt5.shutdown()
 
             raise ConnectionError(
@@ -226,7 +223,6 @@ class MT5Connector:
             )
 
         self.account_info = account
-
         self.connected = True
 
         return True
@@ -244,11 +240,9 @@ class MT5Connector:
             self.mode == "DEMO"
             and mt5 is not None
         ):
-
             mt5.shutdown()
 
         self.connected = False
-
         self.account_info = None
 
     # ======================================================
@@ -346,7 +340,6 @@ class MT5Connector:
             or stop_loss <= 0
             or take_profit <= 0
         ):
-
             raise ValueError(
                 "Entry price, stop loss and "
                 "take profit must be greater "
@@ -360,7 +353,6 @@ class MT5Connector:
                 < reference_price
                 < take_profit
             ):
-
                 raise ValueError(
                     "Invalid BUY price structure. "
                     "Required: "
@@ -374,7 +366,6 @@ class MT5Connector:
                 < reference_price
                 < stop_loss
             ):
-
                 raise ValueError(
                     "Invalid SELL price structure. "
                     "Required: "
@@ -408,14 +399,69 @@ class MT5Connector:
         )
 
         if filling_flags & 1:
-
             return mt5.ORDER_FILLING_FOK
 
         if filling_flags & 2:
-
             return mt5.ORDER_FILLING_IOC
 
         return mt5.ORDER_FILLING_RETURN
+
+    # ======================================================
+    # EXECUTION CORRELATION
+    # ======================================================
+
+    @staticmethod
+    def _validate_execution_id(
+        execution_id,
+    ):
+        """
+        Validate the optional local execution ID.
+
+        The execution ID comes from the committed
+        PENDING execution database row.
+
+        Direct MT5 connector usage may omit it,
+        but when supplied it must be a positive
+        integer.
+        """
+
+        if execution_id is None:
+            return
+
+        if (
+            isinstance(execution_id, bool)
+            or not isinstance(
+                execution_id,
+                int,
+            )
+            or execution_id <= 0
+        ):
+            raise ValueError(
+                "Execution ID must be a "
+                "positive integer."
+            )
+
+    @staticmethod
+    def _build_execution_comment(
+        execution_id,
+    ) -> str:
+        """
+        Build the MT5 broker comment.
+
+        Correlated execution example:
+
+            ALADDIN E123
+
+        When there is no execution ID, preserve
+        the legacy development comment.
+        """
+
+        if execution_id is None:
+            return "ALADDIN DEMO"
+
+        return (
+            f"ALADDIN E{execution_id}"
+        )
 
     # ======================================================
     # PREPARE ORDER
@@ -429,6 +475,7 @@ class MT5Connector:
         entry_price=None,
         stop_loss=None,
         take_profit=None,
+        execution_id=None,
     ):
         """
         Prepare an order request.
@@ -439,10 +486,13 @@ class MT5Connector:
         DEMO:
             Validates the real broker symbol,
             lot size, market price, SL and TP.
+
+        execution_id:
+            Optional local execution database ID
+            used for broker correlation.
         """
 
         if not self.connected:
-
             raise ConnectionError(
                 "MT5 is not connected."
             )
@@ -455,7 +505,6 @@ class MT5Connector:
             not symbol
             or not symbol.strip()
         ):
-
             raise ValueError(
                 "Order symbol cannot be empty."
             )
@@ -470,18 +519,20 @@ class MT5Connector:
             "BUY",
             "SELL",
         }:
-
             raise ValueError(
                 "Order type must be "
                 "BUY or SELL."
             )
 
         if volume <= 0:
-
             raise ValueError(
                 "Order volume must be "
                 "greater than zero."
             )
+
+        self._validate_execution_id(
+            execution_id
+        )
 
         original_symbol = (
             symbol.strip().upper()
@@ -501,7 +552,6 @@ class MT5Connector:
             any(supplied_prices)
             and not all(supplied_prices)
         ):
-
             raise ValueError(
                 "Entry price, stop loss and "
                 "take profit must be supplied "
@@ -515,7 +565,6 @@ class MT5Connector:
         if self.mode == "MOCK":
 
             if all(supplied_prices):
-
                 self._validate_price_structure(
                     order_type=order_type,
                     reference_price=entry_price,
@@ -532,6 +581,7 @@ class MT5Connector:
                 entry_price=entry_price,
                 stop_loss=stop_loss,
                 take_profit=take_profit,
+                execution_id=execution_id,
             )
 
         # ==========================================
@@ -545,7 +595,6 @@ class MT5Connector:
         # ==========================================
 
         if not all(supplied_prices):
-
             raise ValueError(
                 "DEMO execution requires "
                 "entry price, stop loss and "
@@ -569,7 +618,6 @@ class MT5Connector:
         )
 
         if symbol_info is None:
-
             raise ValueError(
                 f"MT5 symbol not found: "
                 f"{mt5_symbol}"
@@ -589,7 +637,6 @@ class MT5Connector:
             )
 
             if not selected:
-
                 raise ValueError(
                     "Unable to enable symbol: "
                     f"{mt5_symbol}"
@@ -602,7 +649,6 @@ class MT5Connector:
             )
 
             if symbol_info is None:
-
                 raise ValueError(
                     "Unable to reload symbol "
                     f"information for {mt5_symbol}."
@@ -616,7 +662,6 @@ class MT5Connector:
             symbol_info.trade_mode
             == mt5.SYMBOL_TRADE_MODE_DISABLED
         ):
-
             raise ValueError(
                 f"Trading is disabled "
                 f"for {mt5_symbol}."
@@ -638,7 +683,6 @@ class MT5Connector:
                 symbol_info.volume_step
             ),
         ):
-
             raise ValueError(
                 "Invalid volume for "
                 f"{mt5_symbol}. "
@@ -661,7 +705,6 @@ class MT5Connector:
         )
 
         if tick is None:
-
             raise ValueError(
                 "No market tick available "
                 f"for {mt5_symbol}."
@@ -671,7 +714,6 @@ class MT5Connector:
             tick.bid <= 0
             or tick.ask <= 0
         ):
-
             raise ValueError(
                 "Invalid market price "
                 f"for {mt5_symbol}."
@@ -702,11 +744,8 @@ class MT5Connector:
         # ==========================================
 
         if order_type == "BUY":
-
             current_price = tick.ask
-
         else:
-
             current_price = tick.bid
 
         self._validate_price_structure(
@@ -723,7 +762,6 @@ class MT5Connector:
         point = symbol_info.point
 
         if point <= 0:
-
             raise ValueError(
                 f"Invalid broker point size "
                 f"for {mt5_symbol}."
@@ -741,7 +779,6 @@ class MT5Connector:
         )
 
         if spread_points < 0:
-
             raise ValueError(
                 f"Invalid negative spread "
                 f"for {mt5_symbol}."
@@ -751,7 +788,6 @@ class MT5Connector:
             spread_points
             > max_spread_points
         ):
-
             raise ValueError(
                 f"Spread too high for "
                 f"{mt5_symbol}. "
@@ -774,6 +810,7 @@ class MT5Connector:
             entry_price=entry_price,
             stop_loss=stop_loss,
             take_profit=take_profit,
+            execution_id=execution_id,
         )
 
     # ======================================================
@@ -796,7 +833,6 @@ class MT5Connector:
         account = mt5.account_info()
 
         if account is None:
-
             raise ConnectionError(
                 "MT5 account information "
                 "is unavailable."
@@ -806,21 +842,18 @@ class MT5Connector:
             account.trade_mode
             != mt5.ACCOUNT_TRADE_MODE_DEMO
         ):
-
             raise PermissionError(
                 "Order blocked because the "
                 "connected account is not DEMO."
             )
 
         if not account.trade_allowed:
-
             raise PermissionError(
                 "Trading is not allowed "
                 "on the connected account."
             )
 
         if not account.trade_expert:
-
             raise PermissionError(
                 "Expert/API trading is not "
                 "allowed on the connected account."
@@ -839,6 +872,14 @@ class MT5Connector:
         """
         Convert the Aladdin order into an
         MT5 market-order request.
+
+        When an execution ID exists, the
+        broker comment contains the same
+        local audit identifier.
+
+        Example:
+
+            ALADDIN E123
         """
 
         self._require_mt5()
@@ -848,7 +889,6 @@ class MT5Connector:
         )
 
         if not mt5_symbol:
-
             raise ValueError(
                 "Prepared MT5 symbol is missing."
             )
@@ -860,7 +900,6 @@ class MT5Connector:
         )
 
         if symbol_info is None:
-
             raise ValueError(
                 f"MT5 symbol not found: "
                 f"{mt5_symbol}"
@@ -873,7 +912,6 @@ class MT5Connector:
         )
 
         if tick is None:
-
             raise ValueError(
                 "No market tick available "
                 f"for {mt5_symbol}."
@@ -900,7 +938,6 @@ class MT5Connector:
             )
 
         if market_price <= 0:
-
             raise ValueError(
                 f"Invalid execution price "
                 f"for {mt5_symbol}."
@@ -968,6 +1005,16 @@ class MT5Connector:
         )
 
         # ==========================================
+        # Correlation Comment
+        # ==========================================
+
+        execution_comment = (
+            self._build_execution_comment(
+                order_request.execution_id
+            )
+        )
+
+        # ==========================================
         # Real MT5 Request
         # ==========================================
 
@@ -985,7 +1032,7 @@ class MT5Connector:
             "tp": take_profit,
             "deviation": deviation,
             "magic": 20260911,
-            "comment": "ALADDIN DEMO",
+            "comment": execution_comment,
             "type_time": (
                 mt5.ORDER_TIME_GTC
             ),
@@ -1017,7 +1064,6 @@ class MT5Connector:
         """
 
         if not self.connected:
-
             raise ConnectionError(
                 "MT5 is not connected."
             )
@@ -1026,7 +1072,6 @@ class MT5Connector:
             order_request.status
             != "READY"
         ):
-
             raise ValueError(
                 "MT5 order is not ready "
                 "for execution."
