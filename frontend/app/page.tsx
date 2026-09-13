@@ -35,7 +35,6 @@ import {
   getJournalTrades,
   syncMT5Journal,
   getNotifications,
-  getTradeStatistics,
   getTrades,
   getUnreadNotificationCount,
   markAllNotificationsAsRead,
@@ -53,7 +52,6 @@ import {
   type Notification,
   type Trade,
   type TradeCreateData,
-  type TradeStatistics,
 } from "../lib/api";
 
 import {
@@ -61,22 +59,6 @@ import {
   useState,
   type ReactNode,
 } from "react";
-
-
-/* =========================================================
-   DEFAULT STATISTICS
-   ========================================================= */
-
-const defaultStatistics: TradeStatistics = {
-  total_trades: 0,
-  open_trades: 0,
-  winning_trades: 0,
-  losing_trades: 0,
-  win_rate: 0,
-  total_profit: 0,
-  average_profit: 0,
-  profit_factor: 0,
-};
 
 
 /* =========================================================
@@ -475,11 +457,6 @@ export default function DashboardPage() {
   /* =======================================================
      DASHBOARD STATE
      ======================================================= */
-
-  const [statistics, setStatistics] =
-    useState<TradeStatistics>(
-      defaultStatistics,
-    );
 
   const [trades, setTrades] =
     useState<Trade[]>([]);
@@ -976,12 +953,10 @@ export default function DashboardPage() {
       }
 
       const [
-        statisticsData,
         tradesData,
         unreadCount,
         brokerResult,
       ] = await Promise.all([
-        getTradeStatistics(),
         getTrades(),
         getUnreadNotificationCount(),
         getBrokerStatus()
@@ -997,10 +972,6 @@ export default function DashboardPage() {
                 : "Unable to load MT5 broker status.",
           })),
       ]);
-
-      setStatistics(
-        statisticsData,
-      );
 
       setTrades(
         tradesData,
@@ -2514,14 +2485,16 @@ export default function DashboardPage() {
             <StatCard
               title="Total Trades"
               value={
-                loading
+                performanceLoading
                   ? "..."
-                  : statistics.total_trades
+                  : performanceReport?.total_trades ?? 0
               }
               subtitle={
-                loading
+                performanceLoading
                   ? "Loading..."
-                  : `${statistics.winning_trades} winning`
+                  : `${
+                      performanceReport?.winning_trades ?? 0
+                    } winning`
               }
               icon={
                 <BarChart3
@@ -2534,17 +2507,19 @@ export default function DashboardPage() {
             <StatCard
               title="Win Rate"
               value={
-                loading
+                performanceLoading
                   ? "..."
                   : `${formatNumber(
-                      statistics.win_rate,
+                      performanceReport?.win_rate ?? 0,
                       1,
                     )}%`
               }
               subtitle={
-                loading
+                performanceLoading
                   ? "Loading..."
-                  : `${statistics.losing_trades} losing`
+                  : `${
+                      performanceReport?.losing_trades ?? 0
+                    } losing`
               }
               icon={
                 <TrendingUp
@@ -2557,11 +2532,11 @@ export default function DashboardPage() {
             <StatCard
               title="Open Trades"
               value={
-                loading
-                  ? "..."
-                  : statistics.open_trades
+                brokerStatus
+                  ? brokerStatus.position_count
+                  : 0
               }
-              subtitle="Currently active"
+              subtitle="Current MT5 positions"
               icon={
                 <Activity
                   size={21}
@@ -2573,19 +2548,13 @@ export default function DashboardPage() {
             <StatCard
               title="Total Profit"
               value={
-                loading
+                performanceLoading
                   ? "..."
                   : formatMoney(
-                      statistics.total_profit,
+                      performanceReport?.total_profit ?? 0,
                     )
               }
-              subtitle={
-                loading
-                  ? "Loading..."
-                  : `Avg ${formatMoney(
-                      statistics.average_profit,
-                    )}`
-              }
+              subtitle="Net completed trade P/L"
               icon={
                 <CircleDollarSign
                   size={21}
