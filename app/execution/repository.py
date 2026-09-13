@@ -19,7 +19,6 @@ class ExecutionRepository:
         self,
         session,
     ):
-
         self.session = session
 
     def save_execution(
@@ -33,7 +32,7 @@ class ExecutionRepository:
         execution_message: str | None = None,
     ):
         """
-        Save execution result.
+        Create and persist a new execution record.
         """
 
         execution = ExecutionModel(
@@ -46,13 +45,45 @@ class ExecutionRepository:
             execution_message=execution_message,
         )
 
-        self.session.add(execution)
+        try:
+            self.session.add(execution)
+            self.session.commit()
+            self.session.refresh(execution)
 
-        self.session.commit()
+            return execution
 
-        self.session.refresh(execution)
+        except Exception:
+            self.session.rollback()
+            raise
 
-        return execution
+    def update_execution(
+        self,
+        execution,
+        status: str,
+        broker_order_id: str | None = None,
+        execution_message: str | None = None,
+    ):
+        """
+        Update an existing execution record.
+
+        The execution is created before the broker
+        call as PENDING and finalized after the
+        broker result is known.
+        """
+
+        execution.status = status
+        execution.broker_order_id = broker_order_id
+        execution.execution_message = execution_message
+
+        try:
+            self.session.commit()
+            self.session.refresh(execution)
+
+            return execution
+
+        except Exception:
+            self.session.rollback()
+            raise
 
     def get_user_executions(
         self,

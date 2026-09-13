@@ -68,14 +68,16 @@ class ExecutionService:
         execution_request,
     ):
         """
-        Execute approved trade and store
-        execution history.
+        Execute an approved trade and store
+        its execution lifecycle.
 
-        The execution response also includes
-        information about the current execution
-        environment so the frontend can clearly
-        distinguish MOCK execution from real
-        MT5 DEMO execution.
+        A PENDING record is committed before
+        contacting the broker. The same record
+        is then finalized as EXECUTED or FAILED.
+
+        This provides an audit record if the
+        broker accepts an order but the final
+        database update cannot be completed.
         """
 
         execution_mode = (
@@ -86,8 +88,30 @@ class ExecutionService:
             self._is_demo_execution_enabled()
         )
 
-        try:
+        # ==========================================
+        # Create Audit Record Before Broker Call
+        # ==========================================
 
+        execution = (
+            self.repository.save_execution(
+                user_id=user_id,
+                symbol=execution_request.symbol,
+                direction=execution_request.order_type,
+                volume=execution_request.volume,
+                status="PENDING",
+                broker_order_id=None,
+                execution_message=(
+                    "Execution started. "
+                    "Awaiting broker result."
+                ),
+            )
+        )
+
+        # ==========================================
+        # Broker Execution
+        # ==========================================
+
+        try:
             result = (
                 ExecutionManager.execute_with_mt5(
                     execution_request
@@ -111,19 +135,17 @@ class ExecutionService:
             )
 
         except Exception as error:
-
             status = "FAILED"
-
             order_id = None
-
             execution_message = str(error)
 
+        # ==========================================
+        # Finalize Existing Audit Record
+        # ==========================================
+
         execution = (
-            self.repository.save_execution(
-                user_id=user_id,
-                symbol=execution_request.symbol,
-                direction=execution_request.order_type,
-                volume=execution_request.volume,
+            self.repository.update_execution(
+                execution=execution,
                 status=status,
                 broker_order_id=order_id,
                 execution_message=execution_message,
