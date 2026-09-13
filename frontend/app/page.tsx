@@ -2962,131 +2962,133 @@ export default function DashboardPage() {
                       </p>
                     </div>
                   ) : (
-                    <div className="overflow-x-auto border-t border-white/5">
-                      <table className="min-w-[900px] w-full text-left">
-                        <thead className="bg-black/20">
-                          <tr className="text-[9px] uppercase tracking-wider text-gray-600">
-                            <th className="px-5 py-3 font-medium">
-                              Symbol
-                            </th>
-                            <th className="px-4 py-3 font-medium">
-                              Direction
-                            </th>
-                            <th className="px-4 py-3 font-medium">
-                              Volume
-                            </th>
-                            <th className="px-4 py-3 font-medium">
-                              Entry
-                            </th>
-                            <th className="px-4 py-3 font-medium">
-                              Current
-                            </th>
-                            <th className="px-4 py-3 font-medium">
-                              Stop Loss
-                            </th>
-                            <th className="px-4 py-3 font-medium">
-                              Take Profit
-                            </th>
-                            <th className="px-4 py-3 font-medium">
-                              P/L
-                            </th>
-                          </tr>
-                        </thead>
+                    <div className="border-t border-white/5 p-4">
+                      <div className="grid gap-3">
+                        {brokerStatus.positions.map(
+                          (position) => {
+                            const isBuy =
+                              position.direction.toUpperCase() ===
+                              "BUY";
 
-                        <tbody>
-                          {brokerStatus.positions.map(
-                            (position) => {
-                              const isBuy =
-                                position.direction.toUpperCase() ===
-                                "BUY";
-
-                              return (
-                                <tr
-                                  key={position.ticket}
-                                  className="border-t border-white/5 text-xs text-gray-300"
-                                >
-                                  <td className="px-5 py-4">
-                                    <div>
-                                      <p className="font-semibold text-white">
+                            return (
+                              <div
+                                key={position.ticket}
+                                className="rounded-xl border border-white/10 bg-black/20 p-4"
+                              >
+                                <div className="flex flex-wrap items-center justify-between gap-3">
+                                  <div>
+                                    <div className="flex items-center gap-2">
+                                      <p className="text-sm font-semibold text-white">
                                         {position.symbol}
                                       </p>
 
-                                      <p className="mt-1 text-[9px] text-gray-700">
-                                        #{position.ticket}
-                                      </p>
+                                      <span
+                                        className={`rounded-md px-2 py-1 text-[9px] font-semibold ${
+                                          isBuy
+                                            ? "bg-emerald-400/10 text-emerald-400"
+                                            : "bg-red-400/10 text-red-400"
+                                        }`}
+                                      >
+                                        {position.direction}
+                                      </span>
                                     </div>
-                                  </td>
 
-                                  <td className="px-4 py-4">
-                                    <span
-                                      className={`rounded-md px-2 py-1 text-[9px] font-semibold ${
-                                        isBuy
-                                          ? "bg-emerald-400/10 text-emerald-400"
-                                          : "bg-red-400/10 text-red-400"
+                                    <p className="mt-1 text-[9px] text-gray-700">
+                                      Ticket #{position.ticket}
+                                    </p>
+                                  </div>
+
+                                  <div className="text-right">
+                                    <p className="text-[9px] uppercase tracking-wider text-gray-600">
+                                      Floating P/L
+                                    </p>
+
+                                    <p
+                                      className={`mt-1 text-sm font-semibold ${
+                                        position.profit > 0
+                                          ? "text-emerald-400"
+                                          : position.profit < 0
+                                            ? "text-red-400"
+                                            : "text-gray-400"
                                       }`}
                                     >
-                                      {position.direction}
-                                    </span>
-                                  </td>
+                                      {formatMoney(position.profit)}
+                                    </p>
+                                  </div>
+                                </div>
 
-                                  <td className="px-4 py-4">
-                                    {formatNumber(
-                                      position.volume,
-                                      2,
-                                    )}
-                                  </td>
+                                <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+                                  <div className="rounded-lg border border-white/5 bg-white/[0.02] p-3">
+                                    <p className="text-[9px] uppercase tracking-wider text-gray-600">
+                                      Volume
+                                    </p>
+                                    <p className="mt-1 text-xs font-medium text-gray-200">
+                                      {formatNumber(position.volume, 2)}
+                                    </p>
+                                  </div>
 
-                                  <td className="px-4 py-4">
-                                    {formatNumber(
-                                      position.open_price,
-                                      5,
-                                    )}
-                                  </td>
+                                  <div className="rounded-lg border border-white/5 bg-white/[0.02] p-3">
+                                    <p className="text-[9px] uppercase tracking-wider text-gray-600">
+                                      Entry
+                                    </p>
+                                    <p className="mt-1 text-xs font-medium text-gray-200">
+                                      {formatNumber(position.open_price, 5)}
+                                    </p>
+                                  </div>
 
-                                  <td className="px-4 py-4">
-                                    {formatNumber(
-                                      position.current_price,
-                                      5,
-                                    )}
-                                  </td>
+                                  <div className="rounded-lg border border-white/5 bg-white/[0.02] p-3">
+                                    <p className="text-[9px] uppercase tracking-wider text-gray-600">
+                                      Current
+                                    </p>
+                                    <p className="mt-1 text-xs font-medium text-gray-200">
+                                      {formatNumber(position.current_price, 5)}
+                                    </p>
+                                  </div>
 
-                                  <td className="px-4 py-4">
-                                    {position.stop_loss > 0
-                                      ? formatNumber(
-                                          position.stop_loss,
-                                          5,
-                                        )
-                                      : "-"}
-                                  </td>
+                                  <div className="rounded-lg border border-white/5 bg-white/[0.02] p-3">
+                                    <p className="text-[9px] uppercase tracking-wider text-gray-600">
+                                      Stop Loss
+                                    </p>
+                                    <p className="mt-1 text-xs font-medium text-gray-200">
+                                      {position.stop_loss > 0
+                                        ? formatNumber(position.stop_loss, 5)
+                                        : "-"}
+                                    </p>
+                                  </div>
 
-                                  <td className="px-4 py-4">
-                                    {position.take_profit > 0
-                                      ? formatNumber(
-                                          position.take_profit,
-                                          5,
-                                        )
-                                      : "-"}
-                                  </td>
+                                  <div className="rounded-lg border border-white/5 bg-white/[0.02] p-3">
+                                    <p className="text-[9px] uppercase tracking-wider text-gray-600">
+                                      Take Profit
+                                    </p>
+                                    <p className="mt-1 text-xs font-medium text-gray-200">
+                                      {position.take_profit > 0
+                                        ? formatNumber(position.take_profit, 5)
+                                        : "-"}
+                                    </p>
+                                  </div>
 
-                                  <td
-                                    className={`px-4 py-4 font-semibold ${
-                                      position.profit > 0
-                                        ? "text-emerald-400"
-                                        : position.profit < 0
-                                          ? "text-red-400"
-                                          : "text-gray-400"
-                                    }`}
-                                  >
-                                    {formatMoney(
-                                      position.profit,
-                                    )}
-                                  </td>
-                                </tr>
-                              );
-                            },
-                          )}
-                        </tbody>
-                      </table>
+                                  <div className="rounded-lg border border-white/5 bg-white/[0.02] p-3">
+                                    <p className="text-[9px] uppercase tracking-wider text-gray-600">
+                                      P/L
+                                    </p>
+                                    <p
+                                      className={`mt-1 text-xs font-semibold ${
+                                        position.profit > 0
+                                          ? "text-emerald-400"
+                                          : position.profit < 0
+                                            ? "text-red-400"
+                                            : "text-gray-400"
+                                      }`}
+                                    >
+                                      {formatMoney(position.profit)}
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          },
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
