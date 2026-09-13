@@ -25,6 +25,7 @@ Project: Aladdin
 import math
 import re
 
+from app.core.logger import get_logger
 from app.services.broker_service import BrokerService
 
 
@@ -33,6 +34,16 @@ class ExecutionReconciliationService:
     Reconcile local PENDING execution records
     with read-only MT5 broker evidence.
     """
+
+    # ==================================================
+    # LOGGER
+    # ==================================================
+
+    logger = get_logger(__name__)
+
+    # ==================================================
+    # CORRELATION PATTERN
+    # ==================================================
 
     EXECUTION_COMMENT_PATTERN = re.compile(
         r"^ALADDIN E([1-9]\d*)$"
@@ -525,6 +536,13 @@ class ExecutionReconciliationService:
 
         if execution_mode != "DEMO":
 
+            self.logger.warning(
+                "Execution reconciliation rejected: "
+                "user_id=%s mode=%s",
+                user_id,
+                execution_mode,
+            )
+
             raise PermissionError(
                 "MT5 execution reconciliation "
                 "requires DEMO mode."
@@ -541,7 +559,23 @@ class ExecutionReconciliationService:
             )
         )
 
+        self.logger.info(
+            "Execution reconciliation started: "
+            "user_id=%s history_days=%s "
+            "pending_count=%s",
+            user_id,
+            history_days,
+            len(pending_executions),
+        )
+
         if not pending_executions:
+
+            self.logger.info(
+                "Execution reconciliation finished: "
+                "user_id=%s scanned=0 reconciled=0 "
+                "unmatched=0 conflicts=0",
+                user_id,
+            )
 
             return {
                 "execution_mode": (
@@ -590,6 +624,13 @@ class ExecutionReconciliationService:
             != "DEMO"
         ):
 
+            self.logger.error(
+                "Execution reconciliation stopped: "
+                "open-position evidence was not "
+                "from DEMO mode. user_id=%s",
+                user_id,
+            )
+
             raise RuntimeError(
                 "Open-position broker evidence "
                 "did not come from DEMO mode."
@@ -601,6 +642,13 @@ class ExecutionReconciliationService:
             )
             != "DEMO"
         ):
+
+            self.logger.error(
+                "Execution reconciliation stopped: "
+                "trade-history evidence was not "
+                "from DEMO mode. user_id=%s",
+                user_id,
+            )
 
             raise RuntimeError(
                 "Trade-history broker evidence "
@@ -632,6 +680,15 @@ class ExecutionReconciliationService:
         all_evidence = (
             open_evidence
             + closed_evidence
+        )
+
+        self.logger.info(
+            "Broker reconciliation evidence loaded: "
+            "user_id=%s open_evidence=%s "
+            "closed_evidence=%s",
+            user_id,
+            len(open_evidence),
+            len(closed_evidence),
         )
 
         # ------------------------------------------------
@@ -701,6 +758,18 @@ class ExecutionReconciliationService:
                     }
                 )
 
+                self.logger.warning(
+                    "Execution reconciliation unmatched: "
+                    "execution_id=%s symbol=%s "
+                    "direction=%s volume=%s",
+                    execution_id,
+                    execution.symbol,
+                    execution.direction,
+                    float(
+                        execution.volume
+                    ),
+                )
+
                 continue
 
             # ============================================
@@ -732,6 +801,18 @@ class ExecutionReconciliationService:
                             len(matches)
                         ),
                     }
+                )
+
+                self.logger.warning(
+                    "Execution reconciliation conflict: "
+                    "execution_id=%s reason=%s "
+                    "evidence_count=%s",
+                    execution_id,
+                    (
+                        "multiple broker records use "
+                        "the same correlation ID"
+                    ),
+                    len(matches),
                 )
 
                 continue
@@ -780,6 +861,17 @@ class ExecutionReconciliationService:
                     }
                 )
 
+                self.logger.warning(
+                    "Execution reconciliation conflict: "
+                    "execution_id=%s source=%s "
+                    "errors=%s",
+                    execution_id,
+                    evidence.get(
+                        "source"
+                    ),
+                    consistency_errors,
+                )
+
                 continue
 
             # ============================================
@@ -819,6 +911,16 @@ class ExecutionReconciliationService:
                             "identifier was available."
                         ),
                     }
+                )
+
+                self.logger.warning(
+                    "Execution reconciliation conflict: "
+                    "execution_id=%s source=%s "
+                    "reason=no broker identifier",
+                    execution_id,
+                    evidence.get(
+                        "source"
+                    ),
                 )
 
                 continue
@@ -870,9 +972,39 @@ class ExecutionReconciliationService:
                 }
             )
 
+            self.logger.info(
+                "Execution reconciled successfully: "
+                "execution_id=%s broker_order_id=%s "
+                "source=%s",
+                execution_id,
+                updated_execution.broker_order_id,
+                evidence.get(
+                    "source"
+                ),
+            )
+
         # ------------------------------------------------
         # Result summary
         # ------------------------------------------------
+
+        self.logger.info(
+            "Execution reconciliation finished: "
+            "user_id=%s scanned=%s reconciled=%s "
+            "unmatched=%s conflicts=%s",
+            user_id,
+            len(
+                pending_executions
+            ),
+            len(
+                reconciled
+            ),
+            len(
+                unmatched
+            ),
+            len(
+                conflicts
+            ),
+        )
 
         return {
             "execution_mode": (
