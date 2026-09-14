@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import MarketChart from "@/components/terminal/MarketChart";
+import MarketWatch from "@/components/terminal/MarketWatch";
 import {
   Activity,
   AlertTriangle,
@@ -597,6 +598,15 @@ export default function DashboardPage() {
   setTradeActionError("");
   setTradeActionMessage("");
 }
+
+  function handleMarketWatchSymbolSelect(symbol: string) {
+    updateTradeForm(
+      getDefaultTradeForm(
+        symbol,
+        tradeForm.direction as "Buy" | "Sell",
+      ),
+    );
+  }
 
   /* =======================================================
      AI TRADE ANALYSIS
@@ -2772,10 +2782,19 @@ export default function DashboardPage() {
             id="market-section"
             className="mt-8 scroll-mt-24"
           >
-            <MarketChart
-              symbol={tradeForm.symbol}
-              timeframe="H1"
-            />
+            <div className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
+              <MarketWatch
+                selectedSymbol={tradeForm.symbol}
+                onSelectSymbol={handleMarketWatchSymbolSelect}
+                className="xl:self-start"
+              />
+
+              <MarketChart
+                symbol={tradeForm.symbol}
+                timeframe="H1"
+                className="min-w-0"
+              />
+            </div>
           </section>
 
           {/* =================================================

@@ -4,7 +4,7 @@ mt5_provider.py
 Provides real Forex market data from MetaTrader 5
 for the Aladdin Forex Trading Assistant.
 
-Author: Tharindu Kothalwala
+Author: Tharindu Kothalawala
 Project: Aladdin
 """
 
@@ -15,15 +15,19 @@ try:
 except ImportError:
     mt5 = None
 
+from app.config.instrument_config import (
+    normalize_symbol,
+)
 from app.market.candle import Candle
 from app.market.mt5_symbol_resolver import (
     MT5SymbolResolver,
 )
+from app.mt5.mt5_session import MT5_SESSION_LOCK
 
 
 class MT5DataProvider:
     """
-    Get Forex market candle data from MetaTrader 5.
+    Get read-only Forex market data from MetaTrader 5.
 
     MetaTrader5 is an optional dependency so that
     Aladdin can still be imported and tested on
@@ -31,6 +35,11 @@ class MT5DataProvider:
 
     Real MT5 market data requires Windows with the
     MetaTrader5 Python package installed.
+
+    Real MT5 access is protected by the shared
+    process-level MT5 session lock so concurrent
+    FastAPI requests cannot shut down the MT5 Python
+    session while another request is using it.
     """
 
     def __init__(self):
@@ -39,6 +48,7 @@ class MT5DataProvider:
         """
 
         self.connected = False
+        self._session_lock_acquired = False
 
     # ======================================================
     # MT5 AVAILABILITY
@@ -66,6 +76,11 @@ class MT5DataProvider:
     def connect(self):
         """
         Connect Python to the MetaTrader 5 terminal.
+
+        A shared process-level lock is held for the
+        lifetime of this provider session. This prevents
+        another request from calling mt5.shutdown() while
+        this provider is reading quotes or candles.
         """
 
         if self.connected:
@@ -73,29 +88,53 @@ class MT5DataProvider:
 
         self._require_mt5()
 
-        if not mt5.initialize():
-            error = mt5.last_error()
+        MT5_SESSION_LOCK.acquire()
+        self._session_lock_acquired = True
 
-            raise RuntimeError(
-                f"Unable to connect to MetaTrader 5: {error}"
-            )
+        try:
+            if not mt5.initialize():
+                error = mt5.last_error()
 
-        self.connected = True
+                raise RuntimeError(
+                    f"Unable to connect to MetaTrader 5: {error}"
+                )
 
-        return True
+            self.connected = True
+
+            return True
+
+        except Exception:
+            try:
+                mt5.shutdown()
+            finally:
+                self.connected = False
+
+                if self._session_lock_acquired:
+                    self._session_lock_acquired = False
+                    MT5_SESSION_LOCK.release()
+
+            raise
 
     def disconnect(self):
         """
-        Disconnect from MetaTrader 5.
+        Disconnect from MetaTrader 5 and release the
+        shared process-level MT5 session lock.
         """
 
-        if (
-            self.connected
-            and mt5 is not None
-        ):
-            mt5.shutdown()
+        try:
+            if (
+                self.connected
+                and mt5 is not None
+                and self._session_lock_acquired
+            ):
+                mt5.shutdown()
 
-        self.connected = False
+        finally:
+            self.connected = False
+
+            if self._session_lock_acquired:
+                self._session_lock_acquired = False
+                MT5_SESSION_LOCK.release()
 
     # ======================================================
     # SYMBOL RESOLUTION
@@ -124,7 +163,183 @@ class MT5DataProvider:
         )
 
     # ======================================================
-    # MARKET DATA
+    # SYMBOL SELECTION
+    # ======================================================
+
+    def _select_symbol(
+        self,
+        symbol: str,
+    ) -> str:
+        """
+        Resolve and select an MT5 broker symbol.
+
+        This is a read-only market-data helper.
+        It does not create, modify, or close trades.
+        """
+
+        self.connect()
+
+        resolved_symbol = self.resolve_symbol(
+            symbol
+        )
+
+        if not mt5.symbol_select(
+            resolved_symbol,
+            True,
+        ):
+            error = mt5.last_error()
+
+            raise RuntimeError(
+                f"Unable to select MT5 symbol "
+                f"{resolved_symbol}: {error}"
+            )
+
+        return resolved_symbol
+
+    # ======================================================
+    # LIVE MARKET QUOTE
+    # ======================================================
+
+    def get_quote(
+        self,
+        symbol: str,
+    ) -> dict:
+        """
+        Return the latest read-only MT5 quote.
+
+        The supplied symbol may be an Aladdin display
+        symbol, logical symbol, or supported MT5 alias.
+
+        Examples:
+
+            EUR/USD
+            EURUSD
+            USDJPY
+            XAU/USD
+            GOLD
+
+        Returned data includes:
+
+            symbol
+            broker_symbol
+            bid
+            ask
+            spread
+            spread_points
+            digits
+            point
+            time
+
+        No trade execution is performed.
+        """
+
+        logical_symbol = normalize_symbol(
+            symbol
+        )
+
+        resolved_symbol = self._select_symbol(
+            logical_symbol
+        )
+
+        symbol_info = mt5.symbol_info(
+            resolved_symbol
+        )
+
+        if symbol_info is None:
+            raise RuntimeError(
+                f"Unable to retrieve MT5 symbol "
+                f"information for {resolved_symbol}."
+            )
+
+        tick = mt5.symbol_info_tick(
+            resolved_symbol
+        )
+
+        if tick is None:
+            error = mt5.last_error()
+
+            raise RuntimeError(
+                f"No MT5 market tick is available "
+                f"for {resolved_symbol}: {error}"
+            )
+
+        bid = float(
+            tick.bid
+        )
+
+        ask = float(
+            tick.ask
+        )
+
+        if bid <= 0 or ask <= 0:
+            raise RuntimeError(
+                f"Invalid MT5 bid/ask prices "
+                f"for {resolved_symbol}."
+            )
+
+        if ask < bid:
+            raise RuntimeError(
+                f"Invalid MT5 quote spread "
+                f"for {resolved_symbol}."
+            )
+
+        point = float(
+            symbol_info.point
+        )
+
+        if point <= 0:
+            raise RuntimeError(
+                f"Invalid MT5 point size "
+                f"for {resolved_symbol}."
+            )
+
+        digits = int(
+            symbol_info.digits
+        )
+
+        spread = (
+            ask - bid
+        )
+
+        spread_points = (
+            spread / point
+        )
+
+        tick_time = int(
+            getattr(
+                tick,
+                "time",
+                0,
+            )
+            or 0
+        )
+
+        return {
+            "symbol": logical_symbol,
+            "broker_symbol": resolved_symbol,
+            "bid": round(
+                bid,
+                digits,
+            ),
+            "ask": round(
+                ask,
+                digits,
+            ),
+            "spread": round(
+                spread,
+                digits,
+            ),
+            "spread_points": round(
+                spread_points,
+                2,
+            ),
+            "digits": digits,
+            "point": point,
+            "time": tick_time,
+        }
+
+    # ======================================================
+    # MARKET CANDLES
     # ======================================================
 
     def get_candles(

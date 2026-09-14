@@ -3,7 +3,7 @@ routes.py
 
 Authentication API endpoints.
 
-Author: Tharindu Kothalwala
+Author: Tharindu Kothalawala
 Project: Aladdin
 """
 
@@ -13,11 +13,15 @@ from fastapi import (
     HTTPException,
 )
 
-from app.database.connection import SessionLocal
+from app.database.connection import (
+    get_db,
+)
 
 from app.auth.service import AuthService
 
-from app.auth.dependencies import get_current_user
+from app.auth.dependencies import (
+    get_current_user,
+)
 
 from app.auth.models import UserModel
 
@@ -35,15 +39,25 @@ router = APIRouter(
 
 
 # ==========================================
-# Authentication Service
+# Authentication Service Dependency
 # ==========================================
 
 
-def get_service():
+def get_service(
+    db=Depends(get_db),
+):
+    """
+    Provide an authentication service using
+    a request-scoped database session.
 
-    session = SessionLocal()
+    The underlying get_db dependency closes
+    the SQLAlchemy session automatically after
+    the request finishes.
+    """
 
-    return AuthService(session)
+    return AuthService(
+        db
+    )
 
 
 # ==========================================
@@ -54,9 +68,13 @@ def get_service():
 @router.post("/register")
 def register(
     user: UserRegisterRequest,
+    service: AuthService = Depends(
+        get_service
+    ),
 ):
-
-    service = get_service()
+    """
+    Register a new user.
+    """
 
     try:
 
@@ -90,9 +108,13 @@ def register(
 )
 def login(
     user: UserLoginRequest,
+    service: AuthService = Depends(
+        get_service
+    ),
 ):
-
-    service = get_service()
+    """
+    Authenticate a user and return a JWT.
+    """
 
     try:
 
@@ -121,7 +143,9 @@ def login(
 
 @router.get("/me")
 def get_me(
-    current_user: UserModel = Depends(get_current_user),
+    current_user: UserModel = Depends(
+        get_current_user
+    ),
 ):
     """
     Return the currently authenticated user.

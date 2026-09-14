@@ -17,6 +17,8 @@ try:
 except ImportError:
     mt5 = None
 
+from app.mt5.mt5_session import MT5_SESSION_LOCK
+
 
 @dataclass
 class MT5OrderRequest:
@@ -104,6 +106,7 @@ class MT5Connector:
 
         self.connected = False
         self.account_info = None
+        self._session_lock_acquired = False
 
     # ======================================================
     # MT5 AVAILABILITY
@@ -140,10 +143,18 @@ class MT5Connector:
             Simulates the connection.
 
         DEMO mode:
-            Connects to the installed MT5 terminal
-            and verifies that the active account
-            is a demo account.
+            Acquires the shared process-level MT5 session
+            lock, connects to the installed MT5 terminal,
+            and verifies that the active account is DEMO.
+
+        The lock remains held for the lifetime of this
+        connector session and is released by disconnect().
+        This prevents another FastAPI request from calling
+        mt5.shutdown() while this request is using MT5.
         """
+
+        if self.connected:
+            return True
 
         if self.mode == "MOCK":
             self.connected = True
@@ -151,81 +162,77 @@ class MT5Connector:
 
         self._require_mt5()
 
-        initialized = mt5.initialize()
+        MT5_SESSION_LOCK.acquire()
+        self._session_lock_acquired = True
 
-        if not initialized:
-            error = mt5.last_error()
+        try:
+            initialized = mt5.initialize()
 
-            raise ConnectionError(
-                f"MT5 initialization failed: "
-                f"{error}"
-            )
+            if not initialized:
+                error = mt5.last_error()
+                raise ConnectionError(
+                    f"MT5 initialization failed: {error}"
+                )
 
-        account = mt5.account_info()
+            account = mt5.account_info()
 
-        if account is None:
-            mt5.shutdown()
+            if account is None:
+                raise ConnectionError(
+                    "MT5 account information is unavailable."
+                )
 
-            raise ConnectionError(
-                "MT5 account information "
-                "is unavailable."
-            )
+            if (
+                account.trade_mode
+                != mt5.ACCOUNT_TRADE_MODE_DEMO
+            ):
+                raise PermissionError(
+                    "Aladdin DEMO execution requires "
+                    "an MT5 demo account. "
+                    "Live accounts are blocked."
+                )
 
-        # ==========================================
-        # HARD BLOCK LIVE ACCOUNTS
-        # ==========================================
+            if not account.trade_allowed:
+                raise PermissionError(
+                    "Trading is not allowed "
+                    "on the connected MT5 account."
+                )
 
-        if (
-            account.trade_mode
-            != mt5.ACCOUNT_TRADE_MODE_DEMO
-        ):
-            mt5.shutdown()
+            if not account.trade_expert:
+                raise PermissionError(
+                    "Expert/API trading is not "
+                    "allowed on the connected "
+                    "MT5 account."
+                )
 
-            raise PermissionError(
-                "Aladdin DEMO execution requires "
-                "an MT5 demo account. "
-                "Live accounts are blocked."
-            )
+            terminal = mt5.terminal_info()
 
-        if not account.trade_allowed:
-            mt5.shutdown()
+            if terminal is None:
+                raise ConnectionError(
+                    "MT5 terminal information is unavailable."
+                )
 
-            raise PermissionError(
-                "Trading is not allowed "
-                "on the connected MT5 account."
-            )
+            if not terminal.connected:
+                raise ConnectionError(
+                    "MT5 terminal is not connected "
+                    "to the broker server."
+                )
 
-        if not account.trade_expert:
-            mt5.shutdown()
+            self.account_info = account
+            self.connected = True
+            return True
 
-            raise PermissionError(
-                "Expert/API trading is not "
-                "allowed on the connected "
-                "MT5 account."
-            )
+        except Exception:
+            try:
+                mt5.shutdown()
+            finally:
+                self.connected = False
+                self.account_info = None
 
-        terminal = mt5.terminal_info()
+                if self._session_lock_acquired:
+                    self._session_lock_acquired = False
+                    MT5_SESSION_LOCK.release()
 
-        if terminal is None:
-            mt5.shutdown()
-
-            raise ConnectionError(
-                "MT5 terminal information "
-                "is unavailable."
-            )
-
-        if not terminal.connected:
-            mt5.shutdown()
-
-            raise ConnectionError(
-                "MT5 terminal is not connected "
-                "to the broker server."
-            )
-
-        self.account_info = account
-        self.connected = True
-
-        return True
+            raise
 
     # ======================================================
     # DISCONNECT
@@ -233,17 +240,28 @@ class MT5Connector:
 
     def disconnect(self):
         """
-        Disconnect from MT5.
+        Disconnect from MT5 and release the shared session lock.
+
+        Only a connector instance that acquired the shared
+        MT5 session lock may shut down the real MT5 Python
+        connection.
         """
 
-        if (
-            self.mode == "DEMO"
-            and mt5 is not None
-        ):
-            mt5.shutdown()
+        try:
+            if (
+                self.mode == "DEMO"
+                and mt5 is not None
+                and self._session_lock_acquired
+            ):
+                mt5.shutdown()
 
-        self.connected = False
-        self.account_info = None
+        finally:
+            self.connected = False
+            self.account_info = None
+
+            if self._session_lock_acquired:
+                self._session_lock_acquired = False
+                MT5_SESSION_LOCK.release()
 
     # ======================================================
     # SYMBOL NORMALIZATION

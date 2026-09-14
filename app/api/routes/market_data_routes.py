@@ -4,8 +4,8 @@ market_data_routes.py
 Authenticated read-only MT5 market-data endpoints
 for the Aladdin V2 Trading Terminal.
 
-Provides real OHLC candle data from the connected
-MetaTrader 5 terminal for chart visualization.
+Provides real OHLC candle data and live bid/ask
+quotes from the connected MetaTrader 5 terminal.
 
 These endpoints do not create, modify,
 or close broker trades.
@@ -27,6 +27,11 @@ from app.auth.dependencies import (
 
 from app.auth.models import UserModel
 
+from app.config.instrument_config import (
+    INSTRUMENTS,
+    get_display_symbol,
+)
+
 from app.market.mt5_provider import (
     MT5DataProvider,
 )
@@ -42,16 +47,13 @@ router = APIRouter(
 # SUPPORTED SYMBOLS
 # ==========================================================
 
-SUPPORTED_SYMBOLS = {
-    "EURUSD",
-    "GBPUSD",
-    "AUDUSD",
-    "NZDUSD",
-    "USDCAD",
-    "USDCHF",
-    "USDJPY",
-    "XAUUSD",
-}
+MARKET_WATCH_SYMBOLS = tuple(
+    INSTRUMENTS.keys()
+)
+
+SUPPORTED_SYMBOLS = set(
+    MARKET_WATCH_SYMBOLS
+)
 
 
 # ==========================================================
@@ -97,14 +99,29 @@ def _resolve_timeframe(
     timeframe: str,
 ):
     """
-    Convert a frontend timeframe name into
+    Convert a frontend chart timeframe name into
     the corresponding MetaTrader 5 constant.
 
-    ALADDIN V2 currently supports:
+    ALADDIN V2 chart timeframes:
+
+        M1  - 1 minute
+        M5  - 5 minutes
+        M15 - 15 minutes
+        M30 - 30 minutes
+        H1  - 1 hour
+        H4  - 4 hours
+        D1  - 1 day
+        W1  - 1 week
+
+    The current ALADDIN multi-timeframe AI model
+    still uses:
 
         M15 - Entry timeframe
         H1  - Primary timeframe
         H4  - Higher timeframe
+
+    Extra chart timeframes are for market inspection
+    only and do not change AI decision authority.
     """
 
     mt5_module = provider._require_mt5()
@@ -116,21 +133,213 @@ def _resolve_timeframe(
     )
 
     timeframe_map = {
+        "M1": mt5_module.TIMEFRAME_M1,
+        "M5": mt5_module.TIMEFRAME_M5,
         "M15": mt5_module.TIMEFRAME_M15,
+        "M30": mt5_module.TIMEFRAME_M30,
         "H1": mt5_module.TIMEFRAME_H1,
         "H4": mt5_module.TIMEFRAME_H4,
+        "D1": mt5_module.TIMEFRAME_D1,
+        "W1": mt5_module.TIMEFRAME_W1,
     }
 
     if normalized not in timeframe_map:
         raise ValueError(
             "Unsupported timeframe. "
-            "Supported timeframes are M15, H1, and H4."
+            "Supported timeframes are "
+            "M1, M5, M15, M30, H1, H4, D1, and W1."
         )
 
     return (
         normalized,
         timeframe_map[normalized],
     )
+
+# ==========================================================
+# REAL MT5 MARKET WATCH QUOTES
+# ==========================================================
+
+@router.get("/quotes")
+def get_market_quotes(
+    current_user: UserModel = Depends(
+        get_current_user
+    ),
+):
+    """
+    Return live read-only MT5 Market Watch data
+    for all official ALADDIN trading instruments.
+
+    Each instrument is processed independently.
+
+    A temporary quote failure for one symbol does
+    not remove valid quotes for the other symbols.
+
+    Available instruments contain:
+
+    - logical ALADDIN symbol
+    - frontend display symbol
+    - actual broker symbol
+    - bid price
+    - ask price
+    - raw spread
+    - spread in broker points
+    - broker price precision
+    - broker point size
+    - MT5 tick timestamp
+    - availability status
+
+    Temporarily unavailable instruments remain
+    visible in the response with:
+
+    - available = False
+    - market values = None
+    - error message describing the data problem
+
+    HTTP 503 is returned only when no valid quote
+    can be retrieved from MT5.
+
+    The endpoint:
+
+    - reads MT5 market data
+    - does not execute trades
+    - does not modify positions
+    - does not modify orders
+    - does not change the DEMO execution safety switch
+    """
+
+    # Authentication is enforced by the dependency.
+    _ = current_user
+
+    provider = MT5DataProvider()
+
+    quotes = []
+    available_count = 0
+    first_runtime_error = None
+
+    try:
+
+        for symbol in MARKET_WATCH_SYMBOLS:
+
+            try:
+
+                quote = provider.get_quote(
+                    symbol
+                )
+
+                quotes.append(
+                    {
+                        "symbol": quote["symbol"],
+                        "display_symbol": get_display_symbol(
+                            quote["symbol"]
+                        ),
+                        "broker_symbol": quote[
+                            "broker_symbol"
+                        ],
+                        "bid": quote["bid"],
+                        "ask": quote["ask"],
+                        "spread": quote["spread"],
+                        "spread_points": quote[
+                            "spread_points"
+                        ],
+                        "digits": quote["digits"],
+                        "point": quote["point"],
+                        "time": quote["time"],
+                        "available": True,
+                        "error": None,
+                    }
+                )
+
+                available_count += 1
+
+            except RuntimeError as error:
+
+                if first_runtime_error is None:
+                    first_runtime_error = str(
+                        error
+                    )
+
+                quotes.append(
+                    {
+                        "symbol": symbol,
+                        "display_symbol": get_display_symbol(
+                            symbol
+                        ),
+                        "broker_symbol": None,
+                        "bid": None,
+                        "ask": None,
+                        "spread": None,
+                        "spread_points": None,
+                        "digits": None,
+                        "point": None,
+                        "time": None,
+                        "available": False,
+                        "error": str(error),
+                    }
+                )
+
+            except ValueError as error:
+
+                quotes.append(
+                    {
+                        "symbol": symbol,
+                        "display_symbol": get_display_symbol(
+                            symbol
+                        ),
+                        "broker_symbol": None,
+                        "bid": None,
+                        "ask": None,
+                        "spread": None,
+                        "spread_points": None,
+                        "digits": None,
+                        "point": None,
+                        "time": None,
+                        "available": False,
+                        "error": str(error),
+                    }
+                )
+
+        # If MT5 failed to provide every quote,
+        # treat the market-data service as unavailable.
+        #
+        # Preserve the first RuntimeError detail so the
+        # existing API failure contract remains useful
+        # for diagnostics and tests.
+        if available_count == 0:
+
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    first_runtime_error
+                    or "No MT5 market quotes are available."
+                ),
+            )
+
+        unavailable_count = (
+            len(quotes)
+            - available_count
+        )
+
+        return {
+            "count": len(quotes),
+            "available_count": available_count,
+            "unavailable_count": unavailable_count,
+            "quotes": quotes,
+        }
+
+    except HTTPException:
+        raise
+
+    except Exception as error:
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Unable to retrieve MT5 "
+                f"market quotes: {error}"
+            ),
+        )
+
+    finally:
+        provider.disconnect()
 
 
 # ==========================================================
@@ -150,13 +359,13 @@ def get_market_candles(
         default="H1",
         description=(
             "Chart timeframe. "
-            "Supported values: M15, H1, H4."
+            "Supported values: M1, M5, M15, M30, H1, H4, D1, W1."
         ),
     ),
     count: int = Query(
         default=300,
         ge=50,
-        le=1000,
+        le=5000,
         description=(
             "Number of recent MT5 candles to return."
         ),
@@ -190,6 +399,7 @@ def get_market_candles(
     provider = MT5DataProvider()
 
     try:
+
         normalized_symbol = _normalize_symbol(
             symbol
         )

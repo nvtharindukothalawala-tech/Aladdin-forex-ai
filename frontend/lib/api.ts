@@ -621,9 +621,14 @@ export type CoachingResponse = {
    ========================================================= */
 
 export type MarketTimeframe =
+  | "M1"
+  | "M5"
   | "M15"
+  | "M30"
   | "H1"
-  | "H4";
+  | "H4"
+  | "D1"
+  | "W1";
 
 
 export type MarketCandle = {
@@ -651,6 +656,44 @@ export type MarketCandlesResponse = {
   count: number;
 
   candles: MarketCandle[];
+};
+
+
+export type MarketQuote = {
+  symbol: string;
+
+  display_symbol: string;
+
+  broker_symbol: string | null;
+
+  bid: number | null;
+
+  ask: number | null;
+
+  spread: number | null;
+
+  spread_points: number | null;
+
+  digits: number | null;
+
+  point: number | null;
+
+  time: number | null;
+
+  available: boolean;
+
+  error: string | null;
+};
+
+
+export type MarketQuotesResponse = {
+  count: number;
+
+  available_count: number;
+
+  unavailable_count: number;
+
+  quotes: MarketQuote[];
 };
 
 
@@ -893,7 +936,7 @@ export async function getMarketCandles(
       50,
       Math.min(
         Math.trunc(count),
-        1000,
+        5000,
       ),
     );
 
@@ -911,6 +954,76 @@ export async function getMarketCandles(
   if (!response.ok) {
     let message =
       `Failed to load MT5 market candles (${response.status}).`;
+
+    try {
+      const data =
+        await response.json();
+
+      if (
+        typeof data.detail ===
+        "string"
+      ) {
+        message =
+          data.detail;
+      } else if (
+        Array.isArray(
+          data.detail
+        )
+      ) {
+        message =
+          data.detail
+            .map(
+              (
+                error: {
+                  loc?: unknown[];
+                  msg?: string;
+                }
+              ) => {
+                const location =
+                  Array.isArray(
+                    error.loc
+                  )
+                    ? error.loc.join(
+                        "."
+                      )
+                    : "field";
+
+                return `${location}: ${
+                  error.msg ??
+                  "Invalid value"
+                }`;
+              },
+            )
+            .join("; ");
+      }
+    } catch {
+      // Keep default error message.
+    }
+
+    throw new Error(
+      message
+    );
+  }
+
+  return response.json();
+}
+
+
+
+/* =========================================================
+   MT5 MARKET WATCH QUOTES
+   ========================================================= */
+
+export async function getMarketQuotes():
+  Promise<MarketQuotesResponse> {
+  const response =
+    await authenticatedFetch(
+      "/market-data/quotes",
+    );
+
+  if (!response.ok) {
+    let message =
+      `Failed to load MT5 market quotes (${response.status}).`;
 
     try {
       const data =

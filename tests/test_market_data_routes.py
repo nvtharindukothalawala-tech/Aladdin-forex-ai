@@ -82,9 +82,14 @@ class FakeMT5Module:
     by the market-data route.
     """
 
+    TIMEFRAME_M1 = 1
+    TIMEFRAME_M5 = 5
     TIMEFRAME_M15 = 15
+    TIMEFRAME_M30 = 30
     TIMEFRAME_H1 = 60
     TIMEFRAME_H4 = 240
+    TIMEFRAME_D1 = 1440
+    TIMEFRAME_W1 = 10080
 
 
 class FakeMT5DataProvider:
@@ -93,9 +98,12 @@ class FakeMT5DataProvider:
     """
 
     disconnected = False
+
     last_symbol = None
     last_timeframe = None
     last_count = None
+
+    quote_symbols = []
 
     def _require_mt5(self):
         return FakeMT5Module
@@ -142,6 +150,110 @@ class FakeMT5DataProvider:
 
         return candles
 
+    def get_quote(
+        self,
+        symbol,
+    ):
+        """
+        Return deterministic fake MT5 quote data.
+        """
+
+        FakeMT5DataProvider.quote_symbols.append(
+            symbol
+        )
+
+        quote_map = {
+            "EURUSD": {
+                "broker_symbol": "EURUSD",
+                "bid": 1.16050,
+                "ask": 1.16062,
+                "spread": 0.00012,
+                "spread_points": 12.0,
+                "digits": 5,
+                "point": 0.00001,
+                "time": 1789372800,
+            },
+            "GBPUSD": {
+                "broker_symbol": "GBPUSD",
+                "bid": 1.35010,
+                "ask": 1.35024,
+                "spread": 0.00014,
+                "spread_points": 14.0,
+                "digits": 5,
+                "point": 0.00001,
+                "time": 1789372801,
+            },
+            "AUDUSD": {
+                "broker_symbol": "AUDUSD",
+                "bid": 0.66510,
+                "ask": 0.66522,
+                "spread": 0.00012,
+                "spread_points": 12.0,
+                "digits": 5,
+                "point": 0.00001,
+                "time": 1789372802,
+            },
+            "NZDUSD": {
+                "broker_symbol": "NZDUSD",
+                "bid": 0.61510,
+                "ask": 0.61523,
+                "spread": 0.00013,
+                "spread_points": 13.0,
+                "digits": 5,
+                "point": 0.00001,
+                "time": 1789372803,
+            },
+            "USDCAD": {
+                "broker_symbol": "USDCAD",
+                "bid": 1.37510,
+                "ask": 1.37525,
+                "spread": 0.00015,
+                "spread_points": 15.0,
+                "digits": 5,
+                "point": 0.00001,
+                "time": 1789372804,
+            },
+            "USDCHF": {
+                "broker_symbol": "USDCHF",
+                "bid": 0.79510,
+                "ask": 0.79523,
+                "spread": 0.00013,
+                "spread_points": 13.0,
+                "digits": 5,
+                "point": 0.00001,
+                "time": 1789372805,
+            },
+            "USDJPY": {
+                "broker_symbol": "USDJPY",
+                "bid": 147.250,
+                "ask": 147.263,
+                "spread": 0.013,
+                "spread_points": 13.0,
+                "digits": 3,
+                "point": 0.001,
+                "time": 1789372806,
+            },
+            "XAUUSD": {
+                "broker_symbol": "GOLD",
+                "bid": 2500.10,
+                "ask": 2500.35,
+                "spread": 0.25,
+                "spread_points": 25.0,
+                "digits": 2,
+                "point": 0.01,
+                "time": 1789372807,
+            },
+        }
+
+        values = quote_map[
+            symbol
+        ]
+
+        return {
+            "symbol": symbol,
+            **values,
+        }
+
     def disconnect(self):
         FakeMT5DataProvider.disconnected = True
 
@@ -165,6 +277,223 @@ def test_market_data_requires_authentication():
     )
 
     assert response.status_code == 401
+
+
+def test_market_quotes_require_authentication():
+    """
+    Market Watch quotes must not be available
+    without a valid JWT.
+    """
+
+    response = client.get(
+        "/market-data/quotes"
+    )
+
+    assert response.status_code == 401
+
+
+# ==========================================
+# Successful Market Watch Request
+# ==========================================
+
+
+def test_get_authenticated_market_quotes(
+    monkeypatch,
+):
+    """
+    Authenticated users should receive
+    all official ALADDIN Market Watch quotes.
+    """
+
+    monkeypatch.setattr(
+        market_data_routes,
+        "MT5DataProvider",
+        FakeMT5DataProvider,
+    )
+
+    FakeMT5DataProvider.disconnected = False
+    FakeMT5DataProvider.quote_symbols = []
+
+    headers = get_auth_headers()
+
+    response = client.get(
+        "/market-data/quotes",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["count"] == 8
+    assert len(data["quotes"]) == 8
+
+    symbols = [
+        quote["symbol"]
+        for quote in data["quotes"]
+    ]
+
+    assert symbols == [
+        "EURUSD",
+        "GBPUSD",
+        "AUDUSD",
+        "NZDUSD",
+        "USDCAD",
+        "USDCHF",
+        "USDJPY",
+        "XAUUSD",
+    ]
+
+    assert (
+        FakeMT5DataProvider.quote_symbols
+        == symbols
+    )
+
+    assert FakeMT5DataProvider.disconnected is True
+
+
+def test_market_quotes_return_expected_fields(
+    monkeypatch,
+):
+    """
+    Market Watch quote objects should expose
+    the complete frontend quote contract.
+    """
+
+    monkeypatch.setattr(
+        market_data_routes,
+        "MT5DataProvider",
+        FakeMT5DataProvider,
+    )
+
+    headers = get_auth_headers()
+
+    response = client.get(
+        "/market-data/quotes",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+
+    quote = response.json()[
+        "quotes"
+    ][0]
+
+    assert quote["symbol"] == "EURUSD"
+
+    assert (
+        quote["display_symbol"]
+        == "EUR/USD"
+    )
+
+    assert (
+        quote["broker_symbol"]
+        == "EURUSD"
+    )
+
+    assert quote["bid"] == 1.16050
+    assert quote["ask"] == 1.16062
+    assert quote["spread"] == 0.00012
+
+    assert (
+        quote["spread_points"]
+        == 12.0
+    )
+
+    assert quote["digits"] == 5
+    assert quote["point"] == 0.00001
+    assert quote["time"] == 1789372800
+
+
+def test_market_quotes_preserve_broker_alias(
+    monkeypatch,
+):
+    """
+    Market Watch should preserve the actual
+    broker symbol returned by MT5.
+    """
+
+    monkeypatch.setattr(
+        market_data_routes,
+        "MT5DataProvider",
+        FakeMT5DataProvider,
+    )
+
+    headers = get_auth_headers()
+
+    response = client.get(
+        "/market-data/quotes",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+
+    gold_quote = response.json()[
+        "quotes"
+    ][-1]
+
+    assert gold_quote["symbol"] == "XAUUSD"
+
+    assert (
+        gold_quote["display_symbol"]
+        == "XAU/USD"
+    )
+
+    assert (
+        gold_quote["broker_symbol"]
+        == "GOLD"
+    )
+
+    assert gold_quote["digits"] == 2
+
+
+# ==========================================
+# Market Watch Provider Failure
+# ==========================================
+
+
+def test_market_quotes_return_503_when_mt5_fails(
+    monkeypatch,
+):
+    """
+    MT5 quote failures should return
+    service-unavailable and still disconnect.
+    """
+
+    class FailingQuoteProvider(
+        FakeMT5DataProvider
+    ):
+        def get_quote(
+            self,
+            symbol,
+        ):
+            raise RuntimeError(
+                "MT5 quote data unavailable."
+            )
+
+    monkeypatch.setattr(
+        market_data_routes,
+        "MT5DataProvider",
+        FailingQuoteProvider,
+    )
+
+    FakeMT5DataProvider.disconnected = False
+
+    headers = get_auth_headers()
+
+    response = client.get(
+        "/market-data/quotes",
+        headers=headers,
+    )
+
+    assert response.status_code == 503
+
+    assert (
+        response.json()["detail"]
+        == "MT5 quote data unavailable."
+    )
+
+    assert FakeMT5DataProvider.disconnected is True
 
 
 # ==========================================
@@ -300,6 +629,62 @@ def test_h4_timeframe_is_mapped_correctly(
     )
 
 
+def test_additional_chart_timeframes_are_mapped_correctly(
+    monkeypatch,
+):
+    """
+    ALADDIN V2 chart-only timeframes should map
+    to their corresponding MT5 constants.
+    """
+
+    monkeypatch.setattr(
+        market_data_routes,
+        "MT5DataProvider",
+        FakeMT5DataProvider,
+    )
+
+    headers = get_auth_headers()
+
+    cases = [
+        (
+            "M1",
+            FakeMT5Module.TIMEFRAME_M1,
+        ),
+        (
+            "M5",
+            FakeMT5Module.TIMEFRAME_M5,
+        ),
+        (
+            "M30",
+            FakeMT5Module.TIMEFRAME_M30,
+        ),
+        (
+            "D1",
+            FakeMT5Module.TIMEFRAME_D1,
+        ),
+        (
+            "W1",
+            FakeMT5Module.TIMEFRAME_W1,
+        ),
+    ]
+
+    for timeframe, expected_constant in cases:
+        response = client.get(
+            "/market-data/candles"
+            f"?symbol=EURUSD"
+            f"&timeframe={timeframe}"
+            f"&count=50",
+            headers=headers,
+        )
+
+        assert response.status_code == 200
+
+        assert (
+            FakeMT5DataProvider.last_timeframe
+            == expected_constant
+        )
+
+
 # ==========================================
 # Validation
 # ==========================================
@@ -341,7 +726,7 @@ def test_market_data_rejects_unsupported_timeframe(
     monkeypatch,
 ):
     """
-    Only M15, H1, and H4 are supported.
+    Only the official ALADDIN V2 chart timeframes are supported.
     """
 
     monkeypatch.setattr(
@@ -355,7 +740,7 @@ def test_market_data_rejects_unsupported_timeframe(
     response = client.get(
         "/market-data/candles"
         "?symbol=EURUSD"
-        "&timeframe=M5"
+        "&timeframe=M2"
         "&count=50",
         headers=headers,
     )
@@ -363,7 +748,7 @@ def test_market_data_rejects_unsupported_timeframe(
     assert response.status_code == 400
 
     assert (
-        "Supported timeframes are M15, H1, and H4"
+        "Supported timeframes are M1, M5, M15, M30, H1, H4, D1, and W1"
         in response.json()["detail"]
     )
 
@@ -398,7 +783,7 @@ def test_market_data_rejects_count_above_maximum(
     monkeypatch,
 ):
     """
-    FastAPI should reject candle counts above 1000.
+    FastAPI should reject candle counts above 5000.
     """
 
     monkeypatch.setattr(
@@ -413,7 +798,7 @@ def test_market_data_rejects_count_above_maximum(
         "/market-data/candles"
         "?symbol=EURUSD"
         "&timeframe=H1"
-        "&count=1001",
+        "&count=5001",
         headers=headers,
     )
 
@@ -421,7 +806,7 @@ def test_market_data_rejects_count_above_maximum(
 
 
 # ==========================================
-# Provider Failure
+# Candle Provider Failure
 # ==========================================
 
 

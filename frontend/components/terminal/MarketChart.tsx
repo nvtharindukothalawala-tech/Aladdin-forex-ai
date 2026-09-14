@@ -24,16 +24,27 @@ import {
 } from "react";
 
 const SUPPORTED_TIMEFRAMES: MarketTimeframe[] = [
+  "M1",
+  "M5",
   "M15",
+  "M30",
   "H1",
   "H4",
+  "D1",
+  "W1",
 ];
 
-const DEFAULT_REFRESH_INTERVAL_MS = 30_000;
-const MIN_REFRESH_INTERVAL_MS = 10_000;
-const DEFAULT_CANDLE_COUNT = 300;
+const SUPPORTED_CANDLE_COUNTS = [
+  300,
+  1000,
+  5000,
+] as const;
+
+const DEFAULT_REFRESH_INTERVAL_MS = 5_000;
+const MIN_REFRESH_INTERVAL_MS = 5_000;
+const DEFAULT_CANDLE_COUNT = 1000;
 const MIN_CANDLE_COUNT = 50;
-const MAX_CANDLE_COUNT = 1000;
+const MAX_CANDLE_COUNT = 5000;
 
 type MarketChartProps = {
   symbol: string;
@@ -203,6 +214,15 @@ export default function MarketChart({
     );
 
   const [
+    selectedCandleCount,
+    setSelectedCandleCount,
+  ] = useState(
+    clampCandleCount(
+      candleCount,
+    ),
+  );
+
+  const [
     brokerSymbol,
     setBrokerSymbol,
   ] = useState<string>("");
@@ -252,9 +272,9 @@ export default function MarketChart({
     useMemo(
       () =>
         clampCandleCount(
-          candleCount,
+          selectedCandleCount,
         ),
-      [candleCount],
+      [selectedCandleCount],
     );
 
   const safeRefreshIntervalMs =
@@ -274,6 +294,14 @@ export default function MarketChart({
       timeframe,
     );
   }, [timeframe]);
+
+  useEffect(() => {
+    setSelectedCandleCount(
+      clampCandleCount(
+        candleCount,
+      ),
+    );
+  }, [candleCount]);
 
   useEffect(() => {
     const container =
@@ -716,41 +744,85 @@ export default function MarketChart({
             </div>
           </div>
 
-          <div className="flex items-center gap-1 rounded-lg border border-slate-800 bg-slate-900/70 p-1">
-            {SUPPORTED_TIMEFRAMES.map(
-              (
-                chartTimeframe,
-              ) => {
-                const active =
-                  chartTimeframe ===
-                  selectedTimeframe;
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1 rounded-lg border border-slate-800 bg-slate-900/70 p-1">
+              {SUPPORTED_TIMEFRAMES.map(
+                (
+                  chartTimeframe,
+                ) => {
+                  const active =
+                    chartTimeframe ===
+                    selectedTimeframe;
 
-                return (
-                  <button
-                    key={
-                      chartTimeframe
-                    }
-                    type="button"
-                    onClick={() =>
-                      handleTimeframeChange(
-                        chartTimeframe,
-                      )
-                    }
-                    className={[
-                      "rounded-md px-3 py-1.5 text-xs font-semibold transition-colors",
-                      active
-                        ? "bg-sky-500 text-slate-950 shadow"
-                        : "text-slate-400 hover:bg-slate-800 hover:text-slate-100",
-                    ].join(" ")}
-                    aria-pressed={
-                      active
-                    }
-                  >
-                    {chartTimeframe}
-                  </button>
-                );
-              },
-            )}
+                  return (
+                    <button
+                      key={
+                        chartTimeframe
+                      }
+                      type="button"
+                      onClick={() =>
+                        handleTimeframeChange(
+                          chartTimeframe,
+                        )
+                      }
+                      className={[
+                        "rounded-md px-3 py-1.5 text-xs font-semibold transition-colors",
+                        active
+                          ? "bg-sky-500 text-slate-950 shadow"
+                          : "text-slate-400 hover:bg-slate-800 hover:text-slate-100",
+                      ].join(" ")}
+                      aria-pressed={
+                        active
+                      }
+                    >
+                      {chartTimeframe}
+                    </button>
+                  );
+                },
+              )}
+            </div>
+
+            <div className="flex items-center gap-1 rounded-lg border border-slate-800 bg-slate-900/70 p-1">
+              {SUPPORTED_CANDLE_COUNTS.map(
+                (countOption) => {
+                  const active =
+                    countOption ===
+                    safeCandleCount;
+
+                  return (
+                    <button
+                      key={
+                        countOption
+                      }
+                      type="button"
+                      onClick={() =>
+                        setSelectedCandleCount(
+                          countOption,
+                        )
+                      }
+                      className={[
+                        "rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors",
+                        active
+                          ? "bg-emerald-500 text-slate-950 shadow"
+                          : "text-slate-400 hover:bg-slate-800 hover:text-slate-100",
+                      ].join(" ")}
+                      aria-pressed={
+                        active
+                      }
+                      title={`${countOption} candles`}
+                    >
+                      {countOption ===
+                      5000
+                        ? "5K"
+                        : countOption ===
+                            1000
+                          ? "1K"
+                          : "300"}
+                    </button>
+                  );
+                },
+              )}
+            </div>
           </div>
         </div>
       </div>
