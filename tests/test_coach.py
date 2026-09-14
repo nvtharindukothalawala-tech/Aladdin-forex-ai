@@ -130,3 +130,55 @@ def test_no_completed_trades_report():
         "evaluating trading performance."
         in report.recommendations
     )
+
+
+def test_small_sample_does_not_judge_performance():
+    """
+    Test that the coach avoids drawing performance
+    conclusions from fewer than five completed trades.
+    """
+
+    report = AICoach.generate_report(
+        win_rate=0,
+        average_risk_reward=0,
+        total_profit=-2,
+        trade_count=1,
+        risk_reward_trade_count=0,
+    )
+
+    assert (
+        report.summary
+        == (
+            "Only 1 completed trade is available. "
+            "This sample is too small for reliable "
+            "performance-pattern coaching."
+        )
+    )
+
+    assert report.strengths == []
+
+    assert report.weaknesses == []
+
+    assert (
+        "Complete at least 5 journaled trades before "
+        "using win rate or total profit to identify "
+        "performance patterns."
+        in report.recommendations
+    )
+
+    assert (
+        "Risk/reward performance cannot be evaluated yet "
+        "because the available trades do not contain "
+        "risk/reward data."
+        in report.recommendations
+    )
+
+    assert (
+        "The current journal shows a low win rate."
+        not in report.weaknesses
+    )
+
+    assert (
+        "The journal currently shows negative net performance."
+        not in report.weaknesses
+    )

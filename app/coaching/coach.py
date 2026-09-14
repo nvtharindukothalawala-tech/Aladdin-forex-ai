@@ -37,6 +37,8 @@ class AICoach:
     or automatically execute trades.
     """
 
+    MINIMUM_ANALYSIS_TRADES = 5
+
     @staticmethod
     def generate_report(
         win_rate: float,
@@ -93,6 +95,55 @@ class AICoach:
                         "before evaluating trading performance."
                     )
                 ],
+            )
+
+        # -------------------------------------------------
+        # SMALL SAMPLE PROTECTION
+        # -------------------------------------------------
+
+        if (
+            trade_count is not None
+            and trade_count < AICoach.MINIMUM_ANALYSIS_TRADES
+        ):
+
+            trade_word = (
+                "trade"
+                if trade_count == 1
+                else "trades"
+            )
+
+            recommendations.append(
+                (
+                    "Complete at least "
+                    f"{AICoach.MINIMUM_ANALYSIS_TRADES} "
+                    "journaled trades before using win rate "
+                    "or total profit to identify performance "
+                    "patterns."
+                )
+            )
+
+            if (
+                risk_reward_trade_count is not None
+                and risk_reward_trade_count <= 0
+            ):
+
+                recommendations.append(
+                    (
+                        "Risk/reward performance cannot be "
+                        "evaluated yet because the available "
+                        "trades do not contain risk/reward data."
+                    )
+                )
+
+            return CoachingReport(
+                summary=(
+                    f"Only {trade_count} completed {trade_word} "
+                    "is available. This sample is too small "
+                    "for reliable performance-pattern coaching."
+                ),
+                strengths=[],
+                weaknesses=[],
+                recommendations=recommendations,
             )
 
         # -------------------------------------------------
