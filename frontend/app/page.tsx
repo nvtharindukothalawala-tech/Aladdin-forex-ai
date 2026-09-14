@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import MarketChart from "@/components/terminal/MarketChart";
 import {
   Activity,
   AlertTriangle,
@@ -2767,7 +2768,15 @@ export default function DashboardPage() {
 
           </section>
 
-          <div id="market-section" className="scroll-mt-24" aria-hidden="true" />
+          <section
+            id="market-section"
+            className="mt-8 scroll-mt-24"
+          >
+            <MarketChart
+              symbol={tradeForm.symbol}
+              timeframe="H1"
+            />
+          </section>
 
           {/* =================================================
               MT5 BROKER MONITORING

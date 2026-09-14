@@ -617,6 +617,45 @@ export type CoachingResponse = {
 
 
 /* =========================================================
+   MARKET DATA
+   ========================================================= */
+
+export type MarketTimeframe =
+  | "M15"
+  | "H1"
+  | "H4";
+
+
+export type MarketCandle = {
+  time: number;
+
+  open: number;
+
+  high: number;
+
+  low: number;
+
+  close: number;
+
+  volume: number;
+};
+
+
+export type MarketCandlesResponse = {
+  symbol: string;
+
+  broker_symbol: string;
+
+  timeframe: MarketTimeframe;
+
+  count: number;
+
+  candles: MarketCandle[];
+};
+
+
+
+/* =========================================================
    AUTHENTICATION
    ========================================================= */
 
@@ -826,6 +865,106 @@ async function authenticatedFetch(
 
   return response;
 }
+
+
+/* =========================================================
+   MT5 MARKET DATA CANDLES
+   ========================================================= */
+
+export async function getMarketCandles(
+  symbol: string,
+  timeframe: MarketTimeframe = "H1",
+  count = 300,
+): Promise<MarketCandlesResponse> {
+  const normalizedSymbol =
+    symbol
+      .replace("/", "")
+      .trim()
+      .toUpperCase();
+
+  if (normalizedSymbol.length === 0) {
+    throw new Error(
+      "Market-data symbol is required.",
+    );
+  }
+
+  const safeCount =
+    Math.max(
+      50,
+      Math.min(
+        Math.trunc(count),
+        1000,
+      ),
+    );
+
+  const response =
+    await authenticatedFetch(
+      `/market-data/candles?symbol=${encodeURIComponent(
+        normalizedSymbol,
+      )}&timeframe=${encodeURIComponent(
+        timeframe,
+      )}&count=${encodeURIComponent(
+        String(safeCount),
+      )}`,
+    );
+
+  if (!response.ok) {
+    let message =
+      `Failed to load MT5 market candles (${response.status}).`;
+
+    try {
+      const data =
+        await response.json();
+
+      if (
+        typeof data.detail ===
+        "string"
+      ) {
+        message =
+          data.detail;
+      } else if (
+        Array.isArray(
+          data.detail
+        )
+      ) {
+        message =
+          data.detail
+            .map(
+              (
+                error: {
+                  loc?: unknown[];
+                  msg?: string;
+                }
+              ) => {
+                const location =
+                  Array.isArray(
+                    error.loc
+                  )
+                    ? error.loc.join(
+                        "."
+                      )
+                    : "field";
+
+                return `${location}: ${
+                  error.msg ??
+                  "Invalid value"
+                }`;
+              },
+            )
+            .join("; ");
+      }
+    } catch {
+      // Keep default error message.
+    }
+
+    throw new Error(
+      message
+    );
+  }
+
+  return response.json();
+}
+
 
 
 /* =========================================================
