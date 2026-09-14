@@ -27,6 +27,7 @@ from app.api.routes import (
     execution_routes,
     notification_routes,
     broker_routes,
+    market_data_routes,
 )
 
 from app.auth import routes as auth_routes
@@ -96,6 +97,13 @@ tags_metadata = [
         "name": "Notifications",
         "description": (
             "User notifications and trade status alerts."
+        ),
+    },
+    {
+        "name": "Market Data",
+        "description": (
+            "Authenticated read-only MT5 market data "
+            "for the Aladdin trading terminal."
         ),
     },
     {
@@ -208,6 +216,7 @@ app.include_router(
     analysis_routes.router
 )
 
+
 # Market intelligence APIs
 
 app.include_router(
@@ -256,11 +265,20 @@ app.include_router(
     execution_routes.router
 )
 
+
 # Broker monitoring APIs
 
 app.include_router(
     broker_routes.router
 )
+
+
+# Market data APIs
+
+app.include_router(
+    market_data_routes.router
+)
+
 
 # Notification APIs
 
