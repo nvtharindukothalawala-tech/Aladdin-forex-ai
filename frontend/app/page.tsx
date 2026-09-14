@@ -3402,11 +3402,11 @@ export default function DashboardPage() {
             <div className="border-b border-white/10 px-5 py-5">
 
               <h2 className="text-base font-semibold text-white">
-                Create Trade
+                Create Trade Record
               </h2>
 
               <p className="mt-1 text-xs text-gray-600">
-                Create a new trade through the Aladdin backend.
+                Create a local trade record in the Aladdin backend. This does not place an MT5 order.
               </p>
 
             </div>
@@ -3820,7 +3820,7 @@ export default function DashboardPage() {
                         size={14}
                       />
 
-                      Create Trade
+                      Create Trade Record
                     </>
                   )}
 
