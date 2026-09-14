@@ -112,6 +112,12 @@ class AICoach:
                 else "trades"
             )
 
+            availability_verb = (
+                "is"
+                if trade_count == 1
+                else "are"
+            )
+
             recommendations.append(
                 (
                     "Complete at least "
@@ -138,8 +144,9 @@ class AICoach:
             return CoachingReport(
                 summary=(
                     f"Only {trade_count} completed {trade_word} "
-                    "is available. This sample is too small "
-                    "for reliable performance-pattern coaching."
+                    f"{availability_verb} available. "
+                    "This sample is too small for reliable "
+                    "performance-pattern coaching."
                 ),
                 strengths=[],
                 weaknesses=[],
