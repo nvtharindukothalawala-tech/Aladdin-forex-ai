@@ -40,6 +40,10 @@ from app.services.chart_indicator_service import (
     ChartIndicatorService,
 )
 
+from app.services.market_structure_service import (
+    MarketStructureService,
+)
+
 
 router = APIRouter(
     prefix="/market-data",
@@ -159,6 +163,54 @@ def _resolve_timeframe(
         normalized,
         timeframe_map[normalized],
     )
+
+
+# ==========================================================
+# MARKET STRUCTURE SERIALIZATION
+# ==========================================================
+
+def _serialize_swing_point(
+    point: dict,
+) -> dict:
+    """
+    Convert an internal market-structure swing point
+    into the frontend chart contract.
+
+    The service keeps Python datetime timestamps.
+    The chart API exposes Unix epoch seconds.
+    """
+
+    return {
+        "index": point["index"],
+        "price": point["price"],
+        "time": int(
+            point["timestamp"].timestamp()
+        ),
+    }
+
+
+def _serialize_structure_event(
+    event: dict | None,
+) -> dict | None:
+    """
+    Convert an internal BOS or CHoCH event into
+    the frontend chart contract.
+
+    None is preserved when no confirmed event exists.
+    """
+
+    if event is None:
+        return None
+
+    return {
+        "type": event["type"],
+        "broken_price": event["broken_price"],
+        "swing_index": event["swing_index"],
+        "break_index": event["break_index"],
+        "time": int(
+            event["timestamp"].timestamp()
+        ),
+    }
 
 
 # ==========================================================
@@ -387,14 +439,23 @@ def get_market_candles(
 
     It is intended for the ALADDIN V2 trading chart.
 
-    Chart indicator series are calculated from the
-    same candle dataset returned by MT5. No additional
-    MT5 market-data request is required for indicators.
+    Chart indicators and visualization market structure
+    are calculated from the same candle dataset returned
+    by MT5. No additional MT5 market-data request is
+    required.
+
+    Market structure currently exposes:
+
+    - confirmed swing highs
+    - confirmed swing lows
+    - latest Break of Structure (BOS)
+    - latest Change of Character (CHoCH)
 
     The endpoint:
 
     - reads MT5 market data
     - calculates visualization-only chart indicators
+    - calculates visualization market structure
     - does not execute trades
     - does not modify positions
     - does not modify orders
@@ -470,6 +531,53 @@ def get_market_candles(
             )
         )
 
+        # --------------------------------------------------
+        # Visualization market structure
+        #
+        # Reuse the existing authoritative market-structure
+        # detection methods on the same in-memory candles.
+        #
+        # Do NOT call get_structure_points() here because
+        # that method performs its own MT5 candle fetch.
+        # --------------------------------------------------
+
+        structure_lookback = 2
+
+        swing_highs = (
+            MarketStructureService
+            .find_swing_highs(
+                candles,
+                lookback=structure_lookback,
+            )
+        )
+
+        swing_lows = (
+            MarketStructureService
+            .find_swing_lows(
+                candles,
+                lookback=structure_lookback,
+            )
+        )
+
+        latest_bos = (
+            MarketStructureService
+            .detect_bos(
+                candles,
+                swing_highs,
+                swing_lows,
+            )
+        )
+
+        latest_choch = (
+            MarketStructureService
+            .detect_choch(
+                candles,
+                swing_highs,
+                swing_lows,
+                latest_bos,
+            )
+        )
+
         return {
             "symbol": normalized_symbol,
             "broker_symbol": candles[-1].symbol,
@@ -501,6 +609,31 @@ def get_market_candles(
                     "period": 14,
                     "series": adx14_series,
                 },
+            },
+            "market_structure": {
+                "lookback": structure_lookback,
+                "swing_highs": [
+                    _serialize_swing_point(
+                        point
+                    )
+                    for point in swing_highs
+                ],
+                "swing_lows": [
+                    _serialize_swing_point(
+                        point
+                    )
+                    for point in swing_lows
+                ],
+                "bos": (
+                    _serialize_structure_event(
+                        latest_bos
+                    )
+                ),
+                "choch": (
+                    _serialize_structure_event(
+                        latest_choch
+                    )
+                ),
             },
         }
 

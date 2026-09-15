@@ -6,15 +6,20 @@ import {
   ColorType,
   CrosshairMode,
   createChart,
+  createSeriesMarkers,
   type CandlestickData,
   type LineData,
   type IChartApi,
   type ISeriesApi,
+  type ISeriesMarkersPluginApi,
+  type SeriesMarker,
+  type Time,
   type UTCTimestamp,
 } from "lightweight-charts";
 import {
   getMarketCandles,
   type MarketCandle,
+  type MarketStructure,
   type MarketTimeframe,
 } from "@/lib/api";
 import {
@@ -193,6 +198,79 @@ function toLineData(
 }
 
 
+function toStructureMarkers(
+  structure: MarketStructure,
+): SeriesMarker<UTCTimestamp>[] {
+  const markers: SeriesMarker<UTCTimestamp>[] = [];
+
+  for (const point of structure.swing_highs) {
+    if (
+      Number.isFinite(point.time) &&
+      Number.isFinite(point.price)
+    ) {
+      markers.push({
+        time: point.time as UTCTimestamp,
+        position: "aboveBar",
+        shape: "arrowDown",
+        color: "#f59e0b",
+        text: "SH",
+      });
+    }
+  }
+
+  for (const point of structure.swing_lows) {
+    if (
+      Number.isFinite(point.time) &&
+      Number.isFinite(point.price)
+    ) {
+      markers.push({
+        time: point.time as UTCTimestamp,
+        position: "belowBar",
+        shape: "arrowUp",
+        color: "#22d3ee",
+        text: "SL",
+      });
+    }
+  }
+
+  if (
+    structure.bos &&
+    Number.isFinite(structure.bos.time)
+  ) {
+    const bullish =
+      structure.bos.type === "BOS_BULLISH";
+
+    markers.push({
+      time: structure.bos.time as UTCTimestamp,
+      position: bullish ? "belowBar" : "aboveBar",
+      shape: bullish ? "arrowUp" : "arrowDown",
+      color: bullish ? "#22c55e" : "#ef4444",
+      text: "BOS",
+    });
+  }
+
+  if (
+    structure.choch &&
+    Number.isFinite(structure.choch.time)
+  ) {
+    const bullish =
+      structure.choch.type === "CHOCH_BULLISH";
+
+    markers.push({
+      time: structure.choch.time as UTCTimestamp,
+      position: bullish ? "belowBar" : "aboveBar",
+      shape: "square",
+      color: "#e879f9",
+      text: bullish ? "CHoCH UP" : "CHoCH DOWN",
+    });
+  }
+
+  return markers.sort(
+    (left, right) =>
+      Number(left.time) - Number(right.time),
+  );
+}
+
 function formatPrice(
   value: number | null,
   symbol: string,
@@ -201,7 +279,7 @@ function formatPrice(
     value === null ||
     !Number.isFinite(value)
   ) {
-    return "—";
+    return "-";
   }
 
   const { precision } =
@@ -250,6 +328,17 @@ export default function MarketChart({
     useRef<
       ISeriesApi<"Line"> | null
     >(null);
+
+  const structureMarkersRef =
+    useRef<
+      ISeriesMarkersPluginApi<Time> | null
+    >(null);
+
+  const structureMarkerDataRef =
+    useRef<SeriesMarker<UTCTimestamp>[]>([]);
+
+  const structureVisibleRef =
+    useRef(true);
 
   const requestGenerationRef =
     useRef(0);
@@ -328,6 +417,11 @@ export default function MarketChart({
   const [
     adx14Visible,
     setAdx14Visible,
+  ] = useState(true);
+
+  const [
+    structureVisible,
+    setStructureVisible,
   ] = useState(true);
 
   const normalizedSymbol =
@@ -504,6 +598,16 @@ export default function MarketChart({
         },
       );
 
+    const structureMarkers =
+      createSeriesMarkers(
+        candleSeries,
+        [],
+        {
+          autoScale: true,
+          zOrder: "aboveSeries",
+        },
+      );
+
     const ema20Series =
       chart.addSeries(
         LineSeries,
@@ -564,6 +668,9 @@ export default function MarketChart({
     seriesRef.current =
       candleSeries;
 
+    structureMarkersRef.current =
+      structureMarkers;
+
     ema20SeriesRef.current =
       ema20Series;
 
@@ -579,6 +686,12 @@ export default function MarketChart({
 
       seriesRef.current =
         null;
+
+      structureMarkersRef.current?.detach();
+      structureMarkersRef.current =
+        null;
+      structureMarkerDataRef.current =
+        [];
 
       ema20SeriesRef.current =
         null;
@@ -643,6 +756,17 @@ export default function MarketChart({
       visible: adx14Visible,
     });
   }, [adx14Visible]);
+
+  useEffect(() => {
+    structureVisibleRef.current =
+      structureVisible;
+
+    structureMarkersRef.current?.setMarkers(
+      structureVisible
+        ? structureMarkerDataRef.current
+        : [],
+    );
+  }, [structureVisible]);
 
   const loadCandles =
     useCallback(
@@ -718,6 +842,20 @@ export default function MarketChart({
 
           adx14SeriesRef.current?.setData(
             adx14Data,
+          );
+
+          const structureMarkers =
+            toStructureMarkers(
+              result.market_structure,
+            );
+
+          structureMarkerDataRef.current =
+            structureMarkers;
+
+          structureMarkersRef.current?.setMarkers(
+            structureVisibleRef.current
+              ? structureMarkers
+              : [],
           );
 
           setBrokerSymbol(
@@ -1026,6 +1164,29 @@ export default function MarketChart({
               >
                 ADX 14
               </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setStructureVisible(
+                    (visible) => !visible,
+                  )
+                }
+                className={[
+                  "rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors",
+                  structureVisible
+                    ? "bg-fuchsia-500 text-slate-950 shadow"
+                    : "text-slate-400 hover:bg-slate-800 hover:text-slate-100",
+                ].join(" ")}
+                aria-pressed={structureVisible}
+                title={
+                  structureVisible
+                    ? "Hide market structure"
+                    : "Show market structure"
+                }
+              >
+                Structure
+              </button>
             </div>
 
             <div className="flex items-center gap-1 rounded-lg border border-slate-800 bg-slate-900/70 p-1">
@@ -1119,7 +1280,7 @@ export default function MarketChart({
         {loading && (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-slate-950/60 backdrop-blur-[1px]">
             <div className="rounded-lg border border-slate-800 bg-slate-950/90 px-4 py-3 text-sm text-slate-300 shadow-xl">
-              Loading real MT5 candles…
+              Loading real MT5 candles...
             </div>
           </div>
         )}
@@ -1195,7 +1356,7 @@ export default function MarketChart({
             <strong className="font-semibold text-slate-300">
               {lastUpdated
                 ? lastUpdated.toLocaleTimeString()
-                : "—"}
+                : "-"}
             </strong>
           </span>
         </div>
@@ -1212,4 +1373,3 @@ export default function MarketChart({
     </section>
   );
 }
-

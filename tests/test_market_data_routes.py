@@ -1,4 +1,4 @@
-﻿"""
+"""
 test_market_data_routes.py
 
 Tests for authenticated MT5 market-data API.
@@ -1061,4 +1061,239 @@ def test_market_candles_include_adx14_series(
     assert (
         adx14["series"][-1]["value"]
         == expected_latest_adx
+    )
+
+# ==========================================
+# Chart Market Structure
+# ==========================================
+
+
+class FakeStructureMT5DataProvider(
+    FakeMT5DataProvider
+):
+    """
+    Deterministic candle provider containing:
+
+    - confirmed swing highs
+    - confirmed swing lows
+    - bullish BOS
+    - bearish CHoCH
+
+    Used only for market-structure route tests.
+    """
+
+    candle_fetch_count = 0
+
+    def get_candles(
+        self,
+        symbol,
+        timeframe,
+        count=100,
+    ):
+        FakeStructureMT5DataProvider.candle_fetch_count += 1
+
+        FakeMT5DataProvider.last_symbol = symbol
+        FakeMT5DataProvider.last_timeframe = timeframe
+        FakeMT5DataProvider.last_count = count
+
+        base_time = datetime(
+            2026,
+            9,
+            14,
+            10,
+            0,
+            tzinfo=timezone.utc,
+        )
+
+        prices = [
+            # open, high, low, close
+            #
+            # Index 2 becomes a confirmed swing high
+            # at 1.1050.
+            (1.1000, 1.1010, 1.0990, 1.1000),
+            (1.1000, 1.1020, 1.0995, 1.1010),
+            (1.1010, 1.1050, 1.1005, 1.1030),
+            (1.1030, 1.1040, 1.1010, 1.1020),
+            (1.1020, 1.1045, 1.1005, 1.1040),
+
+            # Index 5 closes above the swing high.
+            # This creates BOS_BULLISH.
+            (1.1040, 1.1070, 1.1030, 1.1060),
+
+            # Build a later confirmed swing low
+            # at index 8 with price 1.1010.
+            (1.1060, 1.1065, 1.1030, 1.1040),
+            (1.1040, 1.1050, 1.1020, 1.1030),
+            (1.1030, 1.1040, 1.1010, 1.1020),
+            (1.1020, 1.1045, 1.1020, 1.1040),
+            (1.1040, 1.1050, 1.1030, 1.1045),
+
+            # Index 11 closes below the later
+            # swing low, creating CHOCH_BEARISH.
+            (1.1045, 1.1050, 1.0990, 1.1000),
+        ]
+
+        # Add neutral candles after the deterministic
+        # structure sequence so the route receives the
+        # requested minimum of 50 candles.
+        while len(prices) < count:
+            index = len(prices)
+
+            prices.append(
+                (
+                    1.1000,
+                    1.1008 + (index * 0.000001),
+                    1.0995,
+                    1.1000,
+                )
+            )
+
+        candles = []
+
+        for index, (
+            open_price,
+            high_price,
+            low_price,
+            close_price,
+        ) in enumerate(prices[:count]):
+
+            candles.append(
+                SimpleNamespace(
+                    symbol="EURUSD",
+                    timestamp=(
+                        base_time
+                        + (
+                            index
+                            * (
+                                datetime.resolution
+                                * 3600000000
+                            )
+                        )
+                    ),
+                    open_price=open_price,
+                    high_price=high_price,
+                    low_price=low_price,
+                    close_price=close_price,
+                    volume=1000.0 + index,
+                )
+            )
+
+        return candles
+
+
+def test_market_candles_include_market_structure(
+    monkeypatch,
+):
+    """
+    The candle response should expose backend-computed
+    market structure derived from the same candle dataset.
+    """
+
+    monkeypatch.setattr(
+        market_data_routes,
+        "MT5DataProvider",
+        FakeStructureMT5DataProvider,
+    )
+
+    FakeStructureMT5DataProvider.candle_fetch_count = 0
+
+    headers = get_auth_headers()
+
+    response = client.get(
+        "/market-data/candles"
+        "?symbol=EURUSD"
+        "&timeframe=H1"
+        "&count=50",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert "market_structure" in data
+
+    structure = data["market_structure"]
+
+    assert structure["lookback"] == 2
+    assert isinstance(
+        structure["swing_highs"],
+        list,
+    )
+    assert isinstance(
+        structure["swing_lows"],
+        list,
+    )
+
+    assert len(structure["swing_highs"]) > 0
+    assert len(structure["swing_lows"]) > 0
+
+    first_high = structure["swing_highs"][0]
+
+    assert set(first_high) == {
+        "index",
+        "price",
+        "time",
+    }
+
+    first_low = structure["swing_lows"][0]
+
+    assert set(first_low) == {
+        "index",
+        "price",
+        "time",
+    }
+
+    assert structure["bos"] is not None
+
+    assert set(structure["bos"]) == {
+        "type",
+        "broken_price",
+        "swing_index",
+        "break_index",
+        "time",
+    }
+
+    if structure["choch"] is not None:
+        assert set(structure["choch"]) == {
+            "type",
+            "broken_price",
+            "swing_index",
+            "break_index",
+            "time",
+        }
+
+
+def test_market_structure_reuses_single_candle_fetch(
+    monkeypatch,
+):
+    """
+    Market structure must reuse the candle dataset already
+    fetched by the chart route and must not trigger another
+    MT5 candle request.
+    """
+
+    monkeypatch.setattr(
+        market_data_routes,
+        "MT5DataProvider",
+        FakeStructureMT5DataProvider,
+    )
+
+    FakeStructureMT5DataProvider.candle_fetch_count = 0
+
+    headers = get_auth_headers()
+
+    response = client.get(
+        "/market-data/candles"
+        "?symbol=EURUSD"
+        "&timeframe=H1"
+        "&count=50",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+
+    assert (
+        FakeStructureMT5DataProvider.candle_fetch_count
+        == 1
     )

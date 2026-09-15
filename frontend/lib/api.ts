@@ -1,4 +1,4 @@
-﻿const API_URL =
+const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
   "http://127.0.0.1:8000";
 
@@ -653,6 +653,46 @@ export type MarketIndicatorPoint = {
 };
 
 
+export type MarketStructureSwingPoint = {
+  index: number;
+
+  price: number;
+
+  time: number;
+};
+
+
+export type MarketStructureEvent = {
+  type:
+    | "BOS_BULLISH"
+    | "BOS_BEARISH"
+    | "CHOCH_BULLISH"
+    | "CHOCH_BEARISH"
+    | string;
+
+  broken_price: number;
+
+  swing_index: number;
+
+  break_index: number;
+
+  time: number;
+};
+
+
+export type MarketStructure = {
+  lookback: number;
+
+  swing_highs: MarketStructureSwingPoint[];
+
+  swing_lows: MarketStructureSwingPoint[];
+
+  bos: MarketStructureEvent | null;
+
+  choch: MarketStructureEvent | null;
+};
+
+
 export type MarketCandlesResponse = {
   symbol: string;
 
@@ -680,6 +720,8 @@ export type MarketCandlesResponse = {
       series: MarketIndicatorPoint[];
     };
   };
+
+  market_structure: MarketStructure;
 };
 
 
