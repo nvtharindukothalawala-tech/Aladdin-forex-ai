@@ -265,6 +265,25 @@ function toStructureMarkers(
     });
   }
 
+  if (
+    structure.liquidity_sweep &&
+    Number.isFinite(structure.liquidity_sweep.time) &&
+    Number.isFinite(structure.liquidity_sweep.level_price)
+  ) {
+    const highSide =
+      structure.liquidity_sweep.type ===
+      "LIQUIDITY_SWEEP_HIGH";
+
+    markers.push({
+      time:
+        structure.liquidity_sweep.time as UTCTimestamp,
+      position: highSide ? "aboveBar" : "belowBar",
+      shape: "circle",
+      color: "#fb7185",
+      text: highSide ? "LS HIGH" : "LS LOW",
+    });
+  }
+
   return markers.sort(
     (left, right) =>
       Number(left.time) - Number(right.time),

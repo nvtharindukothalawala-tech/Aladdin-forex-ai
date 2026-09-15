@@ -1215,6 +1215,41 @@ def test_market_candles_include_market_structure(
 
     structure = data["market_structure"]
 
+    assert "liquidity_sweep" in structure
+
+    liquidity_sweep = structure["liquidity_sweep"]
+
+    if liquidity_sweep is not None:
+        assert set(liquidity_sweep) == {
+            "type",
+            "level_price",
+            "swing_index",
+            "sweep_index",
+            "time",
+        }
+
+        assert liquidity_sweep["type"] in {
+            "LIQUIDITY_SWEEP_HIGH",
+            "LIQUIDITY_SWEEP_LOW",
+        }
+
+        assert isinstance(
+            liquidity_sweep["level_price"],
+            (int, float),
+        )
+        assert isinstance(
+            liquidity_sweep["swing_index"],
+            int,
+        )
+        assert isinstance(
+            liquidity_sweep["sweep_index"],
+            int,
+        )
+        assert isinstance(
+            liquidity_sweep["time"],
+            int,
+        )
+
     assert structure["lookback"] == 2
     assert isinstance(
         structure["swing_highs"],

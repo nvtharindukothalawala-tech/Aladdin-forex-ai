@@ -680,6 +680,22 @@ export type MarketStructureEvent = {
 };
 
 
+export type MarketStructureLiquiditySweep = {
+  type:
+    | "LIQUIDITY_SWEEP_HIGH"
+    | "LIQUIDITY_SWEEP_LOW"
+    | string;
+
+  level_price: number;
+
+  swing_index: number;
+
+  sweep_index: number;
+
+  time: number;
+};
+
+
 export type MarketStructure = {
   lookback: number;
 
@@ -690,6 +706,8 @@ export type MarketStructure = {
   bos: MarketStructureEvent | null;
 
   choch: MarketStructureEvent | null;
+
+  liquidity_sweep: MarketStructureLiquiditySweep | null;
 };
 
 

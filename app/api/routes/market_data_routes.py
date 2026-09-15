@@ -213,6 +213,34 @@ def _serialize_structure_event(
     }
 
 
+def _serialize_liquidity_sweep(
+    event: dict | None,
+) -> dict | None:
+    """
+    Convert an internal liquidity-sweep event into
+    the frontend chart contract.
+
+    None is preserved when no confirmed liquidity
+    sweep exists.
+
+    The existing Market Structure Service remains
+    authoritative for liquidity-sweep detection.
+    """
+
+    if event is None:
+        return None
+
+    return {
+        "type": event["type"],
+        "level_price": event["level_price"],
+        "swing_index": event["swing_index"],
+        "sweep_index": event["sweep_index"],
+        "time": int(
+            event["timestamp"].timestamp()
+        ),
+    }
+
+
 # ==========================================================
 # REAL MT5 MARKET WATCH QUOTES
 # ==========================================================
@@ -450,6 +478,7 @@ def get_market_candles(
     - confirmed swing lows
     - latest Break of Structure (BOS)
     - latest Change of Character (CHoCH)
+    - latest confirmed liquidity sweep
 
     The endpoint:
 
@@ -578,6 +607,15 @@ def get_market_candles(
             )
         )
 
+        latest_liquidity_sweep = (
+            MarketStructureService
+            .detect_liquidity_sweep(
+                candles,
+                swing_highs,
+                swing_lows,
+            )
+        )
+
         return {
             "symbol": normalized_symbol,
             "broker_symbol": candles[-1].symbol,
@@ -632,6 +670,11 @@ def get_market_candles(
                 "choch": (
                     _serialize_structure_event(
                         latest_choch
+                    )
+                ),
+                "liquidity_sweep": (
+                    _serialize_liquidity_sweep(
+                        latest_liquidity_sweep
                     )
                 ),
             },

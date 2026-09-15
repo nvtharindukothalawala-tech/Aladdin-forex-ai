@@ -320,3 +320,153 @@ def test_detect_choch_returns_none_without_bos():
     )
 
     assert result is None
+
+
+def test_detect_high_side_liquidity_sweep():
+    """
+    Price trading above a confirmed swing high
+    and closing back below it must produce a
+    high-side liquidity sweep.
+    """
+
+    candles = [
+        make_candle(0, 1.1000, 1.1010, 1.0990, 1.1000),
+        make_candle(1, 1.1000, 1.1050, 1.1000, 1.1030),
+        make_candle(2, 1.1030, 1.1040, 1.1010, 1.1020),
+        make_candle(3, 1.1020, 1.1060, 1.1010, 1.1040),
+    ]
+
+    swing_highs = [
+        {
+            "index": 1,
+            "price": 1.1050,
+            "timestamp": candles[1].timestamp,
+        }
+    ]
+
+    result = MarketStructureService.detect_liquidity_sweep(
+        candles,
+        swing_highs,
+        [],
+    )
+
+    assert result is not None
+    assert result["type"] == "LIQUIDITY_SWEEP_HIGH"
+    assert result["level_price"] == 1.1050
+    assert result["swing_index"] == 1
+    assert result["sweep_index"] == 3
+    assert result["timestamp"] == candles[3].timestamp
+
+
+def test_detect_low_side_liquidity_sweep():
+    """
+    Price trading below a confirmed swing low
+    and closing back above it must produce a
+    low-side liquidity sweep.
+    """
+
+    candles = [
+        make_candle(0, 1.1050, 1.1060, 1.1030, 1.1040),
+        make_candle(1, 1.1040, 1.1050, 1.0990, 1.1010),
+        make_candle(2, 1.1010, 1.1030, 1.1000, 1.1020),
+        make_candle(3, 1.1020, 1.1030, 1.0980, 1.1000),
+    ]
+
+    swing_lows = [
+        {
+            "index": 1,
+            "price": 1.0990,
+            "timestamp": candles[1].timestamp,
+        }
+    ]
+
+    result = MarketStructureService.detect_liquidity_sweep(
+        candles,
+        [],
+        swing_lows,
+    )
+
+    assert result is not None
+    assert result["type"] == "LIQUIDITY_SWEEP_LOW"
+    assert result["level_price"] == 1.0990
+    assert result["swing_index"] == 1
+    assert result["sweep_index"] == 3
+    assert result["timestamp"] == candles[3].timestamp
+
+
+def test_detect_liquidity_sweep_returns_none_without_sweep():
+    """
+    Price remaining inside the supplied swing
+    levels must not produce a liquidity sweep.
+    """
+
+    candles = [
+        make_candle(0, 1.1000, 1.1020, 1.0990, 1.1010),
+        make_candle(1, 1.1010, 1.1050, 1.0980, 1.1020),
+        make_candle(2, 1.1020, 1.1040, 1.0990, 1.1030),
+        make_candle(3, 1.1030, 1.1045, 1.0985, 1.1020),
+    ]
+
+    swing_highs = [
+        {
+            "index": 1,
+            "price": 1.1050,
+            "timestamp": candles[1].timestamp,
+        }
+    ]
+
+    swing_lows = [
+        {
+            "index": 1,
+            "price": 1.0980,
+            "timestamp": candles[1].timestamp,
+        }
+    ]
+
+    result = MarketStructureService.detect_liquidity_sweep(
+        candles,
+        swing_highs,
+        swing_lows,
+    )
+
+    assert result is None
+
+
+def test_detect_liquidity_sweep_requires_strict_level_cross():
+    """
+    Touching a swing level exactly is not a sweep.
+
+    The existing service requires the candle high
+    to be strictly above a swing high or the candle
+    low to be strictly below a swing low.
+    """
+
+    candles = [
+        make_candle(0, 1.1000, 1.1020, 1.0990, 1.1010),
+        make_candle(1, 1.1010, 1.1050, 1.0980, 1.1020),
+        make_candle(2, 1.1020, 1.1050, 1.0980, 1.1010),
+    ]
+
+    swing_highs = [
+        {
+            "index": 1,
+            "price": 1.1050,
+            "timestamp": candles[1].timestamp,
+        }
+    ]
+
+    swing_lows = [
+        {
+            "index": 1,
+            "price": 1.0980,
+            "timestamp": candles[1].timestamp,
+        }
+    ]
+
+    result = MarketStructureService.detect_liquidity_sweep(
+        candles,
+        swing_highs,
+        swing_lows,
+    )
+
+    assert result is None
