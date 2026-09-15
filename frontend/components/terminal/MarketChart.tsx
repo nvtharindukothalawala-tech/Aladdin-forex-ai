@@ -285,6 +285,24 @@ function toStructureMarkers(
   }
 
   if (
+    structure.fvg &&
+    Number.isFinite(structure.fvg.time) &&
+    Number.isFinite(structure.fvg.lower_price) &&
+    Number.isFinite(structure.fvg.upper_price)
+  ) {
+    const bullish =
+      structure.fvg.type === "FVG_BULLISH";
+
+    markers.push({
+      time: structure.fvg.time as UTCTimestamp,
+      position: bullish ? "belowBar" : "aboveBar",
+      shape: "square",
+      color: bullish ? "#2dd4bf" : "#fb923c",
+      text: bullish ? "FVG UP" : "FVG DOWN",
+    });
+  }
+
+  if (
     structure.liquidity_sweep &&
     Number.isFinite(structure.liquidity_sweep.time) &&
     Number.isFinite(structure.liquidity_sweep.level_price)

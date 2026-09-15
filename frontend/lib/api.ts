@@ -716,6 +716,26 @@ export type MarketStructureOrderBlock = {
 };
 
 
+export type MarketStructureFVG = {
+  type:
+    | "FVG_BULLISH"
+    | "FVG_BEARISH"
+    | string;
+
+  start_index: number;
+
+  middle_index: number;
+
+  end_index: number;
+
+  lower_price: number;
+
+  upper_price: number;
+
+  time: number;
+};
+
+
 export type MarketStructure = {
   lookback: number;
 
@@ -730,6 +750,8 @@ export type MarketStructure = {
   liquidity_sweep: MarketStructureLiquiditySweep | null;
 
   order_block: MarketStructureOrderBlock | null;
+
+  fvg: MarketStructureFVG | null;
 };
 
 

@@ -241,6 +241,34 @@ def _serialize_order_block(
     }
 
 
+def _serialize_fvg(
+    event: dict | None,
+) -> dict | None:
+    """
+    Convert an internal Fair Value Gap event into
+    the frontend chart contract.
+
+    None is preserved when no confirmed FVG exists.
+    The Market Structure Service remains authoritative
+    for Fair Value Gap detection.
+    """
+
+    if event is None:
+        return None
+
+    return {
+        "type": event["type"],
+        "start_index": event["start_index"],
+        "middle_index": event["middle_index"],
+        "end_index": event["end_index"],
+        "lower_price": event["lower_price"],
+        "upper_price": event["upper_price"],
+        "time": int(
+            event["timestamp"].timestamp()
+        ),
+    }
+
+
 def _serialize_liquidity_sweep(
     event: dict | None,
 ) -> dict | None:
@@ -508,6 +536,7 @@ def get_market_candles(
     - latest Change of Character (CHoCH)
     - latest confirmed liquidity sweep
     - latest Order Block related to the latest BOS
+    - latest Fair Value Gap (FVG)
 
     The endpoint:
 
@@ -653,6 +682,13 @@ def get_market_candles(
             )
         )
 
+        latest_fvg = (
+            MarketStructureService
+            .detect_fvg(
+                candles,
+            )
+        )
+
         return {
             "symbol": normalized_symbol,
             "broker_symbol": candles[-1].symbol,
@@ -717,6 +753,11 @@ def get_market_candles(
                 "liquidity_sweep": (
                     _serialize_liquidity_sweep(
                         latest_liquidity_sweep
+                    )
+                ),
+                "fvg": (
+                    _serialize_fvg(
+                        latest_fvg
                     )
                 ),
             },

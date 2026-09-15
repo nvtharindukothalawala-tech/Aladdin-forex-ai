@@ -1260,6 +1260,39 @@ def test_market_candles_include_market_structure(
             int,
         )
 
+    assert "fvg" in structure
+
+    fvg = structure["fvg"]
+
+    if fvg is not None:
+        assert set(fvg) == {
+            "type",
+            "start_index",
+            "middle_index",
+            "end_index",
+            "lower_price",
+            "upper_price",
+            "time",
+        }
+
+        assert fvg["type"] in {
+            "FVG_BULLISH",
+            "FVG_BEARISH",
+        }
+
+        assert isinstance(fvg["start_index"], int)
+        assert isinstance(fvg["middle_index"], int)
+        assert isinstance(fvg["end_index"], int)
+        assert isinstance(
+            fvg["lower_price"],
+            (int, float),
+        )
+        assert isinstance(
+            fvg["upper_price"],
+            (int, float),
+        )
+        assert isinstance(fvg["time"], int)
+
     assert "liquidity_sweep" in structure
 
     liquidity_sweep = structure["liquidity_sweep"]

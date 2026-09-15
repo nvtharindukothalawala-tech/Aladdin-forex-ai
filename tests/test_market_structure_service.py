@@ -471,6 +471,7 @@ def test_detect_liquidity_sweep_requires_strict_level_cross():
 
     assert result is None
 
+
 def test_detect_bullish_order_block_uses_nearest_bearish_candle():
     """Bullish BOS selects the nearest previous bearish candle."""
     candles = [
@@ -560,3 +561,82 @@ def test_detect_order_block_returns_none_without_opposite_candle():
     result = MarketStructureService.detect_order_block(candles, latest_bos)
 
     assert result is None
+
+def test_detect_fvg_detects_bullish_gap():
+    """Candle 3 low strictly above Candle 1 high creates bullish FVG."""
+    candles = [
+        make_candle(0, 1.1000, 1.1010, 1.0990, 1.1005),
+        make_candle(1, 1.1005, 1.1040, 1.1000, 1.1030),
+        make_candle(2, 1.1030, 1.1050, 1.1020, 1.1040),
+    ]
+
+    result = MarketStructureService.detect_fvg(candles)
+
+    assert result is not None
+    assert result["type"] == "FVG_BULLISH"
+    assert result["start_index"] == 0
+    assert result["middle_index"] == 1
+    assert result["end_index"] == 2
+    assert result["lower_price"] == candles[0].high_price
+    assert result["upper_price"] == candles[2].low_price
+    assert result["timestamp"] == candles[2].timestamp
+
+
+def test_detect_fvg_detects_bearish_gap():
+    """Candle 3 high strictly below Candle 1 low creates bearish FVG."""
+    candles = [
+        make_candle(0, 1.1050, 1.1060, 1.1040, 1.1050),
+        make_candle(1, 1.1050, 1.1055, 1.1010, 1.1020),
+        make_candle(2, 1.1020, 1.1030, 1.1000, 1.1010),
+    ]
+
+    result = MarketStructureService.detect_fvg(candles)
+
+    assert result is not None
+    assert result["type"] == "FVG_BEARISH"
+    assert result["start_index"] == 0
+    assert result["middle_index"] == 1
+    assert result["end_index"] == 2
+    assert result["lower_price"] == candles[2].high_price
+    assert result["upper_price"] == candles[0].low_price
+    assert result["timestamp"] == candles[2].timestamp
+
+
+def test_detect_fvg_returns_latest_gap():
+    """When several FVGs exist, the event with latest end_index is returned."""
+    candles = [
+        make_candle(0, 1.1000, 1.1010, 1.0990, 1.1000),
+        make_candle(1, 1.1000, 1.1040, 1.1000, 1.1030),
+        make_candle(2, 1.1030, 1.1050, 1.1020, 1.1040),
+        make_candle(3, 1.1040, 1.1050, 1.1030, 1.1040),
+        make_candle(4, 1.1040, 1.1050, 1.1030, 1.1040),
+        make_candle(5, 1.1040, 1.1045, 1.1000, 1.1010),
+        make_candle(6, 1.1010, 1.1020, 1.0990, 1.1000),
+    ]
+
+    result = MarketStructureService.detect_fvg(candles)
+
+    assert result is not None
+    assert result["type"] == "FVG_BEARISH"
+    assert result["start_index"] == 4
+    assert result["middle_index"] == 5
+    assert result["end_index"] == 6
+    assert result["lower_price"] == candles[6].high_price
+    assert result["upper_price"] == candles[4].low_price
+    assert result["timestamp"] == candles[6].timestamp
+
+
+def test_detect_fvg_returns_none_without_gap_or_enough_candles():
+    """Fewer than three candles or no strict gap must return None."""
+    insufficient = [
+        make_candle(0, 1.1000, 1.1020, 1.0990, 1.1010),
+        make_candle(1, 1.1010, 1.1030, 1.1000, 1.1020),
+    ]
+    no_gap = [
+        make_candle(0, 1.1000, 1.1020, 1.0990, 1.1010),
+        make_candle(1, 1.1010, 1.1030, 1.1000, 1.1020),
+        make_candle(2, 1.1020, 1.1040, 1.1020, 1.1030),
+    ]
+
+    assert MarketStructureService.detect_fvg(insufficient) is None
+    assert MarketStructureService.detect_fvg(no_gap) is None
