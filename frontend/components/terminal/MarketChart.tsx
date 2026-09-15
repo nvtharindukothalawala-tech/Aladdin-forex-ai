@@ -2,10 +2,12 @@
 
 import {
   CandlestickSeries,
+  LineSeries,
   ColorType,
   CrosshairMode,
   createChart,
   type CandlestickData,
+  type LineData,
   type IChartApi,
   type ISeriesApi,
   type UTCTimestamp,
@@ -154,6 +156,43 @@ function toChartData(
     );
 }
 
+function toLineData(
+  points: {
+    time: number;
+    value: number;
+  }[],
+): LineData<UTCTimestamp>[] {
+  const uniquePoints =
+    new Map<number, number>();
+
+  for (const point of points) {
+    if (
+      Number.isFinite(point.time) &&
+      Number.isFinite(point.value)
+    ) {
+      uniquePoints.set(
+        point.time,
+        point.value,
+      );
+    }
+  }
+
+  return Array.from(
+    uniquePoints.entries(),
+  )
+    .sort(
+      ([leftTime], [rightTime]) =>
+        leftTime - rightTime,
+    )
+    .map(
+      ([time, value]) => ({
+        time: time as UTCTimestamp,
+        value,
+      }),
+    );
+}
+
+
 function formatPrice(
   value: number | null,
   symbol: string,
@@ -195,6 +234,11 @@ export default function MarketChart({
   const seriesRef =
     useRef<
       ISeriesApi<"Candlestick"> | null
+    >(null);
+
+  const ema20SeriesRef =
+    useRef<
+      ISeriesApi<"Line"> | null
     >(null);
 
   const requestGenerationRef =
@@ -260,6 +304,11 @@ export default function MarketChart({
     useState<string | null>(
       null,
     );
+
+  const [
+    ema20Visible,
+    setEma20Visible,
+  ] = useState(true);
 
   const normalizedSymbol =
     useMemo(
@@ -427,17 +476,35 @@ export default function MarketChart({
         },
       );
 
+    const ema20Series =
+      chart.addSeries(
+        LineSeries,
+        {
+          color: "#f59e0b",
+          lineWidth: 2,
+          priceLineVisible: false,
+          lastValueVisible: true,
+          title: "EMA 20",
+        },
+      );
+
     chartRef.current =
       chart;
 
     seriesRef.current =
       candleSeries;
 
+    ema20SeriesRef.current =
+      ema20Series;
+
     return () => {
       chartRef.current =
         null;
 
       seriesRef.current =
+        null;
+
+      ema20SeriesRef.current =
         null;
 
       chart.remove();
@@ -467,7 +534,21 @@ export default function MarketChart({
         minMove,
       },
     });
+
+    ema20SeriesRef.current?.applyOptions({
+      priceFormat: {
+        type: "price",
+        precision,
+        minMove,
+      },
+    });
   }, [normalizedSymbol]);
+
+  useEffect(() => {
+    ema20SeriesRef.current?.applyOptions({
+      visible: ema20Visible,
+    });
+  }, [ema20Visible]);
 
   const loadCandles =
     useCallback(
@@ -516,6 +597,15 @@ export default function MarketChart({
 
           candleSeries.setData(
             chartData,
+          );
+
+          const ema20Data =
+            toLineData(
+              result.indicators.ema20.series,
+            );
+
+          ema20SeriesRef.current?.setData(
+            ema20Data,
           );
 
           setBrokerSymbol(
@@ -687,6 +777,12 @@ export default function MarketChart({
             <div className="hidden h-8 w-px bg-slate-800 sm:block" />
 
             <div className="flex flex-wrap items-center gap-3 text-xs">
+              {ema20Visible && (
+                <span className="font-semibold text-amber-400">
+                  EMA 20
+                </span>
+              )}
+
               <span className="text-slate-500">
                 O{" "}
                 <span className="font-mono text-slate-300">
@@ -745,6 +841,35 @@ export default function MarketChart({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1 rounded-lg border border-slate-800 bg-slate-900/70 p-1">
+              <span className="px-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                Indicators
+              </span>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setEma20Visible(
+                    (visible) => !visible,
+                  )
+                }
+                className={[
+                  "rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors",
+                  ema20Visible
+                    ? "bg-amber-500 text-slate-950 shadow"
+                    : "text-slate-400 hover:bg-slate-800 hover:text-slate-100",
+                ].join(" ")}
+                aria-pressed={ema20Visible}
+                title={
+                  ema20Visible
+                    ? "Hide EMA 20"
+                    : "Show EMA 20"
+                }
+              >
+                EMA 20
+              </button>
+            </div>
+
             <div className="flex items-center gap-1 rounded-lg border border-slate-800 bg-slate-900/70 p-1">
               {SUPPORTED_TIMEFRAMES.map(
                 (
@@ -929,3 +1054,4 @@ export default function MarketChart({
     </section>
   );
 }
+

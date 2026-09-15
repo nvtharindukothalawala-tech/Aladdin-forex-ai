@@ -1,4 +1,4 @@
-const API_URL =
+﻿const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
   "http://127.0.0.1:8000";
 
@@ -646,6 +646,13 @@ export type MarketCandle = {
 };
 
 
+export type MarketIndicatorPoint = {
+  time: number;
+
+  value: number;
+};
+
+
 export type MarketCandlesResponse = {
   symbol: string;
 
@@ -656,6 +663,13 @@ export type MarketCandlesResponse = {
   count: number;
 
   candles: MarketCandle[];
+
+  indicators: {
+    ema20: {
+      period: number;
+      series: MarketIndicatorPoint[];
+    };
+  };
 };
 
 

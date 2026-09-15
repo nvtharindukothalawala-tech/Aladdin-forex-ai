@@ -1,4 +1,4 @@
-"""
+﻿"""
 test_market_data_routes.py
 
 Tests for authenticated MT5 market-data API.
@@ -20,6 +20,7 @@ from uuid import uuid4
 from fastapi.testclient import TestClient
 
 from app.api.main import app
+from app.market.indicators import TechnicalIndicators
 
 import app.api.routes.market_data_routes as market_data_routes
 
@@ -853,3 +854,69 @@ def test_market_data_returns_503_when_mt5_fails(
         response.json()["detail"]
         == "MT5 market data unavailable."
     )
+# ==========================================
+# Chart Technical Indicators
+# ==========================================
+
+
+def test_market_candles_include_ema20_series(
+    monkeypatch,
+):
+    """
+    The candle response should include a backend-computed
+    EMA20 series derived from the same MT5 candle dataset.
+    """
+
+    monkeypatch.setattr(
+        market_data_routes,
+        "MT5DataProvider",
+        FakeMT5DataProvider,
+    )
+
+    headers = get_auth_headers()
+
+    response = client.get(
+        "/market-data/candles"
+        "?symbol=EURUSD"
+        "&timeframe=H1"
+        "&count=50",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert "indicators" in data
+    assert "ema20" in data["indicators"]
+
+    ema20 = data["indicators"]["ema20"]
+
+    assert ema20["period"] == 20
+    assert len(ema20["series"]) == 31
+
+    assert (
+        ema20["series"][0]["time"]
+        == data["candles"][19]["time"]
+    )
+
+    assert (
+        ema20["series"][-1]["time"]
+        == data["candles"][-1]["time"]
+    )
+
+    expected_latest_ema = (
+        TechnicalIndicators.calculate_ema(
+            [
+                candle["close"]
+                for candle in data["candles"]
+            ],
+            20,
+        )
+    )
+
+    assert (
+        ema20["series"][-1]["value"]
+        == expected_latest_ema
+    )
+

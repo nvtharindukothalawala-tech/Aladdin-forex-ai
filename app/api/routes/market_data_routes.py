@@ -36,6 +36,10 @@ from app.market.mt5_provider import (
     MT5DataProvider,
 )
 
+from app.services.chart_indicator_service import (
+    ChartIndicatorService,
+)
+
 
 router = APIRouter(
     prefix="/market-data",
@@ -423,6 +427,13 @@ def get_market_candles(
                 "No MT5 candle data is available."
             )
 
+        ema20_series = (
+            ChartIndicatorService.calculate_ema_series(
+                candles,
+                period=20,
+            )
+        )
+
         return {
             "symbol": normalized_symbol,
             "broker_symbol": candles[-1].symbol,
@@ -441,6 +452,12 @@ def get_market_candles(
                 }
                 for candle in candles
             ],
+            "indicators": {
+                "ema20": {
+                    "period": 20,
+                    "series": ema20_series,
+                },
+            },
         }
 
     except ValueError as error:
