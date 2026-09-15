@@ -241,6 +241,16 @@ export default function MarketChart({
       ISeriesApi<"Line"> | null
     >(null);
 
+  const rsi14SeriesRef =
+    useRef<
+      ISeriesApi<"Line"> | null
+    >(null);
+
+  const adx14SeriesRef =
+    useRef<
+      ISeriesApi<"Line"> | null
+    >(null);
+
   const requestGenerationRef =
     useRef(0);
 
@@ -310,6 +320,16 @@ export default function MarketChart({
     setEma20Visible,
   ] = useState(true);
 
+  const [
+    rsi14Visible,
+    setRsi14Visible,
+  ] = useState(true);
+
+  const [
+    adx14Visible,
+    setAdx14Visible,
+  ] = useState(true);
+
   const normalizedSymbol =
     useMemo(
       () =>
@@ -375,6 +395,14 @@ export default function MarketChart({
 
             textColor:
               "#94a3b8",
+
+            panes: {
+              enableResize: true,
+              separatorColor:
+                "rgba(148, 163, 184, 0.18)",
+              separatorHoverColor:
+                "rgba(56, 189, 248, 0.35)",
+            },
           },
 
           grid: {
@@ -488,6 +516,48 @@ export default function MarketChart({
         },
       );
 
+    const rsi14Series =
+      chart.addSeries(
+        LineSeries,
+        {
+          color: "#38bdf8",
+          lineWidth: 2,
+          priceLineVisible: false,
+          lastValueVisible: true,
+          title: "RSI 14",
+          priceFormat: {
+            type: "price",
+            precision: 2,
+            minMove: 0.01,
+          },
+        },
+        1,
+      );
+
+    const adx14Series =
+      chart.addSeries(
+        LineSeries,
+        {
+          color: "#a78bfa",
+          lineWidth: 2,
+          priceLineVisible: false,
+          lastValueVisible: true,
+          title: "ADX 14",
+          priceFormat: {
+            type: "price",
+            precision: 2,
+            minMove: 0.01,
+          },
+        },
+        2,
+      );
+
+    const panes = chart.panes();
+
+    panes[0]?.setHeight(380);
+    panes[1]?.setHeight(130);
+    panes[2]?.setHeight(130);
+
     chartRef.current =
       chart;
 
@@ -497,6 +567,12 @@ export default function MarketChart({
     ema20SeriesRef.current =
       ema20Series;
 
+    rsi14SeriesRef.current =
+      rsi14Series;
+
+    adx14SeriesRef.current =
+      adx14Series;
+
     return () => {
       chartRef.current =
         null;
@@ -505,6 +581,12 @@ export default function MarketChart({
         null;
 
       ema20SeriesRef.current =
+        null;
+
+      rsi14SeriesRef.current =
+        null;
+
+      adx14SeriesRef.current =
         null;
 
       chart.remove();
@@ -549,6 +631,18 @@ export default function MarketChart({
       visible: ema20Visible,
     });
   }, [ema20Visible]);
+
+  useEffect(() => {
+    rsi14SeriesRef.current?.applyOptions({
+      visible: rsi14Visible,
+    });
+  }, [rsi14Visible]);
+
+  useEffect(() => {
+    adx14SeriesRef.current?.applyOptions({
+      visible: adx14Visible,
+    });
+  }, [adx14Visible]);
 
   const loadCandles =
     useCallback(
@@ -606,6 +700,24 @@ export default function MarketChart({
 
           ema20SeriesRef.current?.setData(
             ema20Data,
+          );
+
+          const rsi14Data =
+            toLineData(
+              result.indicators.rsi14.series,
+            );
+
+          rsi14SeriesRef.current?.setData(
+            rsi14Data,
+          );
+
+          const adx14Data =
+            toLineData(
+              result.indicators.adx14.series,
+            );
+
+          adx14SeriesRef.current?.setData(
+            adx14Data,
           );
 
           setBrokerSymbol(
@@ -868,6 +980,52 @@ export default function MarketChart({
               >
                 EMA 20
               </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setRsi14Visible(
+                    (visible) => !visible,
+                  )
+                }
+                className={[
+                  "rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors",
+                  rsi14Visible
+                    ? "bg-sky-500 text-slate-950 shadow"
+                    : "text-slate-400 hover:bg-slate-800 hover:text-slate-100",
+                ].join(" ")}
+                aria-pressed={rsi14Visible}
+                title={
+                  rsi14Visible
+                    ? "Hide RSI 14"
+                    : "Show RSI 14"
+                }
+              >
+                RSI 14
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setAdx14Visible(
+                    (visible) => !visible,
+                  )
+                }
+                className={[
+                  "rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors",
+                  adx14Visible
+                    ? "bg-violet-500 text-slate-950 shadow"
+                    : "text-slate-400 hover:bg-slate-800 hover:text-slate-100",
+                ].join(" ")}
+                aria-pressed={adx14Visible}
+                title={
+                  adx14Visible
+                    ? "Hide ADX 14"
+                    : "Show ADX 14"
+                }
+              >
+                ADX 14
+              </button>
             </div>
 
             <div className="flex items-center gap-1 rounded-lg border border-slate-800 bg-slate-900/70 p-1">
@@ -952,7 +1110,7 @@ export default function MarketChart({
         </div>
       </div>
 
-      <div className="relative h-[460px] min-h-[320px] w-full bg-[#07101d] md:h-[520px]">
+      <div className="relative h-[620px] min-h-[480px] w-full bg-[#07101d] md:h-[700px]">
         <div
           ref={containerRef}
           className="h-full w-full"

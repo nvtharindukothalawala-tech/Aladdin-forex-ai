@@ -55,6 +55,7 @@ MARKET_WATCH_SYMBOLS = tuple(
     INSTRUMENTS.keys()
 )
 
+
 SUPPORTED_SYMBOLS = set(
     MARKET_WATCH_SYMBOLS
 )
@@ -158,6 +159,7 @@ def _resolve_timeframe(
         normalized,
         timeframe_map[normalized],
     )
+
 
 # ==========================================================
 # REAL MT5 MARKET WATCH QUOTES
@@ -385,13 +387,19 @@ def get_market_candles(
 
     It is intended for the ALADDIN V2 trading chart.
 
+    Chart indicator series are calculated from the
+    same candle dataset returned by MT5. No additional
+    MT5 market-data request is required for indicators.
+
     The endpoint:
 
     - reads MT5 market data
+    - calculates visualization-only chart indicators
     - does not execute trades
     - does not modify positions
     - does not modify orders
     - does not change the DEMO execution safety switch
+    - does not change AI decision authority
     """
 
     # Authentication is enforced by the dependency.
@@ -416,6 +424,10 @@ def get_market_candles(
             timeframe,
         )
 
+        # --------------------------------------------------
+        # Single MT5 candle fetch
+        # --------------------------------------------------
+
         candles = provider.get_candles(
             symbol=normalized_symbol,
             timeframe=mt5_timeframe,
@@ -427,10 +439,34 @@ def get_market_candles(
                 "No MT5 candle data is available."
             )
 
+        # --------------------------------------------------
+        # Visualization-only indicator series
+        #
+        # All indicators use the exact same candle dataset
+        # retrieved above. There is no second MT5 fetch.
+        # --------------------------------------------------
+
         ema20_series = (
-            ChartIndicatorService.calculate_ema_series(
+            ChartIndicatorService
+            .calculate_ema_series(
                 candles,
                 period=20,
+            )
+        )
+
+        rsi14_series = (
+            ChartIndicatorService
+            .calculate_rsi_series(
+                candles,
+                period=14,
+            )
+        )
+
+        adx14_series = (
+            ChartIndicatorService
+            .calculate_adx_series(
+                candles,
+                period=14,
             )
         )
 
@@ -456,6 +492,14 @@ def get_market_candles(
                 "ema20": {
                     "period": 20,
                     "series": ema20_series,
+                },
+                "rsi14": {
+                    "period": 14,
+                    "series": rsi14_series,
+                },
+                "adx14": {
+                    "period": 14,
+                    "series": adx14_series,
                 },
             },
         }

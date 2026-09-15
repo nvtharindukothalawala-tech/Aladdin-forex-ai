@@ -669,6 +669,16 @@ export type MarketCandlesResponse = {
       period: number;
       series: MarketIndicatorPoint[];
     };
+
+    rsi14: {
+      period: number;
+      series: MarketIndicatorPoint[];
+    };
+
+    adx14: {
+      period: number;
+      series: MarketIndicatorPoint[];
+    };
   };
 };
 

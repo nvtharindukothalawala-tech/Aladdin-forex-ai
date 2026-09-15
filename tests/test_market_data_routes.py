@@ -920,3 +920,145 @@ def test_market_candles_include_ema20_series(
         == expected_latest_ema
     )
 
+def test_market_candles_include_rsi14_series(
+    monkeypatch,
+):
+    """
+    The candle response should include a backend-computed
+    RSI14 series derived from the same MT5 candle dataset.
+
+    The latest chart RSI must match ALADDIN's existing
+    TechnicalIndicators RSI calculation.
+    """
+
+    monkeypatch.setattr(
+        market_data_routes,
+        "MT5DataProvider",
+        FakeMT5DataProvider,
+    )
+
+    headers = get_auth_headers()
+
+    response = client.get(
+        "/market-data/candles"
+        "?symbol=EURUSD"
+        "&timeframe=H1"
+        "&count=50",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert "indicators" in data
+    assert "rsi14" in data["indicators"]
+
+    rsi14 = data["indicators"]["rsi14"]
+
+    assert rsi14["period"] == 14
+
+    # RSI14 requires 15 closing prices.
+    # With 50 candles, indices 14..49 produce
+    # 36 timestamp-aligned RSI points.
+    assert len(rsi14["series"]) == 36
+
+    assert (
+        rsi14["series"][0]["time"]
+        == data["candles"][14]["time"]
+    )
+
+    assert (
+        rsi14["series"][-1]["time"]
+        == data["candles"][-1]["time"]
+    )
+
+    expected_latest_rsi = (
+        TechnicalIndicators.calculate_rsi(
+            [
+                candle["close"]
+                for candle in data["candles"]
+            ],
+            14,
+        )
+    )
+
+    assert (
+        rsi14["series"][-1]["value"]
+        == expected_latest_rsi
+    )
+
+
+def test_market_candles_include_adx14_series(
+    monkeypatch,
+):
+    """
+    The candle response should include a backend-computed
+    ADX14 series derived from the same MT5 candle dataset.
+
+    The latest chart ADX must match ALADDIN's existing
+    TechnicalIndicators ADX calculation.
+    """
+
+    monkeypatch.setattr(
+        market_data_routes,
+        "MT5DataProvider",
+        FakeMT5DataProvider,
+    )
+
+    headers = get_auth_headers()
+
+    response = client.get(
+        "/market-data/candles"
+        "?symbol=EURUSD"
+        "&timeframe=H1"
+        "&count=50",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert "indicators" in data
+    assert "adx14" in data["indicators"]
+
+    adx14 = data["indicators"]["adx14"]
+
+    assert adx14["period"] == 14
+
+    # Existing ALADDIN ADX14 requires at least
+    # 28 candles. With 50 candles, indices
+    # 27..49 produce 23 timestamp-aligned points.
+    assert len(adx14["series"]) == 23
+
+    assert (
+        adx14["series"][0]["time"]
+        == data["candles"][27]["time"]
+    )
+
+    assert (
+        adx14["series"][-1]["time"]
+        == data["candles"][-1]["time"]
+    )
+
+    candle_objects = (
+        FakeMT5DataProvider()
+        .get_candles(
+            symbol="EURUSD",
+            timeframe=FakeMT5Module.TIMEFRAME_H1,
+            count=50,
+        )
+    )
+
+    expected_latest_adx = (
+        TechnicalIndicators.calculate_adx(
+            candle_objects,
+            14,
+        )
+    )
+
+    assert (
+        adx14["series"][-1]["value"]
+        == expected_latest_adx
+    )
