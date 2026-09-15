@@ -266,6 +266,25 @@ function toStructureMarkers(
   }
 
   if (
+    structure.order_block &&
+    Number.isFinite(structure.order_block.time) &&
+    Number.isFinite(structure.order_block.high_price) &&
+    Number.isFinite(structure.order_block.low_price)
+  ) {
+    const bullish =
+      structure.order_block.type ===
+      "ORDER_BLOCK_BULLISH";
+
+    markers.push({
+      time: structure.order_block.time as UTCTimestamp,
+      position: bullish ? "belowBar" : "aboveBar",
+      shape: "square",
+      color: bullish ? "#14b8a6" : "#f97316",
+      text: bullish ? "OB BUY" : "OB SELL",
+    });
+  }
+
+  if (
     structure.liquidity_sweep &&
     Number.isFinite(structure.liquidity_sweep.time) &&
     Number.isFinite(structure.liquidity_sweep.level_price)

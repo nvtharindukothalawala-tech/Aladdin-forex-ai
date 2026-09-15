@@ -1215,6 +1215,51 @@ def test_market_candles_include_market_structure(
 
     structure = data["market_structure"]
 
+    assert "order_block" in structure
+
+    order_block = structure["order_block"]
+
+    if order_block is not None:
+        assert set(order_block) == {
+            "type",
+            "candle_index",
+            "high_price",
+            "low_price",
+            "open_price",
+            "close_price",
+            "time",
+        }
+
+        assert order_block["type"] in {
+            "ORDER_BLOCK_BULLISH",
+            "ORDER_BLOCK_BEARISH",
+        }
+
+        assert isinstance(
+            order_block["candle_index"],
+            int,
+        )
+        assert isinstance(
+            order_block["high_price"],
+            (int, float),
+        )
+        assert isinstance(
+            order_block["low_price"],
+            (int, float),
+        )
+        assert isinstance(
+            order_block["open_price"],
+            (int, float),
+        )
+        assert isinstance(
+            order_block["close_price"],
+            (int, float),
+        )
+        assert isinstance(
+            order_block["time"],
+            int,
+        )
+
     assert "liquidity_sweep" in structure
 
     liquidity_sweep = structure["liquidity_sweep"]

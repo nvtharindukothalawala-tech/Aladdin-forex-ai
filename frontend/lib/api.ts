@@ -696,6 +696,26 @@ export type MarketStructureLiquiditySweep = {
 };
 
 
+export type MarketStructureOrderBlock = {
+  type:
+    | "ORDER_BLOCK_BULLISH"
+    | "ORDER_BLOCK_BEARISH"
+    | string;
+
+  candle_index: number;
+
+  high_price: number;
+
+  low_price: number;
+
+  open_price: number;
+
+  close_price: number;
+
+  time: number;
+};
+
+
 export type MarketStructure = {
   lookback: number;
 
@@ -708,6 +728,8 @@ export type MarketStructure = {
   choch: MarketStructureEvent | null;
 
   liquidity_sweep: MarketStructureLiquiditySweep | null;
+
+  order_block: MarketStructureOrderBlock | null;
 };
 
 

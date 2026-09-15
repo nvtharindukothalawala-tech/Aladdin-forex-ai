@@ -213,6 +213,34 @@ def _serialize_structure_event(
     }
 
 
+def _serialize_order_block(
+    event: dict | None,
+) -> dict | None:
+    """
+    Convert an internal Order Block event into
+    the frontend chart contract.
+
+    None is preserved when no confirmed Order Block
+    exists. The Market Structure Service remains
+    authoritative for Order Block detection.
+    """
+
+    if event is None:
+        return None
+
+    return {
+        "type": event["type"],
+        "candle_index": event["candle_index"],
+        "high_price": event["high_price"],
+        "low_price": event["low_price"],
+        "open_price": event["open_price"],
+        "close_price": event["close_price"],
+        "time": int(
+            event["timestamp"].timestamp()
+        ),
+    }
+
+
 def _serialize_liquidity_sweep(
     event: dict | None,
 ) -> dict | None:
@@ -479,6 +507,7 @@ def get_market_candles(
     - latest Break of Structure (BOS)
     - latest Change of Character (CHoCH)
     - latest confirmed liquidity sweep
+    - latest Order Block related to the latest BOS
 
     The endpoint:
 
@@ -607,6 +636,14 @@ def get_market_candles(
             )
         )
 
+        latest_order_block = (
+            MarketStructureService
+            .detect_order_block(
+                candles,
+                latest_bos,
+            )
+        )
+
         latest_liquidity_sweep = (
             MarketStructureService
             .detect_liquidity_sweep(
@@ -670,6 +707,11 @@ def get_market_candles(
                 "choch": (
                     _serialize_structure_event(
                         latest_choch
+                    )
+                ),
+                "order_block": (
+                    _serialize_order_block(
+                        latest_order_block
                     )
                 ),
                 "liquidity_sweep": (

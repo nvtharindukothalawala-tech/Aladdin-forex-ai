@@ -470,3 +470,93 @@ def test_detect_liquidity_sweep_requires_strict_level_cross():
     )
 
     assert result is None
+
+def test_detect_bullish_order_block_uses_nearest_bearish_candle():
+    """Bullish BOS selects the nearest previous bearish candle."""
+    candles = [
+        make_candle(0, 1.1000, 1.1020, 1.0990, 1.1010),
+        make_candle(1, 1.1010, 1.1020, 1.0995, 1.1000),
+        make_candle(2, 1.1000, 1.1030, 1.0995, 1.1020),
+        make_candle(3, 1.1020, 1.1030, 1.1000, 1.1010),
+        make_candle(4, 1.1010, 1.1060, 1.1005, 1.1050),
+    ]
+    latest_bos = {
+        "type": "BOS_BULLISH",
+        "broken_price": 1.1040,
+        "swing_index": 2,
+        "break_index": 4,
+        "timestamp": candles[4].timestamp,
+    }
+
+    result = MarketStructureService.detect_order_block(candles, latest_bos)
+
+    assert result is not None
+    assert result["type"] == "ORDER_BLOCK_BULLISH"
+    assert result["candle_index"] == 3
+    assert result["high_price"] == candles[3].high_price
+    assert result["low_price"] == candles[3].low_price
+    assert result["open_price"] == candles[3].open_price
+    assert result["close_price"] == candles[3].close_price
+    assert result["timestamp"] == candles[3].timestamp
+
+
+def test_detect_bearish_order_block_uses_nearest_bullish_candle():
+    """Bearish BOS selects the nearest previous bullish candle."""
+    candles = [
+        make_candle(0, 1.1050, 1.1060, 1.1030, 1.1040),
+        make_candle(1, 1.1040, 1.1060, 1.1035, 1.1050),
+        make_candle(2, 1.1050, 1.1055, 1.1020, 1.1030),
+        make_candle(3, 1.1030, 1.1050, 1.1025, 1.1040),
+        make_candle(4, 1.1040, 1.1045, 1.0980, 1.0990),
+    ]
+    latest_bos = {
+        "type": "BOS_BEARISH",
+        "broken_price": 1.1000,
+        "swing_index": 2,
+        "break_index": 4,
+        "timestamp": candles[4].timestamp,
+    }
+
+    result = MarketStructureService.detect_order_block(candles, latest_bos)
+
+    assert result is not None
+    assert result["type"] == "ORDER_BLOCK_BEARISH"
+    assert result["candle_index"] == 3
+    assert result["high_price"] == candles[3].high_price
+    assert result["low_price"] == candles[3].low_price
+    assert result["open_price"] == candles[3].open_price
+    assert result["close_price"] == candles[3].close_price
+    assert result["timestamp"] == candles[3].timestamp
+
+
+def test_detect_order_block_returns_none_without_bos():
+    """Order Block detection requires an existing BOS."""
+    candles = [
+        make_candle(0, 1.1000, 1.1020, 1.0990, 1.1010),
+        make_candle(1, 1.1010, 1.1030, 1.1000, 1.1020),
+    ]
+
+    result = MarketStructureService.detect_order_block(candles, None)
+
+    assert result is None
+
+
+def test_detect_order_block_returns_none_without_opposite_candle():
+    """No opposite candle before BOS means no Order Block."""
+    candles = [
+        make_candle(0, 1.1000, 1.1020, 1.0990, 1.1010),
+        make_candle(1, 1.1010, 1.1030, 1.1000, 1.1020),
+        make_candle(2, 1.1020, 1.1040, 1.1010, 1.1030),
+        make_candle(3, 1.1030, 1.1060, 1.1020, 1.1050),
+    ]
+    latest_bos = {
+        "type": "BOS_BULLISH",
+        "broken_price": 1.1040,
+        "swing_index": 2,
+        "break_index": 3,
+        "timestamp": candles[3].timestamp,
+    }
+
+    result = MarketStructureService.detect_order_block(candles, latest_bos)
+
+    assert result is None
