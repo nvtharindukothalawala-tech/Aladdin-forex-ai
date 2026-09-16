@@ -205,34 +205,48 @@ function toStructureMarkers(
 ): SeriesMarker<UTCTimestamp>[] {
   const markers: SeriesMarker<UTCTimestamp>[] = [];
 
-  for (const point of structure.swing_highs) {
-    if (
-      Number.isFinite(point.time) &&
-      Number.isFinite(point.price)
-    ) {
-      markers.push({
-        time: point.time as UTCTimestamp,
-        position: "aboveBar",
-        shape: "arrowDown",
-        color: "#f59e0b",
-        text: "SH",
-      });
-    }
-  }
+  // Visualization-only filtering. The backend still analyzes
+  // the complete swing dataset; only SH/SL labels are limited.
+  const MAX_SWING_MARKERS = 40;
 
-  for (const point of structure.swing_lows) {
-    if (
-      Number.isFinite(point.time) &&
-      Number.isFinite(point.price)
-    ) {
-      markers.push({
-        time: point.time as UTCTimestamp,
-        position: "belowBar",
-        shape: "arrowUp",
-        color: "#22d3ee",
-        text: "SL",
-      });
-    }
+  const visibleSwings = [
+    ...structure.swing_highs
+      .filter(
+        (point) =>
+          Number.isFinite(point.time) &&
+          Number.isFinite(point.price),
+      )
+      .map((point) => ({
+        point,
+        kind: "high" as const,
+      })),
+    ...structure.swing_lows
+      .filter(
+        (point) =>
+          Number.isFinite(point.time) &&
+          Number.isFinite(point.price),
+      )
+      .map((point) => ({
+        point,
+        kind: "low" as const,
+      })),
+  ]
+    .sort(
+      (left, right) =>
+        left.point.time - right.point.time,
+    )
+    .slice(-MAX_SWING_MARKERS);
+
+  for (const swing of visibleSwings) {
+    const isHigh = swing.kind === "high";
+
+    markers.push({
+      time: swing.point.time as UTCTimestamp,
+      position: isHigh ? "aboveBar" : "belowBar",
+      shape: isHigh ? "arrowDown" : "arrowUp",
+      color: isHigh ? "#f59e0b" : "#22d3ee",
+      text: isHigh ? "SH" : "SL",
+    });
   }
 
   if (
@@ -328,7 +342,8 @@ function toStructureMarkers(
     Number.isFinite(structure.engulfing.time)
   ) {
     const bullish =
-      structure.engulfing.type === "ENGULFING_BULLISH";
+      structure.engulfing.type ===
+      "ENGULFING_BULLISH";
 
     markers.push({
       time: structure.engulfing.time as UTCTimestamp,
@@ -344,10 +359,12 @@ function toStructureMarkers(
     Number.isFinite(structure.displacement.time)
   ) {
     const bullish =
-      structure.displacement.type === "DISPLACEMENT_BULLISH";
+      structure.displacement.type ===
+      "DISPLACEMENT_BULLISH";
 
     markers.push({
-      time: structure.displacement.time as UTCTimestamp,
+      time:
+        structure.displacement.time as UTCTimestamp,
       position: bullish ? "belowBar" : "aboveBar",
       shape: "square",
       color: bullish ? "#34d399" : "#fb7185",
