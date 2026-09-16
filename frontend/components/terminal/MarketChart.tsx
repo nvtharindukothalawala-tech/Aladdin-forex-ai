@@ -323,6 +323,38 @@ function toStructureMarkers(
     });
   }
 
+  if (
+    structure.engulfing &&
+    Number.isFinite(structure.engulfing.time)
+  ) {
+    const bullish =
+      structure.engulfing.type === "ENGULFING_BULLISH";
+
+    markers.push({
+      time: structure.engulfing.time as UTCTimestamp,
+      position: bullish ? "belowBar" : "aboveBar",
+      shape: bullish ? "arrowUp" : "arrowDown",
+      color: bullish ? "#10b981" : "#f43f5e",
+      text: bullish ? "ENG BUY" : "ENG SELL",
+    });
+  }
+
+  if (
+    structure.displacement &&
+    Number.isFinite(structure.displacement.time)
+  ) {
+    const bullish =
+      structure.displacement.type === "DISPLACEMENT_BULLISH";
+
+    markers.push({
+      time: structure.displacement.time as UTCTimestamp,
+      position: bullish ? "belowBar" : "aboveBar",
+      shape: "square",
+      color: bullish ? "#34d399" : "#fb7185",
+      text: bullish ? "DISP UP" : "DISP DOWN",
+    });
+  }
+
   return markers.sort(
     (left, right) =>
       Number(left.time) - Number(right.time),
@@ -410,6 +442,14 @@ export default function MarketChart({
 
   const supportResistanceCandleCountRef =
     useRef(0);
+
+  const premiumDiscountLinesRef =
+    useRef<IPriceLine[]>([]);
+
+  const premiumDiscountDataRef =
+    useRef<MarketStructure["premium_discount"] | null>(
+      null,
+    );
 
   const structureVisibleRef =
     useRef(true);
@@ -778,6 +818,12 @@ export default function MarketChart({
 
       supportResistanceCandleCountRef.current =
         0;
+
+      premiumDiscountLinesRef.current =
+        [];
+
+      premiumDiscountDataRef.current =
+        null;
 
       ema20SeriesRef.current =
         null;
@@ -1184,6 +1230,94 @@ export default function MarketChart({
       [],
     );
 
+  const renderPremiumDiscount =
+    useCallback(
+      (
+        premiumDiscount:
+          MarketStructure["premium_discount"] | null,
+        visible: boolean,
+      ) => {
+        const candleSeries =
+          seriesRef.current;
+
+        if (!candleSeries) {
+          return;
+        }
+
+        for (
+          const line of
+          premiumDiscountLinesRef.current
+        ) {
+          candleSeries.removePriceLine(
+            line,
+          );
+        }
+
+        premiumDiscountLinesRef.current =
+          [];
+
+        if (
+          !visible ||
+          !premiumDiscount
+        ) {
+          return;
+        }
+
+        const rangeHigh =
+          premiumDiscount.range_high;
+        const rangeLow =
+          premiumDiscount.range_low;
+        const equilibrium =
+          premiumDiscount.equilibrium;
+
+        if (
+          !Number.isFinite(rangeHigh) ||
+          !Number.isFinite(rangeLow) ||
+          !Number.isFinite(equilibrium) ||
+          rangeHigh <= rangeLow
+        ) {
+          return;
+        }
+
+        const rangeHighLine =
+          candleSeries.createPriceLine({
+            price: rangeHigh,
+            color: "#f43f5e",
+            lineWidth: 1,
+            lineStyle: LineStyle.Dotted,
+            axisLabelVisible: true,
+            title: "PREMIUM HIGH",
+          });
+
+        const equilibriumLine =
+          candleSeries.createPriceLine({
+            price: equilibrium,
+            color: "#f59e0b",
+            lineWidth: 2,
+            lineStyle: LineStyle.Dashed,
+            axisLabelVisible: true,
+            title: "EQ 50%",
+          });
+
+        const rangeLowLine =
+          candleSeries.createPriceLine({
+            price: rangeLow,
+            color: "#22c55e",
+            lineWidth: 1,
+            lineStyle: LineStyle.Dotted,
+            axisLabelVisible: true,
+            title: "DISCOUNT LOW",
+          });
+
+        premiumDiscountLinesRef.current.push(
+          rangeHighLine,
+          equilibriumLine,
+          rangeLowLine,
+        );
+      },
+      [],
+    );
+
   useEffect(() => {
     structureVisibleRef.current =
       structureVisible;
@@ -1200,7 +1334,13 @@ export default function MarketChart({
       supportResistanceCurrentPriceRef.current,
       supportResistanceCandleCountRef.current,
     );
+
+    renderPremiumDiscount(
+      premiumDiscountDataRef.current,
+      structureVisible,
+    );
   }, [
+    renderPremiumDiscount,
     renderSupportResistance,
     structureVisible,
   ]);
@@ -1319,6 +1459,14 @@ export default function MarketChart({
             chartData.length,
           );
 
+          premiumDiscountDataRef.current =
+            result.market_structure.premium_discount;
+
+          renderPremiumDiscount(
+            result.market_structure.premium_discount,
+            structureVisibleRef.current,
+          );
+
           setBrokerSymbol(
             result.broker_symbol,
           );
@@ -1389,6 +1537,7 @@ export default function MarketChart({
       },
       [
         normalizedSymbol,
+        renderPremiumDiscount,
         renderSupportResistance,
         safeCandleCount,
         selectedTimeframe,

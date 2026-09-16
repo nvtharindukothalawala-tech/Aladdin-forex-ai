@@ -766,6 +766,71 @@ export type MarketStructureSupportResistance = {
 };
 
 
+export type MarketStructureEngulfing = {
+  type:
+    | "ENGULFING_BULLISH"
+    | "ENGULFING_BEARISH"
+    | string;
+
+  previous_index: number;
+  engulfing_index: number;
+  open_price: number;
+  close_price: number;
+  high_price: number;
+  low_price: number;
+  time: number;
+};
+
+
+export type MarketStructureDisplacement = {
+  type:
+    | "DISPLACEMENT_BULLISH"
+    | "DISPLACEMENT_BEARISH"
+    | string;
+
+  candle_index: number;
+  open_price: number;
+  close_price: number;
+  high_price: number;
+  low_price: number;
+  body_size: number;
+  body_atr_ratio: number;
+  time: number;
+};
+
+
+/*
+ * Premium / Discount dealing range returned by the backend.
+ *
+ * The backend uses the latest confirmed swing high and
+ * swing low to define the current dealing range.
+ */
+export type MarketStructurePremiumDiscount = {
+  range_type:
+    | "BULLISH"
+    | "BEARISH"
+    | string;
+
+  swing_high_index: number;
+  swing_low_index: number;
+
+  range_high: number;
+  range_low: number;
+
+  equilibrium: number;
+
+  premium_zone: {
+    lower_price: number;
+    upper_price: number;
+  };
+
+  discount_zone: {
+    lower_price: number;
+    upper_price: number;
+  };
+};
+
+
 export type MarketStructure = {
   lookback: number;
 
@@ -782,6 +847,12 @@ export type MarketStructure = {
   order_block: MarketStructureOrderBlock | null;
 
   fvg: MarketStructureFVG | null;
+
+  engulfing: MarketStructureEngulfing | null;
+
+  displacement: MarketStructureDisplacement | null;
+
+  premium_discount: MarketStructurePremiumDiscount | null;
 
   support_resistance: MarketStructureSupportResistance;
 };

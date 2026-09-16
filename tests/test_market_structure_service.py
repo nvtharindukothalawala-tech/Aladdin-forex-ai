@@ -889,3 +889,473 @@ def test_detect_support_resistance_uses_chronological_order():
     assert zone["last_index"] == 9
     assert zone["touch_count"] == 3
     assert zone["center_price"] == 1.1051
+
+def test_detect_bullish_engulfing():
+    """Bullish candle must engulf the previous bearish body."""
+
+    candles = [
+        make_candle(
+            0,
+            1.1020,
+            1.1025,
+            1.1005,
+            1.1010,
+        ),
+        make_candle(
+            1,
+            1.1008,
+            1.1030,
+            1.1005,
+            1.1025,
+        ),
+    ]
+
+    result = (
+        MarketStructureService
+        .detect_engulfing(candles)
+    )
+
+    assert result is not None
+    assert result["type"] == "ENGULFING_BULLISH"
+    assert result["previous_index"] == 0
+    assert result["engulfing_index"] == 1
+    assert result["timestamp"] == candles[1].timestamp
+
+
+def test_detect_bearish_engulfing():
+    """Bearish candle must engulf the previous bullish body."""
+
+    candles = [
+        make_candle(
+            0,
+            1.1010,
+            1.1025,
+            1.1005,
+            1.1020,
+        ),
+        make_candle(
+            1,
+            1.1022,
+            1.1025,
+            1.0995,
+            1.1005,
+        ),
+    ]
+
+    result = (
+        MarketStructureService
+        .detect_engulfing(candles)
+    )
+
+    assert result is not None
+    assert result["type"] == "ENGULFING_BEARISH"
+    assert result["previous_index"] == 0
+    assert result["engulfing_index"] == 1
+    assert result["timestamp"] == candles[1].timestamp
+
+
+def test_detect_engulfing_returns_none_without_pattern():
+    """Ordinary candles must not produce an engulfing signal."""
+
+    candles = [
+        make_candle(
+            0,
+            1.1000,
+            1.1020,
+            1.0995,
+            1.1010,
+        ),
+        make_candle(
+            1,
+            1.1010,
+            1.1020,
+            1.1005,
+            1.1015,
+        ),
+    ]
+
+    result = (
+        MarketStructureService
+        .detect_engulfing(candles)
+    )
+
+    assert result is None
+
+
+def test_detect_bullish_displacement():
+    """Large bullish body relative to ATR is displacement."""
+
+    candles = [
+        make_candle(
+            0,
+            1.1000,
+            1.1005,
+            1.0998,
+            1.1002,
+        ),
+        make_candle(
+            1,
+            1.1000,
+            1.1020,
+            1.0999,
+            1.1018,
+        ),
+    ]
+
+    result = (
+        MarketStructureService
+        .detect_displacement(
+            candles,
+            atr=0.0010,
+            body_multiplier=1.5,
+        )
+    )
+
+    assert result is not None
+    assert result["type"] == "DISPLACEMENT_BULLISH"
+    assert result["candle_index"] == 1
+    assert result["body_size"] == 0.0018
+    assert result["body_atr_ratio"] == 1.8
+    assert result["timestamp"] == candles[1].timestamp
+
+
+def test_detect_bearish_displacement():
+    """Large bearish body relative to ATR is displacement."""
+
+    candles = [
+        make_candle(
+            0,
+            1.1020,
+            1.1022,
+            1.1015,
+            1.1018,
+        ),
+        make_candle(
+            1,
+            1.1020,
+            1.1021,
+            1.0999,
+            1.1002,
+        ),
+    ]
+
+    result = (
+        MarketStructureService
+        .detect_displacement(
+            candles,
+            atr=0.0010,
+            body_multiplier=1.5,
+        )
+    )
+
+    assert result is not None
+    assert result["type"] == "DISPLACEMENT_BEARISH"
+    assert result["candle_index"] == 1
+    assert result["body_size"] == 0.0018
+    assert result["body_atr_ratio"] == 1.8
+
+
+def test_detect_displacement_rejects_weak_candle():
+    """Small candle body relative to ATR is not displacement."""
+
+    candles = [
+        make_candle(
+            0,
+            1.1000,
+            1.1007,
+            1.0998,
+            1.1005,
+        ),
+    ]
+
+    result = (
+        MarketStructureService
+        .detect_displacement(
+            candles,
+            atr=0.0010,
+            body_multiplier=1.5,
+        )
+    )
+
+    assert result is None
+
+
+def test_detect_displacement_returns_none_for_invalid_atr():
+    """Invalid ATR must not produce displacement."""
+
+    candles = [
+        make_candle(
+            0,
+            1.1000,
+            1.1030,
+            1.0995,
+            1.1025,
+        ),
+    ]
+
+    assert (
+        MarketStructureService
+        .detect_displacement(
+            candles,
+            atr=None,
+        )
+        is None
+    )
+
+    assert (
+        MarketStructureService
+        .detect_displacement(
+            candles,
+            atr=0,
+        )
+        is None
+    )
+
+
+def test_detect_displacement_returns_latest_event():
+    """When several displacement candles exist, return latest."""
+
+    candles = [
+        make_candle(
+            0,
+            1.1000,
+            1.1020,
+            1.0999,
+            1.1018,
+        ),
+        make_candle(
+            1,
+            1.1018,
+            1.1020,
+            1.1014,
+            1.1016,
+        ),
+        make_candle(
+            2,
+            1.1018,
+            1.1020,
+            1.0995,
+            1.1000,
+        ),
+    ]
+
+    result = (
+        MarketStructureService
+        .detect_displacement(
+            candles,
+            atr=0.0010,
+            body_multiplier=1.5,
+        )
+    )
+
+    assert result is not None
+    assert result["type"] == "DISPLACEMENT_BEARISH"
+    assert result["candle_index"] == 2
+    assert result["timestamp"] == candles[2].timestamp
+
+# ==========================================================
+# PREMIUM / DISCOUNT / EQUILIBRIUM
+# ==========================================================
+
+
+def test_detect_premium_discount_range():
+    """
+    A valid swing low followed by a swing high must create
+    a dealing range with premium, equilibrium, and discount
+    boundaries.
+    """
+
+    swing_lows = [
+        {
+            "index": 10,
+            "price": 1.1000,
+            "timestamp": BASE_TIME + timedelta(hours=10),
+        },
+    ]
+
+    swing_highs = [
+        {
+            "index": 20,
+            "price": 1.1100,
+            "timestamp": BASE_TIME + timedelta(hours=20),
+        },
+    ]
+
+    result = (
+        MarketStructureService
+        .detect_premium_discount(
+            swing_highs,
+            swing_lows,
+        )
+    )
+
+    assert result is not None
+
+    assert result["range_low"] == 1.1000
+    assert result["range_high"] == 1.1100
+
+    assert result["equilibrium"] == 1.1050
+
+    assert result["discount_low"] == 1.1000
+    assert result["discount_high"] == 1.1050
+
+    assert result["premium_low"] == 1.1050
+    assert result["premium_high"] == 1.1100
+
+    assert result["low_index"] == 10
+    assert result["high_index"] == 20
+
+
+def test_detect_premium_discount_bearish_range():
+    """
+    The detector must also support a dealing range where
+    the swing high occurs before the swing low.
+    """
+
+    swing_highs = [
+        {
+            "index": 10,
+            "price": 1.1100,
+            "timestamp": BASE_TIME + timedelta(hours=10),
+        },
+    ]
+
+    swing_lows = [
+        {
+            "index": 20,
+            "price": 1.1000,
+            "timestamp": BASE_TIME + timedelta(hours=20),
+        },
+    ]
+
+    result = (
+        MarketStructureService
+        .detect_premium_discount(
+            swing_highs,
+            swing_lows,
+        )
+    )
+
+    assert result is not None
+
+    assert result["range_low"] == 1.1000
+    assert result["range_high"] == 1.1100
+    assert result["equilibrium"] == 1.1050
+
+    assert result["low_index"] == 20
+    assert result["high_index"] == 10
+
+
+def test_detect_premium_discount_uses_latest_swing_pair():
+    """
+    The latest available swing high and swing low must
+    define the current visualization dealing range.
+    """
+
+    swing_highs = [
+        {
+            "index": 5,
+            "price": 1.1200,
+            "timestamp": BASE_TIME + timedelta(hours=5),
+        },
+        {
+            "index": 30,
+            "price": 1.1150,
+            "timestamp": BASE_TIME + timedelta(hours=30),
+        },
+    ]
+
+    swing_lows = [
+        {
+            "index": 8,
+            "price": 1.0900,
+            "timestamp": BASE_TIME + timedelta(hours=8),
+        },
+        {
+            "index": 25,
+            "price": 1.1050,
+            "timestamp": BASE_TIME + timedelta(hours=25),
+        },
+    ]
+
+    result = (
+        MarketStructureService
+        .detect_premium_discount(
+            swing_highs,
+            swing_lows,
+        )
+    )
+
+    assert result is not None
+
+    assert result["range_high"] == 1.1150
+    assert result["range_low"] == 1.1050
+
+    assert result["high_index"] == 30
+    assert result["low_index"] == 25
+
+
+def test_detect_premium_discount_returns_none_without_both_sides():
+    """
+    A dealing range requires at least one confirmed
+    swing high and one confirmed swing low.
+    """
+
+    swing_highs = [
+        {
+            "index": 10,
+            "price": 1.1100,
+            "timestamp": BASE_TIME + timedelta(hours=10),
+        },
+    ]
+
+    assert (
+        MarketStructureService
+        .detect_premium_discount(
+            swing_highs,
+            [],
+        )
+        is None
+    )
+
+    assert (
+        MarketStructureService
+        .detect_premium_discount(
+            [],
+            [],
+        )
+        is None
+    )
+
+
+def test_detect_premium_discount_rejects_zero_range():
+    """
+    Identical high and low prices do not form a valid
+    dealing range.
+    """
+
+    swing_highs = [
+        {
+            "index": 10,
+            "price": 1.1050,
+            "timestamp": BASE_TIME + timedelta(hours=10),
+        },
+    ]
+
+    swing_lows = [
+        {
+            "index": 20,
+            "price": 1.1050,
+            "timestamp": BASE_TIME + timedelta(hours=20),
+        },
+    ]
+
+    result = (
+        MarketStructureService
+        .detect_premium_discount(
+            swing_highs,
+            swing_lows,
+        )
+    )
+
+    assert result is None

@@ -770,9 +770,332 @@ class MarketStructureService:
             "resistance_zones": resistance_zones,
         }
 
+    @staticmethod
+    def detect_engulfing(candles):
+        """
+        Detect the latest confirmed bullish or bearish
+        engulfing candle pattern.
+
+        Bullish engulfing:
+        - previous candle is bearish
+        - current candle is bullish
+        - current real body engulfs previous real body
+
+        Bearish engulfing:
+        - previous candle is bullish
+        - current candle is bearish
+        - current real body engulfs previous real body
+
+        Returns:
+            dict | None
+        """
+
+        if len(candles) < 2:
+            return None
+
+        latest_engulfing = None
+
+        for index in range(
+            1,
+            len(candles),
+        ):
+            previous = candles[index - 1]
+            current = candles[index]
+
+            previous_bullish = (
+                previous.close_price
+                > previous.open_price
+            )
+
+            previous_bearish = (
+                previous.close_price
+                < previous.open_price
+            )
+
+            current_bullish = (
+                current.close_price
+                > current.open_price
+            )
+
+            current_bearish = (
+                current.close_price
+                < current.open_price
+            )
+
+            # ------------------------------------------
+            # Bullish engulfing
+            # ------------------------------------------
+
+            if (
+                previous_bearish
+                and current_bullish
+                and current.open_price
+                <= previous.close_price
+                and current.close_price
+                >= previous.open_price
+            ):
+                latest_engulfing = {
+                    "type": "ENGULFING_BULLISH",
+                    "previous_index": index - 1,
+                    "engulfing_index": index,
+                    "open_price": current.open_price,
+                    "close_price": current.close_price,
+                    "high_price": current.high_price,
+                    "low_price": current.low_price,
+                    "timestamp": current.timestamp,
+                }
+
+            # ------------------------------------------
+            # Bearish engulfing
+            # ------------------------------------------
+
+            elif (
+                previous_bullish
+                and current_bearish
+                and current.open_price
+                >= previous.close_price
+                and current.close_price
+                <= previous.open_price
+            ):
+                latest_engulfing = {
+                    "type": "ENGULFING_BEARISH",
+                    "previous_index": index - 1,
+                    "engulfing_index": index,
+                    "open_price": current.open_price,
+                    "close_price": current.close_price,
+                    "high_price": current.high_price,
+                    "low_price": current.low_price,
+                    "timestamp": current.timestamp,
+                }
+
+        return latest_engulfing
+
+    @staticmethod
+    def detect_displacement(
+        candles,
+        atr,
+        body_multiplier=1.5,
+    ):
+        """
+        Detect the latest strong displacement candle.
+
+        A displacement candle must have a real body
+        significantly larger than current ATR.
+
+        Args:
+            candles:
+                Candle sequence.
+
+            atr:
+                Current Average True Range.
+
+            body_multiplier:
+                Required candle-body / ATR ratio.
+
+        Returns:
+            dict | None
+        """
+
+        if not candles:
+            return None
+
+        if atr is None or atr <= 0:
+            return None
+
+        latest_displacement = None
+
+        for index, candle in enumerate(candles):
+
+            body_size = abs(
+                candle.close_price
+                - candle.open_price
+            )
+
+            body_atr_ratio = (
+                body_size / atr
+            )
+
+            if body_atr_ratio < body_multiplier:
+                continue
+
+            if (
+                candle.close_price
+                > candle.open_price
+            ):
+                displacement_type = (
+                    "DISPLACEMENT_BULLISH"
+                )
+
+            elif (
+                candle.close_price
+                < candle.open_price
+            ):
+                displacement_type = (
+                    "DISPLACEMENT_BEARISH"
+                )
+
+            else:
+                continue
+
+            latest_displacement = {
+                "type": displacement_type,
+                "candle_index": index,
+                "open_price": candle.open_price,
+                "close_price": candle.close_price,
+                "high_price": candle.high_price,
+                "low_price": candle.low_price,
+                "body_size": round(
+                    body_size,
+                    6,
+                ),
+                "body_atr_ratio": round(
+                    body_atr_ratio,
+                    3,
+                ),
+                "timestamp": candle.timestamp,
+            }
+
+        return latest_displacement
+
     def close(self):
         """
         Close the MetaTrader 5 connection.
         """
 
         self.provider.disconnect()
+
+    # ==========================================================
+    # PREMIUM / DISCOUNT / EQUILIBRIUM
+    # ==========================================================
+
+    @staticmethod
+    def detect_premium_discount(
+        swing_highs: list[dict],
+        swing_lows: list[dict],
+    ) -> dict | None:
+        """
+        Build the current premium / discount dealing range
+        from the latest confirmed swing high and swing low.
+
+        This method is visualization / market-structure logic
+        only. It does not execute trades or modify orders.
+
+        The latest swing high and latest swing low are selected
+        by their candle index rather than relying on input-list
+        ordering.
+
+        The resulting range is divided into:
+
+        - discount: range low -> equilibrium
+        - equilibrium: 50% of the dealing range
+        - premium: equilibrium -> range high
+
+        Returns None when a valid dealing range cannot be
+        constructed.
+        """
+
+        # --------------------------------------------------
+        # Both sides of the dealing range are required.
+        # --------------------------------------------------
+
+        if not swing_highs or not swing_lows:
+            return None
+
+        # --------------------------------------------------
+        # Select the latest confirmed swing on each side.
+        #
+        # Do not assume the input arrays are chronological.
+        # Using the index makes the result deterministic.
+        # --------------------------------------------------
+
+        try:
+            latest_high = max(
+                swing_highs,
+                key=lambda point: int(
+                    point["index"]
+                ),
+            )
+
+            latest_low = max(
+                swing_lows,
+                key=lambda point: int(
+                    point["index"]
+                ),
+            )
+
+            high_price = float(
+                latest_high["price"]
+            )
+
+            low_price = float(
+                latest_low["price"]
+            )
+
+            high_index = int(
+                latest_high["index"]
+            )
+
+            low_index = int(
+                latest_low["index"]
+            )
+
+        except (
+            KeyError,
+            TypeError,
+            ValueError,
+        ):
+            return None
+
+        # --------------------------------------------------
+        # The prices determine the actual upper and lower
+        # boundaries. This supports both:
+        #
+        # low -> high bullish ranges
+        # high -> low bearish ranges
+        # --------------------------------------------------
+
+        range_high = max(
+            high_price,
+            low_price,
+        )
+
+        range_low = min(
+            high_price,
+            low_price,
+        )
+
+        # --------------------------------------------------
+        # Reject a zero-width or otherwise invalid range.
+        # --------------------------------------------------
+
+        if range_high <= range_low:
+            return None
+
+        # --------------------------------------------------
+        # 50% equilibrium.
+        # --------------------------------------------------
+
+        equilibrium = (
+            range_low
+            + (
+                range_high
+                - range_low
+            )
+            / 2
+        )
+
+        # --------------------------------------------------
+        # Return a stable visualization contract.
+        # --------------------------------------------------
+
+        return {
+            "range_low": range_low,
+            "range_high": range_high,
+            "equilibrium": equilibrium,
+            "discount_low": range_low,
+            "discount_high": equilibrium,
+            "premium_low": equilibrium,
+            "premium_high": range_high,
+            "low_index": low_index,
+            "high_index": high_index,
+        }

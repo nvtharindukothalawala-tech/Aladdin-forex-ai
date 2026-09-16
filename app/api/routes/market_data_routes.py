@@ -79,6 +79,7 @@ SUPPORT_RESISTANCE_TOLERANCE_MULTIPLIER = 0.25
 
 SUPPORT_RESISTANCE_MIN_TOUCHES = 2
 
+DISPLACEMENT_BODY_ATR_MULTIPLIER = 1.5
 
 # ==========================================================
 # SYMBOL NORMALIZATION
@@ -310,6 +311,73 @@ def _serialize_liquidity_sweep(
             event["timestamp"].timestamp()
         ),
     }
+
+
+def _serialize_engulfing(
+    event: dict | None,
+) -> dict | None:
+    """
+    Convert an internal engulfing-pattern event
+    into the frontend chart contract.
+    """
+
+    if event is None:
+        return None
+
+    return {
+        "type": event["type"],
+        "previous_index": event["previous_index"],
+        "engulfing_index": event["engulfing_index"],
+        "open_price": event["open_price"],
+        "close_price": event["close_price"],
+        "high_price": event["high_price"],
+        "low_price": event["low_price"],
+        "time": int(
+            event["timestamp"].timestamp()
+        ),
+    }
+
+
+def _serialize_displacement(
+    event: dict | None,
+) -> dict | None:
+    """
+    Convert an internal displacement event
+    into the frontend chart contract.
+    """
+
+    if event is None:
+        return None
+
+    return {
+        "type": event["type"],
+        "candle_index": event["candle_index"],
+        "open_price": event["open_price"],
+        "close_price": event["close_price"],
+        "high_price": event["high_price"],
+        "low_price": event["low_price"],
+        "body_size": event["body_size"],
+        "body_atr_ratio": event["body_atr_ratio"],
+        "time": int(
+            event["timestamp"].timestamp()
+        ),
+    }
+
+
+
+def _serialize_premium_discount(
+    event: dict | None,
+) -> dict | None:
+    """
+    Convert the premium / equilibrium / discount dealing
+    range into the frontend chart contract.
+    """
+
+    if event is None:
+        return None
+
+    return dict(event)
+
 
 
 # ==========================================================
@@ -546,6 +614,9 @@ def get_market_candles(
     - latest confirmed liquidity sweep
     - latest Order Block related to the latest BOS
     - latest Fair Value Gap (FVG)
+    - latest bullish or bearish engulfing pattern
+    - latest ATR-normalized displacement candle
+    - current premium / equilibrium / discount dealing range
 
     The endpoint:
 
@@ -728,6 +799,32 @@ def get_market_candles(
             )
         )
 
+        latest_engulfing = (
+            MarketStructureService
+            .detect_engulfing(
+                candles,
+            )
+        )
+
+        latest_displacement = (
+            MarketStructureService
+            .detect_displacement(
+                candles,
+                atr=support_resistance_atr,
+                body_multiplier=(
+                    DISPLACEMENT_BODY_ATR_MULTIPLIER
+                ),
+            )
+        )
+
+        latest_premium_discount = (
+            MarketStructureService
+            .detect_premium_discount(
+                swing_highs,
+                swing_lows,
+            )
+        )
+
         return {
             "symbol": normalized_symbol,
             "broker_symbol": candles[-1].symbol,
@@ -818,6 +915,21 @@ def get_market_candles(
                 "fvg": (
                     _serialize_fvg(
                         latest_fvg
+                    )
+                ),
+                "engulfing": (
+                    _serialize_engulfing(
+                        latest_engulfing
+                    )
+                ),
+                "displacement": (
+                    _serialize_displacement(
+                        latest_displacement
+                    )
+                ),
+                "premium_discount": (
+                    _serialize_premium_discount(
+                        latest_premium_discount
                     )
                 ),
             },
