@@ -24,3 +24,6 @@ aladdin.db
 
 .DS_Store
 aladdin.db
+
+# Local database backups
+*.db
