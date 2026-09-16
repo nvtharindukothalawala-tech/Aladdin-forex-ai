@@ -640,3 +640,252 @@ def test_detect_fvg_returns_none_without_gap_or_enough_candles():
 
     assert MarketStructureService.detect_fvg(insufficient) is None
     assert MarketStructureService.detect_fvg(no_gap) is None
+
+def test_detect_support_zone_from_nearby_swing_lows():
+    """
+    Nearby swing lows within tolerance must form
+    one confirmed support zone.
+    """
+
+    swing_lows = [
+        {
+            "index": 2,
+            "price": 1.1000,
+            "timestamp": BASE_TIME + timedelta(hours=2),
+        },
+        {
+            "index": 5,
+            "price": 1.1003,
+            "timestamp": BASE_TIME + timedelta(hours=5),
+        },
+        {
+            "index": 8,
+            "price": 1.1001,
+            "timestamp": BASE_TIME + timedelta(hours=8),
+        },
+    ]
+
+    result = MarketStructureService.detect_support_resistance_zones(
+        [],
+        swing_lows,
+        tolerance=0.0005,
+        min_touches=2,
+    )
+
+    assert len(result["support_zones"]) == 1
+    assert len(result["resistance_zones"]) == 0
+
+    zone = result["support_zones"][0]
+
+    assert zone["type"] == "SUPPORT"
+    assert zone["lower_price"] == 1.1000
+    assert zone["upper_price"] == 1.1003
+    assert zone["center_price"] == 1.100133
+    assert zone["touch_count"] == 3
+    assert zone["first_index"] == 2
+    assert zone["last_index"] == 8
+
+
+def test_detect_resistance_zone_from_nearby_swing_highs():
+    """
+    Nearby swing highs within tolerance must form
+    one confirmed resistance zone.
+    """
+
+    swing_highs = [
+        {
+            "index": 3,
+            "price": 1.1050,
+            "timestamp": BASE_TIME + timedelta(hours=3),
+        },
+        {
+            "index": 6,
+            "price": 1.1052,
+            "timestamp": BASE_TIME + timedelta(hours=6),
+        },
+        {
+            "index": 9,
+            "price": 1.1049,
+            "timestamp": BASE_TIME + timedelta(hours=9),
+        },
+    ]
+
+    result = MarketStructureService.detect_support_resistance_zones(
+        swing_highs,
+        [],
+        tolerance=0.0005,
+        min_touches=2,
+    )
+
+    assert len(result["support_zones"]) == 0
+    assert len(result["resistance_zones"]) == 1
+
+    zone = result["resistance_zones"][0]
+
+    assert zone["type"] == "RESISTANCE"
+    assert zone["lower_price"] == 1.1049
+    assert zone["upper_price"] == 1.1052
+    assert zone["center_price"] == 1.105033
+    assert zone["touch_count"] == 3
+    assert zone["first_index"] == 3
+    assert zone["last_index"] == 9
+
+
+def test_detect_support_resistance_keeps_distant_clusters_separate():
+    """
+    Swing points farther apart than tolerance
+    must not be merged into one zone.
+    """
+
+    swing_lows = [
+        {
+            "index": 1,
+            "price": 1.1000,
+            "timestamp": BASE_TIME + timedelta(hours=1),
+        },
+        {
+            "index": 3,
+            "price": 1.1002,
+            "timestamp": BASE_TIME + timedelta(hours=3),
+        },
+        {
+            "index": 5,
+            "price": 1.1040,
+            "timestamp": BASE_TIME + timedelta(hours=5),
+        },
+        {
+            "index": 7,
+            "price": 1.1042,
+            "timestamp": BASE_TIME + timedelta(hours=7),
+        },
+    ]
+
+    result = MarketStructureService.detect_support_resistance_zones(
+        [],
+        swing_lows,
+        tolerance=0.0005,
+        min_touches=2,
+    )
+
+    assert len(result["support_zones"]) == 2
+
+    first_zone = result["support_zones"][0]
+    second_zone = result["support_zones"][1]
+
+    assert first_zone["lower_price"] == 1.1000
+    assert first_zone["upper_price"] == 1.1002
+    assert first_zone["touch_count"] == 2
+
+    assert second_zone["lower_price"] == 1.1040
+    assert second_zone["upper_price"] == 1.1042
+    assert second_zone["touch_count"] == 2
+
+
+def test_detect_support_resistance_ignores_unconfirmed_single_touch():
+    """
+    A cluster with fewer touches than min_touches
+    must not become a confirmed zone.
+    """
+
+    swing_highs = [
+        {
+            "index": 2,
+            "price": 1.1050,
+            "timestamp": BASE_TIME + timedelta(hours=2),
+        }
+    ]
+
+    swing_lows = [
+        {
+            "index": 4,
+            "price": 1.1000,
+            "timestamp": BASE_TIME + timedelta(hours=4),
+        }
+    ]
+
+    result = MarketStructureService.detect_support_resistance_zones(
+        swing_highs,
+        swing_lows,
+        tolerance=0.0005,
+        min_touches=2,
+    )
+
+    assert result["support_zones"] == []
+    assert result["resistance_zones"] == []
+
+
+def test_detect_support_resistance_includes_exact_tolerance_boundary():
+    """
+    A swing exactly tolerance distance from the
+    current cluster center is part of that zone.
+    """
+
+    swing_lows = [
+        {
+            "index": 1,
+            "price": 1.1000,
+            "timestamp": BASE_TIME + timedelta(hours=1),
+        },
+        {
+            "index": 3,
+            "price": 1.1005,
+            "timestamp": BASE_TIME + timedelta(hours=3),
+        },
+    ]
+
+    result = MarketStructureService.detect_support_resistance_zones(
+        [],
+        swing_lows,
+        tolerance=0.0005,
+        min_touches=2,
+    )
+
+    assert len(result["support_zones"]) == 1
+
+    zone = result["support_zones"][0]
+
+    assert zone["lower_price"] == 1.1000
+    assert zone["upper_price"] == 1.1005
+    assert zone["center_price"] == 1.10025
+    assert zone["touch_count"] == 2
+
+
+def test_detect_support_resistance_uses_chronological_order():
+    """
+    Unordered swing input must still produce
+    deterministic chronological zone metadata.
+    """
+
+    swing_highs = [
+        {
+            "index": 9,
+            "price": 1.1051,
+            "timestamp": BASE_TIME + timedelta(hours=9),
+        },
+        {
+            "index": 2,
+            "price": 1.1050,
+            "timestamp": BASE_TIME + timedelta(hours=2),
+        },
+        {
+            "index": 6,
+            "price": 1.1052,
+            "timestamp": BASE_TIME + timedelta(hours=6),
+        },
+    ]
+
+    result = MarketStructureService.detect_support_resistance_zones(
+        swing_highs,
+        [],
+        tolerance=0.0005,
+        min_touches=2,
+    )
+
+    assert len(result["resistance_zones"]) == 1
+
+    zone = result["resistance_zones"][0]
+
+    assert zone["first_index"] == 2
+    assert zone["last_index"] == 9
+    assert zone["touch_count"] == 3
+    assert zone["center_price"] == 1.1051

@@ -646,6 +646,130 @@ class MarketStructureService:
             key=lambda item: item["end_index"],
         )
 
+    @staticmethod
+    def detect_support_resistance_zones(
+        swing_highs,
+        swing_lows,
+        tolerance,
+        min_touches=2,
+    ):
+        """
+        Detect support and resistance zones from
+        confirmed swing points.
+
+        Support zones are created from clustered
+        swing lows.
+
+        Resistance zones are created from clustered
+        swing highs.
+
+        A swing belongs to an existing cluster when
+        its price is within tolerance of the current
+        cluster center.
+
+        Only clusters containing at least
+        min_touches are returned.
+        """
+
+        if tolerance < 0:
+            raise ValueError("Tolerance cannot be negative.")
+
+        if min_touches < 1:
+            raise ValueError("min_touches must be at least 1.")
+
+        def build_zones(
+            swing_points,
+            zone_type,
+        ):
+            """
+            Cluster swing points chronologically
+            and convert confirmed clusters to zones.
+            """
+
+            if not swing_points:
+                return []
+
+            points = sorted(
+                swing_points,
+                key=lambda item: item["index"],
+            )
+
+            clusters = []
+
+            for point in points:
+
+                price = point["price"]
+
+                matched_cluster = None
+
+                for cluster in clusters:
+
+                    center_price = (
+                        sum(
+                            item["price"]
+                            for item in cluster
+                        )
+                        / len(cluster)
+                    )
+
+                    if abs(price - center_price) <= tolerance:
+                        matched_cluster = cluster
+                        break
+
+                if matched_cluster is None:
+                    clusters.append([point])
+                else:
+                    matched_cluster.append(point)
+
+            zones = []
+
+            for cluster in clusters:
+
+                if len(cluster) < min_touches:
+                    continue
+
+                prices = [
+                    item["price"]
+                    for item in cluster
+                ]
+
+                indices = [
+                    item["index"]
+                    for item in cluster
+                ]
+
+                zones.append(
+                    {
+                        "type": zone_type,
+                        "lower_price": min(prices),
+                        "upper_price": max(prices),
+                        "center_price": round(
+                            sum(prices) / len(prices),
+                            6,
+                        ),
+                        "touch_count": len(cluster),
+                        "first_index": min(indices),
+                        "last_index": max(indices),
+                    }
+                )
+
+            return zones
+
+        support_zones = build_zones(
+            swing_lows,
+            "SUPPORT",
+        )
+
+        resistance_zones = build_zones(
+            swing_highs,
+            "RESISTANCE",
+        )
+
+        return {
+            "support_zones": support_zones,
+            "resistance_zones": resistance_zones,
+        }
+
     def close(self):
         """
         Close the MetaTrader 5 connection.

@@ -32,6 +32,10 @@ from app.config.instrument_config import (
     get_display_symbol,
 )
 
+from app.market.indicators import (
+    TechnicalIndicators,
+)
+
 from app.market.mt5_provider import (
     MT5DataProvider,
 )
@@ -63,6 +67,17 @@ MARKET_WATCH_SYMBOLS = tuple(
 SUPPORTED_SYMBOLS = set(
     MARKET_WATCH_SYMBOLS
 )
+
+
+# ==========================================================
+# SUPPORT / RESISTANCE CONFIGURATION
+# ==========================================================
+
+SUPPORT_RESISTANCE_ATR_PERIOD = 14
+
+SUPPORT_RESISTANCE_TOLERANCE_MULTIPLIER = 0.25
+
+SUPPORT_RESISTANCE_MIN_TOUCHES = 2
 
 
 # ==========================================================
@@ -349,7 +364,6 @@ def get_market_quotes(
     - does not change the DEMO execution safety switch
     """
 
-    # Authentication is enforced by the dependency.
     _ = current_user
 
     provider = MT5DataProvider()
@@ -440,12 +454,6 @@ def get_market_quotes(
                     }
                 )
 
-        # If MT5 failed to provide every quote,
-        # treat the market-data service as unavailable.
-        #
-        # Preserve the first RuntimeError detail so the
-        # existing API failure contract remains useful
-        # for diagnostics and tests.
         if available_count == 0:
 
             raise HTTPException(
@@ -532,6 +540,7 @@ def get_market_candles(
 
     - confirmed swing highs
     - confirmed swing lows
+    - ATR-normalized support and resistance zones
     - latest Break of Structure (BOS)
     - latest Change of Character (CHoCH)
     - latest confirmed liquidity sweep
@@ -550,10 +559,6 @@ def get_market_candles(
     - does not change AI decision authority
     """
 
-    # Authentication is enforced by the dependency.
-    # The user object is intentionally retained here
-    # so the endpoint follows Aladdin's authenticated
-    # resource pattern.
     _ = current_user
 
     provider = MT5DataProvider()
@@ -590,8 +595,8 @@ def get_market_candles(
         # --------------------------------------------------
         # Visualization-only indicator series
         #
-        # All indicators use the exact same candle dataset
-        # retrieved above. There is no second MT5 fetch.
+        # Every calculation below reuses the same candle
+        # dataset. No additional MT5 request is made.
         # --------------------------------------------------
 
         ema20_series = (
@@ -619,6 +624,30 @@ def get_market_candles(
         )
 
         # --------------------------------------------------
+        # Support / Resistance volatility tolerance
+        #
+        # ATR is calculated from the same in-memory candle
+        # dataset. It is not another MT5 market-data fetch.
+        #
+        # The multiplier is intentionally configurable so
+        # it can later be optimized through backtesting.
+        # --------------------------------------------------
+
+        support_resistance_atr = (
+            TechnicalIndicators
+            .calculate_atr(
+                candles,
+                period=SUPPORT_RESISTANCE_ATR_PERIOD,
+            )
+        )
+
+        support_resistance_tolerance = round(
+            support_resistance_atr
+            * SUPPORT_RESISTANCE_TOLERANCE_MULTIPLIER,
+            6,
+        )
+
+        # --------------------------------------------------
         # Visualization market structure
         #
         # Reuse the existing authoritative market-structure
@@ -643,6 +672,16 @@ def get_market_candles(
             .find_swing_lows(
                 candles,
                 lookback=structure_lookback,
+            )
+        )
+
+        support_resistance = (
+            MarketStructureService
+            .detect_support_resistance_zones(
+                swing_highs,
+                swing_lows,
+                tolerance=support_resistance_tolerance,
+                min_touches=SUPPORT_RESISTANCE_MIN_TOUCHES,
             )
         )
 
@@ -735,6 +774,27 @@ def get_market_candles(
                     )
                     for point in swing_lows
                 ],
+                "support_resistance": {
+                    "atr_period": (
+                        SUPPORT_RESISTANCE_ATR_PERIOD
+                    ),
+                    "tolerance_multiplier": (
+                        SUPPORT_RESISTANCE_TOLERANCE_MULTIPLIER
+                    ),
+                    "tolerance": (
+                        support_resistance_tolerance
+                    ),
+                    "support_zones": (
+                        support_resistance[
+                            "support_zones"
+                        ]
+                    ),
+                    "resistance_zones": (
+                        support_resistance[
+                            "resistance_zones"
+                        ]
+                    ),
+                },
                 "bos": (
                     _serialize_structure_event(
                         latest_bos

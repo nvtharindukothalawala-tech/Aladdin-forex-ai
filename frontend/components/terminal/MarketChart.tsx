@@ -3,6 +3,7 @@
 import {
   CandlestickSeries,
   LineSeries,
+  LineStyle,
   ColorType,
   CrosshairMode,
   createChart,
@@ -10,6 +11,7 @@ import {
   type CandlestickData,
   type LineData,
   type IChartApi,
+  type IPriceLine,
   type ISeriesApi,
   type ISeriesMarkersPluginApi,
   type SeriesMarker,
@@ -393,6 +395,22 @@ export default function MarketChart({
   const structureMarkerDataRef =
     useRef<SeriesMarker<UTCTimestamp>[]>([]);
 
+  const supportResistanceLinesRef =
+    useRef<IPriceLine[]>([]);
+
+  const supportResistanceDataRef =
+    useRef<MarketStructure["support_resistance"] | null>(
+      null,
+    );
+
+  const supportResistanceCurrentPriceRef =
+    useRef<number | null>(
+      null,
+    );
+
+  const supportResistanceCandleCountRef =
+    useRef(0);
+
   const structureVisibleRef =
     useRef(true);
 
@@ -749,6 +767,18 @@ export default function MarketChart({
       structureMarkerDataRef.current =
         [];
 
+      supportResistanceLinesRef.current =
+        [];
+
+      supportResistanceDataRef.current =
+        null;
+
+      supportResistanceCurrentPriceRef.current =
+        null;
+
+      supportResistanceCandleCountRef.current =
+        0;
+
       ema20SeriesRef.current =
         null;
 
@@ -813,6 +843,347 @@ export default function MarketChart({
     });
   }, [adx14Visible]);
 
+  const renderSupportResistance =
+    useCallback(
+      (
+        supportResistance:
+          MarketStructure["support_resistance"] | null,
+        visible: boolean,
+        currentPrice: number | null = null,
+        candleCountForRanking: number = 0,
+      ) => {
+        const candleSeries =
+          seriesRef.current;
+
+        if (!candleSeries) {
+          return;
+        }
+
+        for (
+          const line of
+          supportResistanceLinesRef.current
+        ) {
+          candleSeries.removePriceLine(
+            line,
+          );
+        }
+
+        supportResistanceLinesRef.current =
+          [];
+
+        if (
+          !visible ||
+          !supportResistance
+        ) {
+          return;
+        }
+
+        const zones = [
+          ...supportResistance.support_zones,
+          ...supportResistance.resistance_zones,
+        ].filter(
+          (zone) =>
+            Number.isFinite(
+              zone.center_price,
+            ) &&
+            Number.isFinite(
+              zone.lower_price,
+            ) &&
+            Number.isFinite(
+              zone.upper_price,
+            ) &&
+            Number.isFinite(
+              zone.touch_count,
+            ) &&
+            Number.isFinite(
+              zone.last_index,
+            ),
+        );
+
+        if (zones.length === 0) {
+          return;
+        }
+
+        const hasCurrentPrice =
+          currentPrice !== null &&
+          Number.isFinite(currentPrice);
+
+        const safeLastIndex =
+          Math.max(
+            candleCountForRanking - 1,
+            1,
+          );
+
+        const atr =
+          supportResistance
+            .tolerance_multiplier > 0
+            ? (
+                supportResistance.tolerance /
+                supportResistance
+                  .tolerance_multiplier
+              )
+            : 0;
+
+        const proximityScale =
+          atr > 0
+            ? atr * 10
+            : (
+                hasCurrentPrice
+                  ? Math.max(
+                      Math.abs(
+                        currentPrice as number,
+                      ) * 0.005,
+                      Number.EPSILON,
+                    )
+                  : 1
+              );
+
+        const scoredZones =
+          zones.map((zone) => {
+            const touchScore =
+              Math.min(
+                zone.touch_count / 6,
+                1,
+              );
+
+            const recencyScore =
+              Math.min(
+                Math.max(
+                  zone.last_index /
+                    safeLastIndex,
+                  0,
+                ),
+                1,
+              );
+
+            const distanceScore =
+              hasCurrentPrice
+                ? (
+                    1 -
+                    Math.min(
+                      Math.abs(
+                        zone.center_price -
+                          (currentPrice as number),
+                      ) /
+                        proximityScale,
+                      1,
+                    )
+                  )
+                : 0;
+
+            const score =
+              touchScore * 0.45 +
+              recencyScore * 0.35 +
+              distanceScore * 0.20;
+
+            const containsPrice =
+              hasCurrentPrice &&
+              (
+                currentPrice as number
+              ) >= zone.lower_price &&
+              (
+                currentPrice as number
+              ) <= zone.upper_price;
+
+            return {
+              zone,
+              score,
+              containsPrice,
+            };
+          });
+
+        const containingZones =
+          scoredZones.filter(
+            (item) =>
+              item.containsPrice,
+          );
+
+        const aboveZones =
+          scoredZones
+            .filter(
+              (item) =>
+                !item.containsPrice &&
+                (
+                  !hasCurrentPrice ||
+                  item.zone.center_price >
+                    (currentPrice as number)
+                ),
+            )
+            .sort(
+              (left, right) =>
+                right.score -
+                left.score,
+            )
+            .slice(0, 3);
+
+        const belowZones =
+          scoredZones
+            .filter(
+              (item) =>
+                !item.containsPrice &&
+                (
+                  !hasCurrentPrice ||
+                  item.zone.center_price <
+                    (currentPrice as number)
+                ),
+            )
+            .sort(
+              (left, right) =>
+                right.score -
+                left.score,
+            )
+            .slice(0, 3);
+
+        const selectedByKey =
+          new Map<
+            string,
+            (typeof scoredZones)[number]
+          >();
+
+        for (
+          const item of [
+            ...containingZones,
+            ...aboveZones,
+            ...belowZones,
+          ]
+        ) {
+          const key =
+            `${item.zone.type}:` +
+            `${item.zone.lower_price}:` +
+            `${item.zone.upper_price}:` +
+            `${item.zone.first_index}:` +
+            `${item.zone.last_index}`;
+
+          selectedByKey.set(
+            key,
+            item,
+          );
+        }
+
+        const selectedZones =
+          Array.from(
+            selectedByKey.values(),
+          ).sort(
+            (left, right) =>
+              right.zone.center_price -
+              left.zone.center_price,
+          );
+
+        for (
+          const {
+            zone,
+            containsPrice,
+          } of selectedZones
+        ) {
+          const isSupport =
+            zone.type === "SUPPORT";
+
+          const currentlyAbove =
+            hasCurrentPrice &&
+            zone.center_price >
+              (
+                currentPrice as number
+              );
+
+          const currentlyBelow =
+            hasCurrentPrice &&
+            zone.center_price <
+              (
+                currentPrice as number
+              );
+
+          let contextLabel =
+            isSupport
+              ? "SUP"
+              : "RES";
+
+          if (containsPrice) {
+            contextLabel = "S/R";
+          } else if (
+            currentlyAbove
+          ) {
+            contextLabel = "RES";
+          } else if (
+            currentlyBelow
+          ) {
+            contextLabel = "SUP";
+          }
+
+          const color =
+            containsPrice
+              ? "#f59e0b"
+              : currentlyAbove
+                ? "#ef4444"
+                : currentlyBelow
+                  ? "#22c55e"
+                  : isSupport
+                    ? "#22c55e"
+                    : "#ef4444";
+
+          const centerLine =
+            candleSeries.createPriceLine({
+              price:
+                zone.center_price,
+              color,
+              lineWidth:
+                zone.touch_count >= 5
+                  ? 2
+                  : 1,
+              lineStyle:
+                LineStyle.Dashed,
+              axisLabelVisible: true,
+              title:
+                `${contextLabel} ` +
+                `${zone.touch_count}T`,
+            });
+
+          supportResistanceLinesRef.current.push(
+            centerLine,
+          );
+
+          // Draw the upper/lower boundaries as subtle dotted
+          // lines so the backend zone is visible as a band
+          // without adding another chart library/plugin.
+          if (
+            zone.upper_price >
+            zone.lower_price
+          ) {
+            const upperLine =
+              candleSeries.createPriceLine({
+                price:
+                  zone.upper_price,
+                color,
+                lineWidth: 1,
+                lineStyle:
+                  LineStyle.Dotted,
+                axisLabelVisible:
+                  false,
+                title: "",
+              });
+
+            const lowerLine =
+              candleSeries.createPriceLine({
+                price:
+                  zone.lower_price,
+                color,
+                lineWidth: 1,
+                lineStyle:
+                  LineStyle.Dotted,
+                axisLabelVisible:
+                  false,
+                title: "",
+              });
+
+            supportResistanceLinesRef.current.push(
+              upperLine,
+              lowerLine,
+            );
+          }
+        }
+      },
+      [],
+    );
+
   useEffect(() => {
     structureVisibleRef.current =
       structureVisible;
@@ -822,7 +1193,17 @@ export default function MarketChart({
         ? structureMarkerDataRef.current
         : [],
     );
-  }, [structureVisible]);
+
+    renderSupportResistance(
+      supportResistanceDataRef.current,
+      structureVisible,
+      supportResistanceCurrentPriceRef.current,
+      supportResistanceCandleCountRef.current,
+    );
+  }, [
+    renderSupportResistance,
+    structureVisible,
+  ]);
 
   const loadCandles =
     useCallback(
@@ -914,6 +1295,30 @@ export default function MarketChart({
               : [],
           );
 
+          supportResistanceDataRef.current =
+            result.market_structure.support_resistance;
+
+          const latestChartCandle =
+            chartData.at(-1);
+
+          const currentClose =
+            latestChartCandle
+              ? latestChartCandle.close
+              : null;
+
+          supportResistanceCurrentPriceRef.current =
+            currentClose;
+
+          supportResistanceCandleCountRef.current =
+            chartData.length;
+
+          renderSupportResistance(
+            result.market_structure.support_resistance,
+            structureVisibleRef.current,
+            currentClose,
+            chartData.length,
+          );
+
           setBrokerSymbol(
             result.broker_symbol,
           );
@@ -984,6 +1389,7 @@ export default function MarketChart({
       },
       [
         normalizedSymbol,
+        renderSupportResistance,
         safeCandleCount,
         selectedTimeframe,
       ],

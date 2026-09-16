@@ -1410,3 +1410,169 @@ def test_market_structure_reuses_single_candle_fetch(
         FakeStructureMT5DataProvider.candle_fetch_count
         == 1
     )
+
+def test_market_candles_include_support_resistance_zones(
+    monkeypatch,
+):
+    """
+    Market candle response must expose ATR-normalized
+    support and resistance zone information.
+    """
+
+    monkeypatch.setattr(
+        market_data_routes,
+        "MT5DataProvider",
+        FakeStructureMT5DataProvider,
+    )
+
+    headers = get_auth_headers()
+
+    response = client.get(
+        "/market-data/candles"
+        "?symbol=EURUSD"
+        "&timeframe=H1"
+        "&count=50",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+
+    payload = response.json()
+
+    assert "market_structure" in payload
+
+    structure = payload["market_structure"]
+
+    assert "support_resistance" in structure
+
+    support_resistance = structure[
+        "support_resistance"
+    ]
+
+    assert set(support_resistance) == {
+        "atr_period",
+        "tolerance_multiplier",
+        "tolerance",
+        "support_zones",
+        "resistance_zones",
+    }
+
+    assert support_resistance["atr_period"] == 14
+
+    assert (
+        support_resistance["tolerance_multiplier"]
+        == 0.25
+    )
+
+    assert isinstance(
+        support_resistance["tolerance"],
+        (int, float),
+    )
+
+    assert support_resistance["tolerance"] >= 0
+
+    assert isinstance(
+        support_resistance["support_zones"],
+        list,
+    )
+
+    assert isinstance(
+        support_resistance["resistance_zones"],
+        list,
+    )
+
+
+def test_support_resistance_zone_response_shape(
+    monkeypatch,
+):
+    """
+    Any confirmed support or resistance zone returned
+    by the API must use the stable chart contract.
+    """
+
+    monkeypatch.setattr(
+        market_data_routes,
+        "MT5DataProvider",
+        FakeStructureMT5DataProvider,
+    )
+
+    headers = get_auth_headers()
+
+    response = client.get(
+        "/market-data/candles"
+        "?symbol=EURUSD"
+        "&timeframe=H1"
+        "&count=50",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+
+    support_resistance = response.json()[
+        "market_structure"
+    ]["support_resistance"]
+
+    zones = (
+        support_resistance["support_zones"]
+        + support_resistance["resistance_zones"]
+    )
+
+    for zone in zones:
+
+        assert set(zone) == {
+            "type",
+            "lower_price",
+            "upper_price",
+            "center_price",
+            "touch_count",
+            "first_index",
+            "last_index",
+        }
+
+        assert zone["type"] in {
+            "SUPPORT",
+            "RESISTANCE",
+        }
+
+        assert isinstance(
+            zone["lower_price"],
+            (int, float),
+        )
+
+        assert isinstance(
+            zone["upper_price"],
+            (int, float),
+        )
+
+        assert isinstance(
+            zone["center_price"],
+            (int, float),
+        )
+
+        assert isinstance(
+            zone["touch_count"],
+            int,
+        )
+
+        assert zone["touch_count"] >= 2
+
+        assert isinstance(
+            zone["first_index"],
+            int,
+        )
+
+        assert isinstance(
+            zone["last_index"],
+            int,
+        )
+
+        assert (
+            zone["lower_price"]
+            <= zone["center_price"]
+            <= zone["upper_price"]
+        )
+
+        assert (
+            zone["first_index"]
+            <= zone["last_index"]
+        )

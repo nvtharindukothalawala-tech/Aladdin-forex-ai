@@ -736,6 +736,36 @@ export type MarketStructureFVG = {
 };
 
 
+export type MarketStructureSupportResistanceZone = {
+  type: "SUPPORT" | "RESISTANCE";
+
+  lower_price: number;
+
+  upper_price: number;
+
+  center_price: number;
+
+  touch_count: number;
+
+  first_index: number;
+
+  last_index: number;
+};
+
+
+export type MarketStructureSupportResistance = {
+  atr_period: number;
+
+  tolerance_multiplier: number;
+
+  tolerance: number;
+
+  support_zones: MarketStructureSupportResistanceZone[];
+
+  resistance_zones: MarketStructureSupportResistanceZone[];
+};
+
+
 export type MarketStructure = {
   lookback: number;
 
@@ -752,6 +782,8 @@ export type MarketStructure = {
   order_block: MarketStructureOrderBlock | null;
 
   fvg: MarketStructureFVG | null;
+
+  support_resistance: MarketStructureSupportResistance;
 };
 
 
