@@ -1099,3 +1099,124 @@ class MarketStructureService:
             "low_index": low_index,
             "high_index": high_index,
         }
+
+    @staticmethod
+    def detect_equal_highs_lows(
+        swing_highs,
+        swing_lows,
+        tolerance: float,
+        min_touches: int = 2,
+    ):
+        """
+        Detect Equal Highs (EQH) and Equal Lows (EQL)
+        from confirmed swing points.
+
+        Swing points whose prices are within the supplied
+        tolerance are grouped into liquidity clusters.
+
+        Only clusters containing at least min_touches
+        confirmed swing points are returned.
+
+        This method is deterministic and operates only on
+        already-confirmed swing points. It performs no
+        additional market-data fetch.
+        """
+
+        if tolerance < 0:
+            raise ValueError(
+                "Equal-high/low tolerance cannot be negative."
+            )
+
+        if min_touches < 2:
+            raise ValueError(
+                "Equal-high/low min_touches must be at least 2."
+            )
+
+        def build_levels(
+            points,
+            level_type: str,
+        ):
+            if not points:
+                return []
+
+            # Work in chronological order so output metadata
+            # remains deterministic even if input is unordered.
+            ordered_points = sorted(
+                points,
+                key=lambda point: point["index"],
+            )
+
+            clusters = []
+
+            for point in ordered_points:
+                price = float(point["price"])
+
+                if not clusters:
+                    clusters.append([point])
+                    continue
+
+                current_cluster = clusters[-1]
+
+                cluster_center = (
+                    sum(
+                        float(item["price"])
+                        for item in current_cluster
+                    )
+                    / len(current_cluster)
+                )
+
+                # Include exact tolerance boundary.
+                if abs(price - cluster_center) <= (
+                    tolerance + 1e-12
+                ):
+                    current_cluster.append(point)
+
+                else:
+                    clusters.append([point])
+
+            levels = []
+
+            for cluster in clusters:
+                if len(cluster) < min_touches:
+                    continue
+
+                prices = [
+                    float(point["price"])
+                    for point in cluster
+                ]
+
+                level_price = round(
+                    sum(prices) / len(prices),
+                    6,
+                )
+
+                levels.append(
+                    {
+                        "type": level_type,
+                        "level_price": level_price,
+                        "touch_count": len(cluster),
+                        "first_index": int(
+                            cluster[0]["index"]
+                        ),
+                        "last_index": int(
+                            cluster[-1]["index"]
+                        ),
+                    }
+                )
+
+            return levels
+
+        equal_highs = build_levels(
+            swing_highs,
+            "EQUAL_HIGH",
+        )
+
+        equal_lows = build_levels(
+            swing_lows,
+            "EQUAL_LOW",
+        )
+
+        return {
+            "equal_highs": equal_highs,
+            "equal_lows": equal_lows,
+        }

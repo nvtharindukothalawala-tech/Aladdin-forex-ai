@@ -451,6 +451,14 @@ export default function MarketChart({
       null,
     );
 
+  const equalHighLowLinesRef =
+    useRef<IPriceLine[]>([]);
+
+  const equalHighLowDataRef =
+    useRef<MarketStructure["equal_highs_lows"] | null>(
+      null,
+    );
+
   const structureVisibleRef =
     useRef(true);
 
@@ -823,6 +831,12 @@ export default function MarketChart({
         [];
 
       premiumDiscountDataRef.current =
+        null;
+
+      equalHighLowLinesRef.current =
+        [];
+
+      equalHighLowDataRef.current =
         null;
 
       ema20SeriesRef.current =
@@ -1318,6 +1332,106 @@ export default function MarketChart({
       [],
     );
 
+  const renderEqualHighsLows =
+    useCallback(
+      (
+        equalHighsLows:
+          MarketStructure["equal_highs_lows"] | null,
+        visible: boolean,
+        candles: CandlestickData<UTCTimestamp>[] = [],
+      ) => {
+        const chart = chartRef.current;
+
+        if (!chart) {
+          return;
+        }
+
+        for (const line of equalHighLowLinesRef.current) {
+          seriesRef.current?.removePriceLine(line);
+        }
+
+        equalHighLowLinesRef.current = [];
+
+        // Remove previously-created bounded EQH/EQL series.
+        // They are tagged on the chart instance by this component.
+        const chartWithEqualSeries = chart as IChartApi & {
+          __aladdinEqualSeries?: ISeriesApi<"Line">[];
+        };
+
+        for (const series of chartWithEqualSeries.__aladdinEqualSeries ?? []) {
+          chart.removeSeries(series);
+        }
+        chartWithEqualSeries.__aladdinEqualSeries = [];
+
+        if (!visible || !equalHighsLows || candles.length === 0) {
+          return;
+        }
+
+        const levels = [
+          ...(equalHighsLows.equal_highs ?? []),
+          ...(equalHighsLows.equal_lows ?? []),
+        ].filter(
+          (level) =>
+            Number.isFinite(level.level_price) &&
+            Number.isFinite(level.touch_count) &&
+            Number.isFinite(level.first_index) &&
+            Number.isFinite(level.last_index) &&
+            level.first_index >= 0 &&
+            level.last_index >= level.first_index &&
+            level.last_index < candles.length,
+        );
+
+        // Keep the chart readable: favor recent and repeatedly-tested pools.
+        const selectedLevels = levels
+          .sort((left, right) => {
+            if (right.last_index !== left.last_index) {
+              return right.last_index - left.last_index;
+            }
+            return right.touch_count - left.touch_count;
+          })
+          .slice(0, 12);
+
+        for (const level of selectedLevels) {
+          const startCandle = candles[level.first_index];
+          const endCandle = candles[level.last_index];
+
+          if (!startCandle || !endCandle) {
+            continue;
+          }
+
+          const isEqualHigh = level.type === "EQUAL_HIGH";
+          const equalSeries = chart.addSeries(
+            LineSeries,
+            {
+              color: isEqualHigh ? "#fb7185" : "#22d3ee",
+              lineWidth: level.touch_count >= 3 ? 2 : 1,
+              lineStyle: LineStyle.Dashed,
+              priceLineVisible: false,
+              lastValueVisible: false,
+              crosshairMarkerVisible: false,
+              title: `${isEqualHigh ? "EQH" : "EQL"} ${level.touch_count}T`,
+              priceScaleId: "right",
+            },
+            0,
+          );
+
+          equalSeries.setData([
+            {
+              time: startCandle.time,
+              value: level.level_price,
+            },
+            {
+              time: endCandle.time,
+              value: level.level_price,
+            },
+          ]);
+
+          chartWithEqualSeries.__aladdinEqualSeries.push(equalSeries);
+        }
+      },
+      [],
+    );
+
   useEffect(() => {
     structureVisibleRef.current =
       structureVisible;
@@ -1339,7 +1453,18 @@ export default function MarketChart({
       premiumDiscountDataRef.current,
       structureVisible,
     );
+
+    // EQH/EQL are re-rendered with the latest candle dataset during loads.
+    // When Structure is hidden, remove them immediately.
+    if (!structureVisible) {
+      renderEqualHighsLows(
+        equalHighLowDataRef.current,
+        false,
+        [],
+      );
+    }
   }, [
+    renderEqualHighsLows,
     renderPremiumDiscount,
     renderSupportResistance,
     structureVisible,
@@ -1467,6 +1592,15 @@ export default function MarketChart({
             structureVisibleRef.current,
           );
 
+          equalHighLowDataRef.current =
+            result.market_structure.equal_highs_lows;
+
+          renderEqualHighsLows(
+            result.market_structure.equal_highs_lows,
+            structureVisibleRef.current,
+            chartData,
+          );
+
           setBrokerSymbol(
             result.broker_symbol,
           );
@@ -1537,6 +1671,7 @@ export default function MarketChart({
       },
       [
         normalizedSymbol,
+        renderEqualHighsLows,
         renderPremiumDiscount,
         renderSupportResistance,
         safeCandleCount,

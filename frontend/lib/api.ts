@@ -831,6 +831,35 @@ export type MarketStructurePremiumDiscount = {
 };
 
 
+/*
+ * Equal highs / equal lows liquidity levels returned by the backend.
+ */
+export type MarketStructureEqualLevel = {
+  type: "EQUAL_HIGH" | "EQUAL_LOW" | string;
+
+  level_price: number;
+
+  touch_count: number;
+
+  first_index: number;
+
+  last_index: number;
+};
+
+
+export type MarketStructureEqualHighsLows = {
+  tolerance_multiplier: number;
+
+  tolerance: number;
+
+  min_touches: number;
+
+  equal_highs: MarketStructureEqualLevel[];
+
+  equal_lows: MarketStructureEqualLevel[];
+};
+
+
 export type MarketStructure = {
   lookback: number;
 
@@ -853,6 +882,8 @@ export type MarketStructure = {
   displacement: MarketStructureDisplacement | null;
 
   premium_discount: MarketStructurePremiumDiscount | null;
+
+  equal_highs_lows: MarketStructureEqualHighsLows;
 
   support_resistance: MarketStructureSupportResistance;
 };

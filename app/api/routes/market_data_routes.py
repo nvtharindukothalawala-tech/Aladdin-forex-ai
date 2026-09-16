@@ -63,14 +63,13 @@ MARKET_WATCH_SYMBOLS = tuple(
     INSTRUMENTS.keys()
 )
 
-
 SUPPORTED_SYMBOLS = set(
     MARKET_WATCH_SYMBOLS
 )
 
 
 # ==========================================================
-# SUPPORT / RESISTANCE CONFIGURATION
+# MARKET STRUCTURE CONFIGURATION
 # ==========================================================
 
 SUPPORT_RESISTANCE_ATR_PERIOD = 14
@@ -80,6 +79,14 @@ SUPPORT_RESISTANCE_TOLERANCE_MULTIPLIER = 0.25
 SUPPORT_RESISTANCE_MIN_TOUCHES = 2
 
 DISPLACEMENT_BODY_ATR_MULTIPLIER = 1.5
+
+
+# Equal High / Equal Low detection uses ATR-normalized
+# tolerance independently from support/resistance.
+EQUAL_HIGH_LOW_TOLERANCE_MULTIPLIER = 0.15
+
+EQUAL_HIGH_LOW_MIN_TOUCHES = 2
+
 
 # ==========================================================
 # SYMBOL NORMALIZATION
@@ -191,9 +198,6 @@ def _serialize_swing_point(
     """
     Convert an internal market-structure swing point
     into the frontend chart contract.
-
-    The service keeps Python datetime timestamps.
-    The chart API exposes Unix epoch seconds.
     """
 
     return {
@@ -211,8 +215,6 @@ def _serialize_structure_event(
     """
     Convert an internal BOS or CHoCH event into
     the frontend chart contract.
-
-    None is preserved when no confirmed event exists.
     """
 
     if event is None:
@@ -235,10 +237,6 @@ def _serialize_order_block(
     """
     Convert an internal Order Block event into
     the frontend chart contract.
-
-    None is preserved when no confirmed Order Block
-    exists. The Market Structure Service remains
-    authoritative for Order Block detection.
     """
 
     if event is None:
@@ -263,10 +261,6 @@ def _serialize_fvg(
     """
     Convert an internal Fair Value Gap event into
     the frontend chart contract.
-
-    None is preserved when no confirmed FVG exists.
-    The Market Structure Service remains authoritative
-    for Fair Value Gap detection.
     """
 
     if event is None:
@@ -291,12 +285,6 @@ def _serialize_liquidity_sweep(
     """
     Convert an internal liquidity-sweep event into
     the frontend chart contract.
-
-    None is preserved when no confirmed liquidity
-    sweep exists.
-
-    The existing Market Structure Service remains
-    authoritative for liquidity-sweep detection.
     """
 
     if event is None:
@@ -364,7 +352,6 @@ def _serialize_displacement(
     }
 
 
-
 def _serialize_premium_discount(
     event: dict | None,
 ) -> dict | None:
@@ -377,7 +364,6 @@ def _serialize_premium_discount(
         return None
 
     return dict(event)
-
 
 
 # ==========================================================
@@ -399,37 +385,10 @@ def get_market_quotes(
     A temporary quote failure for one symbol does
     not remove valid quotes for the other symbols.
 
-    Available instruments contain:
-
-    - logical ALADDIN symbol
-    - frontend display symbol
-    - actual broker symbol
-    - bid price
-    - ask price
-    - raw spread
-    - spread in broker points
-    - broker price precision
-    - broker point size
-    - MT5 tick timestamp
-    - availability status
-
-    Temporarily unavailable instruments remain
-    visible in the response with:
-
-    - available = False
-    - market values = None
-    - error message describing the data problem
-
     HTTP 503 is returned only when no valid quote
     can be retrieved from MT5.
 
-    The endpoint:
-
-    - reads MT5 market data
-    - does not execute trades
-    - does not modify positions
-    - does not modify orders
-    - does not change the DEMO execution safety switch
+    This endpoint does not execute or modify trades.
     """
 
     _ = current_user
@@ -577,7 +536,8 @@ def get_market_candles(
         default="H1",
         description=(
             "Chart timeframe. "
-            "Supported values: M1, M5, M15, M30, H1, H4, D1, W1."
+            "Supported values: "
+            "M1, M5, M15, M30, H1, H4, D1, W1."
         ),
     ),
     count: int = Query(
@@ -597,37 +557,26 @@ def get_market_candles(
 
     This endpoint is authenticated and read-only.
 
-    It is intended for the ALADDIN V2 trading chart.
+    All indicators and market-structure calculations
+    reuse the same MT5 candle dataset.
 
-    Chart indicators and visualization market structure
-    are calculated from the same candle dataset returned
-    by MT5. No additional MT5 market-data request is
-    required.
+    Market structure exposes:
 
-    Market structure currently exposes:
+    - swing highs
+    - swing lows
+    - support/resistance
+    - equal highs
+    - equal lows
+    - BOS
+    - CHoCH
+    - liquidity sweep
+    - Order Block
+    - FVG
+    - engulfing
+    - displacement
+    - premium/equilibrium/discount
 
-    - confirmed swing highs
-    - confirmed swing lows
-    - ATR-normalized support and resistance zones
-    - latest Break of Structure (BOS)
-    - latest Change of Character (CHoCH)
-    - latest confirmed liquidity sweep
-    - latest Order Block related to the latest BOS
-    - latest Fair Value Gap (FVG)
-    - latest bullish or bearish engulfing pattern
-    - latest ATR-normalized displacement candle
-    - current premium / equilibrium / discount dealing range
-
-    The endpoint:
-
-    - reads MT5 market data
-    - calculates visualization-only chart indicators
-    - calculates visualization market structure
-    - does not execute trades
-    - does not modify positions
-    - does not modify orders
-    - does not change the DEMO execution safety switch
-    - does not change AI decision authority
+    No trading action is performed.
     """
 
     _ = current_user
@@ -635,6 +584,10 @@ def get_market_candles(
     provider = MT5DataProvider()
 
     try:
+
+        # --------------------------------------------------
+        # Normalize request
+        # --------------------------------------------------
 
         normalized_symbol = _normalize_symbol(
             symbol
@@ -649,7 +602,7 @@ def get_market_candles(
         )
 
         # --------------------------------------------------
-        # Single MT5 candle fetch
+        # SINGLE MT5 CANDLE FETCH
         # --------------------------------------------------
 
         candles = provider.get_candles(
@@ -664,10 +617,7 @@ def get_market_candles(
             )
 
         # --------------------------------------------------
-        # Visualization-only indicator series
-        #
-        # Every calculation below reuses the same candle
-        # dataset. No additional MT5 request is made.
+        # INDICATORS
         # --------------------------------------------------
 
         ema20_series = (
@@ -695,13 +645,7 @@ def get_market_candles(
         )
 
         # --------------------------------------------------
-        # Support / Resistance volatility tolerance
-        #
-        # ATR is calculated from the same in-memory candle
-        # dataset. It is not another MT5 market-data fetch.
-        #
-        # The multiplier is intentionally configurable so
-        # it can later be optimized through backtesting.
+        # ATR
         # --------------------------------------------------
 
         support_resistance_atr = (
@@ -719,13 +663,17 @@ def get_market_candles(
         )
 
         # --------------------------------------------------
-        # Visualization market structure
-        #
-        # Reuse the existing authoritative market-structure
-        # detection methods on the same in-memory candles.
-        #
-        # Do NOT call get_structure_points() here because
-        # that method performs its own MT5 candle fetch.
+        # EQH / EQL tolerance
+        # --------------------------------------------------
+
+        equal_high_low_tolerance = round(
+            support_resistance_atr
+            * EQUAL_HIGH_LOW_TOLERANCE_MULTIPLIER,
+            6,
+        )
+
+        # --------------------------------------------------
+        # SWINGS
         # --------------------------------------------------
 
         structure_lookback = 2
@@ -746,6 +694,10 @@ def get_market_candles(
             )
         )
 
+        # --------------------------------------------------
+        # SUPPORT / RESISTANCE
+        # --------------------------------------------------
+
         support_resistance = (
             MarketStructureService
             .detect_support_resistance_zones(
@@ -756,6 +708,24 @@ def get_market_candles(
             )
         )
 
+        # --------------------------------------------------
+        # EQUAL HIGHS / EQUAL LOWS
+        # --------------------------------------------------
+
+        equal_highs_lows = (
+            MarketStructureService
+            .detect_equal_highs_lows(
+                swing_highs,
+                swing_lows,
+                tolerance=equal_high_low_tolerance,
+                min_touches=EQUAL_HIGH_LOW_MIN_TOUCHES,
+            )
+        )
+
+        # --------------------------------------------------
+        # BOS
+        # --------------------------------------------------
+
         latest_bos = (
             MarketStructureService
             .detect_bos(
@@ -764,6 +734,10 @@ def get_market_candles(
                 swing_lows,
             )
         )
+
+        # --------------------------------------------------
+        # CHoCH
+        # --------------------------------------------------
 
         latest_choch = (
             MarketStructureService
@@ -775,6 +749,10 @@ def get_market_candles(
             )
         )
 
+        # --------------------------------------------------
+        # ORDER BLOCK
+        # --------------------------------------------------
+
         latest_order_block = (
             MarketStructureService
             .detect_order_block(
@@ -782,6 +760,10 @@ def get_market_candles(
                 latest_bos,
             )
         )
+
+        # --------------------------------------------------
+        # LIQUIDITY SWEEP
+        # --------------------------------------------------
 
         latest_liquidity_sweep = (
             MarketStructureService
@@ -792,6 +774,10 @@ def get_market_candles(
             )
         )
 
+        # --------------------------------------------------
+        # FAIR VALUE GAP
+        # --------------------------------------------------
+
         latest_fvg = (
             MarketStructureService
             .detect_fvg(
@@ -799,12 +785,20 @@ def get_market_candles(
             )
         )
 
+        # --------------------------------------------------
+        # ENGULFING
+        # --------------------------------------------------
+
         latest_engulfing = (
             MarketStructureService
             .detect_engulfing(
                 candles,
             )
         )
+
+        # --------------------------------------------------
+        # DISPLACEMENT
+        # --------------------------------------------------
 
         latest_displacement = (
             MarketStructureService
@@ -817,6 +811,10 @@ def get_market_candles(
             )
         )
 
+        # --------------------------------------------------
+        # PREMIUM / DISCOUNT / EQUILIBRIUM
+        # --------------------------------------------------
+
         latest_premium_discount = (
             MarketStructureService
             .detect_premium_discount(
@@ -825,11 +823,20 @@ def get_market_candles(
             )
         )
 
+        # --------------------------------------------------
+        # RESPONSE
+        # --------------------------------------------------
+
         return {
             "symbol": normalized_symbol,
             "broker_symbol": candles[-1].symbol,
             "timeframe": normalized_timeframe,
             "count": len(candles),
+
+            # ----------------------------------------------
+            # OHLC
+            # ----------------------------------------------
+
             "candles": [
                 {
                     "time": int(
@@ -843,6 +850,11 @@ def get_market_candles(
                 }
                 for candle in candles
             ],
+
+            # ----------------------------------------------
+            # INDICATORS
+            # ----------------------------------------------
+
             "indicators": {
                 "ema20": {
                     "period": 20,
@@ -857,76 +869,169 @@ def get_market_candles(
                     "series": adx14_series,
                 },
             },
+
+            # ----------------------------------------------
+            # MARKET STRUCTURE
+            # ----------------------------------------------
+
             "market_structure": {
+
                 "lookback": structure_lookback,
+
+                # ------------------------------------------
+                # SWINGS
+                # ------------------------------------------
+
                 "swing_highs": [
                     _serialize_swing_point(
                         point
                     )
                     for point in swing_highs
                 ],
+
                 "swing_lows": [
                     _serialize_swing_point(
                         point
                     )
                     for point in swing_lows
                 ],
+
+                # ------------------------------------------
+                # SUPPORT / RESISTANCE
+                # ------------------------------------------
+
                 "support_resistance": {
+
                     "atr_period": (
                         SUPPORT_RESISTANCE_ATR_PERIOD
                     ),
+
                     "tolerance_multiplier": (
                         SUPPORT_RESISTANCE_TOLERANCE_MULTIPLIER
                     ),
+
                     "tolerance": (
                         support_resistance_tolerance
                     ),
+
                     "support_zones": (
                         support_resistance[
                             "support_zones"
                         ]
                     ),
+
                     "resistance_zones": (
                         support_resistance[
                             "resistance_zones"
                         ]
                     ),
                 },
+
+                # ------------------------------------------
+                # EQUAL HIGHS / EQUAL LOWS
+                # ------------------------------------------
+
+                "equal_highs_lows": {
+
+                    "tolerance_multiplier": (
+                        EQUAL_HIGH_LOW_TOLERANCE_MULTIPLIER
+                    ),
+
+                    "tolerance": (
+                        equal_high_low_tolerance
+                    ),
+
+                    "min_touches": (
+                        EQUAL_HIGH_LOW_MIN_TOUCHES
+                    ),
+
+                    "equal_highs": (
+                        equal_highs_lows[
+                            "equal_highs"
+                        ]
+                    ),
+
+                    "equal_lows": (
+                        equal_highs_lows[
+                            "equal_lows"
+                        ]
+                    ),
+                },
+
+                # ------------------------------------------
+                # BOS
+                # ------------------------------------------
+
                 "bos": (
                     _serialize_structure_event(
                         latest_bos
                     )
                 ),
+
+                # ------------------------------------------
+                # CHoCH
+                # ------------------------------------------
+
                 "choch": (
                     _serialize_structure_event(
                         latest_choch
                     )
                 ),
+
+                # ------------------------------------------
+                # ORDER BLOCK
+                # ------------------------------------------
+
                 "order_block": (
                     _serialize_order_block(
                         latest_order_block
                     )
                 ),
+
+                # ------------------------------------------
+                # LIQUIDITY SWEEP
+                # ------------------------------------------
+
                 "liquidity_sweep": (
                     _serialize_liquidity_sweep(
                         latest_liquidity_sweep
                     )
                 ),
+
+                # ------------------------------------------
+                # FVG
+                # ------------------------------------------
+
                 "fvg": (
                     _serialize_fvg(
                         latest_fvg
                     )
                 ),
+
+                # ------------------------------------------
+                # ENGULFING
+                # ------------------------------------------
+
                 "engulfing": (
                     _serialize_engulfing(
                         latest_engulfing
                     )
                 ),
+
+                # ------------------------------------------
+                # DISPLACEMENT
+                # ------------------------------------------
+
                 "displacement": (
                     _serialize_displacement(
                         latest_displacement
                     )
                 ),
+
+                # ------------------------------------------
+                # PREMIUM / DISCOUNT
+                # ------------------------------------------
+
                 "premium_discount": (
                     _serialize_premium_discount(
                         latest_premium_discount
@@ -935,19 +1040,26 @@ def get_market_candles(
             },
         }
 
+    # ======================================================
+    # ERROR HANDLING
+    # ======================================================
+
     except ValueError as error:
+
         raise HTTPException(
             status_code=400,
             detail=str(error),
         )
 
     except RuntimeError as error:
+
         raise HTTPException(
             status_code=503,
             detail=str(error),
         )
 
     except Exception as error:
+
         raise HTTPException(
             status_code=500,
             detail=(
@@ -957,4 +1069,5 @@ def get_market_candles(
         )
 
     finally:
+
         provider.disconnect()

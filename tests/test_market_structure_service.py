@@ -1359,3 +1359,288 @@ def test_detect_premium_discount_rejects_zero_range():
     )
 
     assert result is None
+
+# ==========================================================
+# EQUAL HIGHS / EQUAL LOWS
+# ==========================================================
+
+
+def test_detect_equal_highs():
+    """
+    Multiple swing highs within tolerance must form
+    one confirmed equal-high liquidity level.
+    """
+
+    swing_highs = [
+        {
+            "index": 10,
+            "price": 1.1100,
+            "timestamp": BASE_TIME + timedelta(hours=10),
+        },
+        {
+            "index": 20,
+            "price": 1.1101,
+            "timestamp": BASE_TIME + timedelta(hours=20),
+        },
+        {
+            "index": 30,
+            "price": 1.11005,
+            "timestamp": BASE_TIME + timedelta(hours=30),
+        },
+    ]
+
+    result = (
+        MarketStructureService
+        .detect_equal_highs_lows(
+            swing_highs,
+            [],
+            tolerance=0.0002,
+            min_touches=2,
+        )
+    )
+
+    assert result is not None
+
+    assert len(result["equal_highs"]) == 1
+    assert result["equal_lows"] == []
+
+    level = result["equal_highs"][0]
+
+    assert level["type"] == "EQUAL_HIGH"
+    assert level["level_price"] == round(
+        (1.1100 + 1.1101 + 1.11005) / 3,
+        6,
+    )
+    assert level["touch_count"] == 3
+    assert level["first_index"] == 10
+    assert level["last_index"] == 30
+
+
+def test_detect_equal_lows():
+    """
+    Multiple swing lows within tolerance must form
+    one confirmed equal-low liquidity level.
+    """
+
+    swing_lows = [
+        {
+            "index": 5,
+            "price": 1.1000,
+            "timestamp": BASE_TIME + timedelta(hours=5),
+        },
+        {
+            "index": 15,
+            "price": 1.0999,
+            "timestamp": BASE_TIME + timedelta(hours=15),
+        },
+        {
+            "index": 25,
+            "price": 1.10005,
+            "timestamp": BASE_TIME + timedelta(hours=25),
+        },
+    ]
+
+    result = (
+        MarketStructureService
+        .detect_equal_highs_lows(
+            [],
+            swing_lows,
+            tolerance=0.0002,
+            min_touches=2,
+        )
+    )
+
+    assert result is not None
+
+    assert result["equal_highs"] == []
+    assert len(result["equal_lows"]) == 1
+
+    level = result["equal_lows"][0]
+
+    assert level["type"] == "EQUAL_LOW"
+    assert level["level_price"] == round(
+        (1.1000 + 1.0999 + 1.10005) / 3,
+        6,
+    )
+    assert level["touch_count"] == 3
+    assert level["first_index"] == 5
+    assert level["last_index"] == 25
+
+
+def test_equal_levels_ignore_single_touch():
+    """
+    A single swing point must not create an
+    equal-high or equal-low liquidity level.
+    """
+
+    swing_highs = [
+        {
+            "index": 10,
+            "price": 1.1100,
+            "timestamp": BASE_TIME + timedelta(hours=10),
+        },
+    ]
+
+    swing_lows = [
+        {
+            "index": 20,
+            "price": 1.1000,
+            "timestamp": BASE_TIME + timedelta(hours=20),
+        },
+    ]
+
+    result = (
+        MarketStructureService
+        .detect_equal_highs_lows(
+            swing_highs,
+            swing_lows,
+            tolerance=0.0002,
+            min_touches=2,
+        )
+    )
+
+    assert result == {
+        "equal_highs": [],
+        "equal_lows": [],
+    }
+
+
+def test_equal_levels_keep_distant_clusters_separate():
+    """
+    Swing points separated by more than tolerance
+    must remain separate equal-level clusters.
+    """
+
+    swing_highs = [
+        {
+            "index": 10,
+            "price": 1.1100,
+            "timestamp": BASE_TIME + timedelta(hours=10),
+        },
+        {
+            "index": 20,
+            "price": 1.1101,
+            "timestamp": BASE_TIME + timedelta(hours=20),
+        },
+        {
+            "index": 30,
+            "price": 1.1150,
+            "timestamp": BASE_TIME + timedelta(hours=30),
+        },
+        {
+            "index": 40,
+            "price": 1.1151,
+            "timestamp": BASE_TIME + timedelta(hours=40),
+        },
+    ]
+
+    result = (
+        MarketStructureService
+        .detect_equal_highs_lows(
+            swing_highs,
+            [],
+            tolerance=0.0002,
+            min_touches=2,
+        )
+    )
+
+    assert len(result["equal_highs"]) == 2
+    assert result["equal_lows"] == []
+
+    first_level = result["equal_highs"][0]
+    second_level = result["equal_highs"][1]
+
+    assert first_level["type"] == "EQUAL_HIGH"
+    assert first_level["first_index"] == 10
+    assert first_level["last_index"] == 20
+    assert first_level["touch_count"] == 2
+
+    assert second_level["type"] == "EQUAL_HIGH"
+    assert second_level["first_index"] == 30
+    assert second_level["last_index"] == 40
+    assert second_level["touch_count"] == 2
+
+
+def test_equal_levels_include_exact_tolerance_boundary():
+    """
+    A swing point exactly tolerance distance from
+    the cluster must still belong to that level.
+    """
+
+    swing_lows = [
+        {
+            "index": 10,
+            "price": 1.1000,
+            "timestamp": BASE_TIME + timedelta(hours=10),
+        },
+        {
+            "index": 20,
+            "price": 1.1002,
+            "timestamp": BASE_TIME + timedelta(hours=20),
+        },
+    ]
+
+    result = (
+        MarketStructureService
+        .detect_equal_highs_lows(
+            [],
+            swing_lows,
+            tolerance=0.0002,
+            min_touches=2,
+        )
+    )
+
+    assert result["equal_highs"] == []
+    assert len(result["equal_lows"]) == 1
+
+    level = result["equal_lows"][0]
+
+    assert level["type"] == "EQUAL_LOW"
+    assert level["level_price"] == 1.1001
+    assert level["touch_count"] == 2
+    assert level["first_index"] == 10
+    assert level["last_index"] == 20
+
+
+def test_equal_levels_use_chronological_order():
+    """
+    Unordered swing input must still produce
+    deterministic chronological metadata.
+    """
+
+    swing_highs = [
+        {
+            "index": 30,
+            "price": 1.11005,
+            "timestamp": BASE_TIME + timedelta(hours=30),
+        },
+        {
+            "index": 10,
+            "price": 1.1100,
+            "timestamp": BASE_TIME + timedelta(hours=10),
+        },
+        {
+            "index": 20,
+            "price": 1.1101,
+            "timestamp": BASE_TIME + timedelta(hours=20),
+        },
+    ]
+
+    result = (
+        MarketStructureService
+        .detect_equal_highs_lows(
+            swing_highs,
+            [],
+            tolerance=0.0002,
+            min_touches=2,
+        )
+    )
+
+    assert len(result["equal_highs"]) == 1
+
+    level = result["equal_highs"][0]
+
+    assert level["type"] == "EQUAL_HIGH"
+    assert level["first_index"] == 10
+    assert level["last_index"] == 30
+    assert level["touch_count"] == 3
