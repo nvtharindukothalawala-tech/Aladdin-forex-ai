@@ -203,179 +203,158 @@ function toLineData(
 function toStructureMarkers(
   structure: MarketStructure,
 ): SeriesMarker<UTCTimestamp>[] {
-  const markers: SeriesMarker<UTCTimestamp>[] = [];
+  type Candidate = {
+    marker: SeriesMarker<UTCTimestamp>;
+    priority: number;
+    suppressNearbySwings?: boolean;
+  };
 
-  // Visualization-only filtering. The backend still analyzes
-  // the complete swing dataset; only SH/SL labels are limited.
+  const candidates: Candidate[] = [];
   const MAX_SWING_MARKERS = 40;
+  const SWING_COLLISION_SECONDS = 60 * 60 * 2;
 
-  const visibleSwings = [
-    ...structure.swing_highs
-      .filter(
-        (point) =>
-          Number.isFinite(point.time) &&
-          Number.isFinite(point.price),
-      )
-      .map((point) => ({
-        point,
-        kind: "high" as const,
-      })),
-    ...structure.swing_lows
-      .filter(
-        (point) =>
-          Number.isFinite(point.time) &&
-          Number.isFinite(point.price),
-      )
-      .map((point) => ({
-        point,
-        kind: "low" as const,
-      })),
-  ]
-    .sort(
-      (left, right) =>
-        left.point.time - right.point.time,
-    )
-    .slice(-MAX_SWING_MARKERS);
+  const addEvent = (
+    marker: SeriesMarker<UTCTimestamp>,
+    priority: number,
+    suppressNearbySwings = true,
+  ) => {
+    candidates.push({ marker, priority, suppressNearbySwings });
+  };
 
-  for (const swing of visibleSwings) {
-    const isHigh = swing.kind === "high";
-
-    markers.push({
-      time: swing.point.time as UTCTimestamp,
-      position: isHigh ? "aboveBar" : "belowBar",
-      shape: isHigh ? "arrowDown" : "arrowUp",
-      color: isHigh ? "#f59e0b" : "#22d3ee",
-      text: isHigh ? "SH" : "SL",
-    });
-  }
-
-  if (
-    structure.bos &&
-    Number.isFinite(structure.bos.time)
-  ) {
-    const bullish =
-      structure.bos.type === "BOS_BULLISH";
-
-    markers.push({
-      time: structure.bos.time as UTCTimestamp,
-      position: bullish ? "belowBar" : "aboveBar",
-      shape: bullish ? "arrowUp" : "arrowDown",
-      color: bullish ? "#22c55e" : "#ef4444",
-      text: "BOS",
-    });
-  }
-
-  if (
-    structure.choch &&
-    Number.isFinite(structure.choch.time)
-  ) {
-    const bullish =
-      structure.choch.type === "CHOCH_BULLISH";
-
-    markers.push({
+  // High-priority structure events first. This changes only the
+  // visualization; all backend detections remain available.
+  if (structure.choch && Number.isFinite(structure.choch.time)) {
+    const bullish = structure.choch.type === "CHOCH_BULLISH";
+    addEvent({
       time: structure.choch.time as UTCTimestamp,
       position: bullish ? "belowBar" : "aboveBar",
       shape: "square",
       color: "#e879f9",
       text: bullish ? "CHoCH UP" : "CHoCH DOWN",
-    });
+    }, 100);
   }
 
-  if (
-    structure.order_block &&
-    Number.isFinite(structure.order_block.time) &&
-    Number.isFinite(structure.order_block.high_price) &&
-    Number.isFinite(structure.order_block.low_price)
-  ) {
-    const bullish =
-      structure.order_block.type ===
-      "ORDER_BLOCK_BULLISH";
+  if (structure.bos && Number.isFinite(structure.bos.time)) {
+    const bullish = structure.bos.type === "BOS_BULLISH";
+    addEvent({
+      time: structure.bos.time as UTCTimestamp,
+      position: bullish ? "belowBar" : "aboveBar",
+      shape: bullish ? "arrowUp" : "arrowDown",
+      color: bullish ? "#22c55e" : "#ef4444",
+      text: "BOS",
+    }, 95);
+  }
 
-    markers.push({
+  if (structure.liquidity_sweep &&
+      Number.isFinite(structure.liquidity_sweep.time) &&
+      Number.isFinite(structure.liquidity_sweep.level_price)) {
+    const highSide = structure.liquidity_sweep.type === "LIQUIDITY_SWEEP_HIGH";
+    addEvent({
+      time: structure.liquidity_sweep.time as UTCTimestamp,
+      position: highSide ? "aboveBar" : "belowBar",
+      shape: "circle",
+      color: "#fb7185",
+      text: highSide ? "LS HIGH" : "LS LOW",
+    }, 90);
+  }
+
+  if (structure.order_block &&
+      Number.isFinite(structure.order_block.time) &&
+      Number.isFinite(structure.order_block.high_price) &&
+      Number.isFinite(structure.order_block.low_price)) {
+    const bullish = structure.order_block.type === "ORDER_BLOCK_BULLISH";
+    addEvent({
       time: structure.order_block.time as UTCTimestamp,
       position: bullish ? "belowBar" : "aboveBar",
       shape: "square",
       color: bullish ? "#14b8a6" : "#f97316",
       text: bullish ? "OB BUY" : "OB SELL",
-    });
+    }, 80);
   }
 
-  if (
-    structure.fvg &&
-    Number.isFinite(structure.fvg.time) &&
-    Number.isFinite(structure.fvg.lower_price) &&
-    Number.isFinite(structure.fvg.upper_price)
-  ) {
-    const bullish =
-      structure.fvg.type === "FVG_BULLISH";
-
-    markers.push({
+  if (structure.fvg && Number.isFinite(structure.fvg.time) &&
+      Number.isFinite(structure.fvg.lower_price) &&
+      Number.isFinite(structure.fvg.upper_price)) {
+    const bullish = structure.fvg.type === "FVG_BULLISH";
+    addEvent({
       time: structure.fvg.time as UTCTimestamp,
       position: bullish ? "belowBar" : "aboveBar",
       shape: "square",
       color: bullish ? "#2dd4bf" : "#fb923c",
       text: bullish ? "FVG UP" : "FVG DOWN",
-    });
+    }, 70);
   }
 
-  if (
-    structure.liquidity_sweep &&
-    Number.isFinite(structure.liquidity_sweep.time) &&
-    Number.isFinite(structure.liquidity_sweep.level_price)
-  ) {
-    const highSide =
-      structure.liquidity_sweep.type ===
-      "LIQUIDITY_SWEEP_HIGH";
-
-    markers.push({
-      time:
-        structure.liquidity_sweep.time as UTCTimestamp,
-      position: highSide ? "aboveBar" : "belowBar",
-      shape: "circle",
-      color: "#fb7185",
-      text: highSide ? "LS HIGH" : "LS LOW",
-    });
+  if (structure.displacement && Number.isFinite(structure.displacement.time)) {
+    const bullish = structure.displacement.type === "DISPLACEMENT_BULLISH";
+    addEvent({
+      time: structure.displacement.time as UTCTimestamp,
+      position: bullish ? "belowBar" : "aboveBar",
+      shape: "square",
+      color: bullish ? "#34d399" : "#fb7185",
+      text: bullish ? "DISP UP" : "DISP DOWN",
+    }, 60);
   }
 
-  if (
-    structure.engulfing &&
-    Number.isFinite(structure.engulfing.time)
-  ) {
-    const bullish =
-      structure.engulfing.type ===
-      "ENGULFING_BULLISH";
-
-    markers.push({
+  if (structure.engulfing && Number.isFinite(structure.engulfing.time)) {
+    const bullish = structure.engulfing.type === "ENGULFING_BULLISH";
+    addEvent({
       time: structure.engulfing.time as UTCTimestamp,
       position: bullish ? "belowBar" : "aboveBar",
       shape: bullish ? "arrowUp" : "arrowDown",
       color: bullish ? "#10b981" : "#f43f5e",
       text: bullish ? "ENG BUY" : "ENG SELL",
+    }, 50);
+  }
+
+  // Keep the latest swings, but remove SH/SL labels close to an
+  // important event on the same side of the candle.
+  const protectedEvents = candidates.filter((item) => item.suppressNearbySwings);
+  const visibleSwings = [
+    ...structure.swing_highs
+      .filter((point) => Number.isFinite(point.time) && Number.isFinite(point.price))
+      .map((point) => ({ point, kind: "high" as const })),
+    ...structure.swing_lows
+      .filter((point) => Number.isFinite(point.time) && Number.isFinite(point.price))
+      .map((point) => ({ point, kind: "low" as const })),
+  ]
+    .sort((left, right) => left.point.time - right.point.time)
+    .slice(-MAX_SWING_MARKERS)
+    .filter((swing) => {
+      const position = swing.kind === "high" ? "aboveBar" : "belowBar";
+      return !protectedEvents.some((event) =>
+        event.marker.position === position &&
+        Math.abs(Number(event.marker.time) - swing.point.time) <= SWING_COLLISION_SECONDS
+      );
+    });
+
+  for (const swing of visibleSwings) {
+    const isHigh = swing.kind === "high";
+    candidates.push({
+      priority: 10,
+      suppressNearbySwings: false,
+      marker: {
+        time: swing.point.time as UTCTimestamp,
+        position: isHigh ? "aboveBar" : "belowBar",
+        shape: isHigh ? "arrowDown" : "arrowUp",
+        color: isHigh ? "#f59e0b" : "#22d3ee",
+        text: isHigh ? "SH" : "SL",
+      },
     });
   }
 
-  if (
-    structure.displacement &&
-    Number.isFinite(structure.displacement.time)
-  ) {
-    const bullish =
-      structure.displacement.type ===
-      "DISPLACEMENT_BULLISH";
-
-    markers.push({
-      time:
-        structure.displacement.time as UTCTimestamp,
-      position: bullish ? "belowBar" : "aboveBar",
-      shape: "square",
-      color: bullish ? "#34d399" : "#fb7185",
-      text: bullish ? "DISP UP" : "DISP DOWN",
-    });
+  // Lightweight Charts permits multiple markers at one time, but text
+  // becomes unreadable. Keep the highest-priority marker for each
+  // timestamp/position pair. Opposite-side events remain visible.
+  const selected = new Map<string, Candidate>();
+  for (const candidate of candidates.sort((a, b) => b.priority - a.priority)) {
+    const key = `${Number(candidate.marker.time)}:${candidate.marker.position}`;
+    if (!selected.has(key)) selected.set(key, candidate);
   }
 
-  return markers.sort(
-    (left, right) =>
-      Number(left.time) - Number(right.time),
-  );
+  return Array.from(selected.values())
+    .map((item) => item.marker)
+    .sort((left, right) => Number(left.time) - Number(right.time));
 }
 
 function formatPrice(
@@ -395,6 +374,34 @@ function formatPrice(
   return value.toFixed(
     precision,
   );
+}
+
+type DisplayLevelCandidate = {
+  key: string;
+  price: number;
+  priority: number;
+};
+
+function isNearDisplayedLevel(
+  price: number,
+  selected: DisplayLevelCandidate[],
+  minimumDistance: number,
+): boolean {
+  return selected.some(
+    (item) => Math.abs(item.price - price) <= minimumDistance,
+  );
+}
+
+function getStructureLabelSpacing(
+  referencePrice: number | null,
+  tolerance: number,
+): number {
+  const priceBased =
+    referencePrice !== null && Number.isFinite(referencePrice)
+      ? Math.abs(referencePrice) * 0.00012
+      : 0;
+
+  return Math.max(tolerance * 1.25, priceBased, Number.EPSILON);
 }
 
 export default function MarketChart({
@@ -1141,16 +1148,46 @@ export default function MarketChart({
           Array.from(
             selectedByKey.values(),
           ).sort(
-            (left, right) =>
-              right.zone.center_price -
-              left.zone.center_price,
+            (left, right) => {
+              if (right.score !== left.score) {
+                return right.score - left.score;
+              }
+              return right.zone.last_index - left.zone.last_index;
+            },
           );
+
+        // Prevent several nearly-identical S/R labels from stacking on
+        // the right price scale. This is visualization-only; backend
+        // detection and the full zone dataset remain unchanged.
+        const labelSpacing = getStructureLabelSpacing(
+          hasCurrentPrice ? currentPrice : null,
+          supportResistance.tolerance,
+        );
+        const displayedZones: typeof selectedZones = [];
+
+        for (const item of selectedZones) {
+          const tooClose = displayedZones.some(
+            (selected) =>
+              Math.abs(
+                selected.zone.center_price - item.zone.center_price,
+              ) <= labelSpacing,
+          );
+
+          if (!tooClose || item.containsPrice) {
+            displayedZones.push(item);
+          }
+        }
+
+        displayedZones.sort(
+          (left, right) =>
+            right.zone.center_price - left.zone.center_price,
+        );
 
         for (
           const {
             zone,
             containsPrice,
-          } of selectedZones
+          } of displayedZones
         ) {
           const isSupport =
             zone.type === "SUPPORT";
@@ -1398,15 +1435,78 @@ export default function MarketChart({
             level.last_index < candles.length,
         );
 
-        // Keep the chart readable: favor recent and repeatedly-tested pools.
-        const selectedLevels = levels
-          .sort((left, right) => {
-            if (right.last_index !== left.last_index) {
-              return right.last_index - left.last_index;
-            }
-            return right.touch_count - left.touch_count;
+        // Keep the chart readable: favor recent, repeatedly-tested
+        // liquidity pools and suppress near-duplicate visual levels.
+        // The complete EQH/EQL dataset remains available in the API.
+        const latestClose = candles.at(-1)?.close ?? null;
+        const safeLastIndex = Math.max(candles.length - 1, 1);
+        const spacing = getStructureLabelSpacing(
+          latestClose,
+          equalHighsLows.tolerance,
+        );
+
+        const rankedLevels = levels
+          .map((level) => {
+            const touchScore = Math.min(level.touch_count / 5, 1);
+            const recencyScore = Math.min(
+              Math.max(level.last_index / safeLastIndex, 0),
+              1,
+            );
+            const distanceScore =
+              latestClose !== null && Number.isFinite(latestClose)
+                ? 1 -
+                  Math.min(
+                    Math.abs(level.level_price - latestClose) /
+                      Math.max(Math.abs(latestClose) * 0.01, spacing),
+                    1,
+                  )
+                : 0;
+
+            return {
+              level,
+              score:
+                touchScore * 0.45 +
+                recencyScore * 0.35 +
+                distanceScore * 0.20,
+            };
           })
-          .slice(0, 12);
+          .sort((left, right) => {
+            if (right.score !== left.score) {
+              return right.score - left.score;
+            }
+            return right.level.last_index - left.level.last_index;
+          });
+
+        const selectedLevels: typeof levels = [];
+        const selectedCandidates: DisplayLevelCandidate[] = [];
+
+        for (const item of rankedLevels) {
+          if (selectedLevels.length >= 8) {
+            break;
+          }
+
+          if (
+            isNearDisplayedLevel(
+              item.level.level_price,
+              selectedCandidates,
+              spacing,
+            )
+          ) {
+            continue;
+          }
+
+          selectedLevels.push(item.level);
+          selectedCandidates.push({
+            key: `${item.level.type}:${item.level.first_index}:${item.level.last_index}`,
+            price: item.level.level_price,
+            priority: item.score,
+          });
+        }
+
+        // Draw in chronological order so the chart remains deterministic.
+        selectedLevels.sort(
+          (left, right) => left.first_index - right.first_index,
+        );
 
         for (const level of selectedLevels) {
           const startCandle = candles[level.first_index];
