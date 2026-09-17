@@ -73,6 +73,27 @@ type LatestCandleState = {
   close: number;
 } | null;
 
+type StructureFilters = {
+  swings: boolean;
+  supportResistance: boolean;
+  equalHighsLows: boolean;
+  bosChoch: boolean;
+  orderBlockFvg: boolean;
+  liquidity: boolean;
+  patterns: boolean;
+  premiumDiscount: boolean;
+};
+
+const DEFAULT_STRUCTURE_FILTERS: StructureFilters = {
+  swings: true, supportResistance: true, equalHighsLows: true, bosChoch: true,
+  orderBlockFvg: true, liquidity: true, patterns: true, premiumDiscount: true,
+};
+
+const CLEAN_STRUCTURE_FILTERS: StructureFilters = {
+  swings: false, supportResistance: true, equalHighsLows: true, bosChoch: true,
+  orderBlockFvg: false, liquidity: true, patterns: false, premiumDiscount: true,
+};
+
 function normalizeSymbol(
   symbol: string,
 ): string {
@@ -202,6 +223,8 @@ function toLineData(
 
 function toStructureMarkers(
   structure: MarketStructure,
+  filters: StructureFilters,
+  smartView = false,
 ): SeriesMarker<UTCTimestamp>[] {
   type Candidate = {
     marker: SeriesMarker<UTCTimestamp>;
@@ -210,7 +233,7 @@ function toStructureMarkers(
   };
 
   const candidates: Candidate[] = [];
-  const MAX_SWING_MARKERS = 40;
+  const MAX_SWING_MARKERS = smartView ? 12 : 40;
   const SWING_COLLISION_SECONDS = 60 * 60 * 2;
 
   const addEvent = (
@@ -223,7 +246,7 @@ function toStructureMarkers(
 
   // High-priority structure events first. This changes only the
   // visualization; all backend detections remain available.
-  if (structure.choch && Number.isFinite(structure.choch.time)) {
+  if (filters.bosChoch && structure.choch && Number.isFinite(structure.choch.time)) {
     const bullish = structure.choch.type === "CHOCH_BULLISH";
     addEvent({
       time: structure.choch.time as UTCTimestamp,
@@ -234,7 +257,7 @@ function toStructureMarkers(
     }, 100);
   }
 
-  if (structure.bos && Number.isFinite(structure.bos.time)) {
+  if (filters.bosChoch && structure.bos && Number.isFinite(structure.bos.time)) {
     const bullish = structure.bos.type === "BOS_BULLISH";
     addEvent({
       time: structure.bos.time as UTCTimestamp,
@@ -245,7 +268,7 @@ function toStructureMarkers(
     }, 95);
   }
 
-  if (structure.liquidity_sweep &&
+  if (filters.liquidity && structure.liquidity_sweep &&
       Number.isFinite(structure.liquidity_sweep.time) &&
       Number.isFinite(structure.liquidity_sweep.level_price)) {
     const highSide = structure.liquidity_sweep.type === "LIQUIDITY_SWEEP_HIGH";
@@ -258,7 +281,7 @@ function toStructureMarkers(
     }, 90);
   }
 
-  if (structure.order_block &&
+  if (filters.orderBlockFvg && structure.order_block &&
       Number.isFinite(structure.order_block.time) &&
       Number.isFinite(structure.order_block.high_price) &&
       Number.isFinite(structure.order_block.low_price)) {
@@ -272,7 +295,7 @@ function toStructureMarkers(
     }, 80);
   }
 
-  if (structure.fvg && Number.isFinite(structure.fvg.time) &&
+  if (filters.orderBlockFvg && structure.fvg && Number.isFinite(structure.fvg.time) &&
       Number.isFinite(structure.fvg.lower_price) &&
       Number.isFinite(structure.fvg.upper_price)) {
     const bullish = structure.fvg.type === "FVG_BULLISH";
@@ -285,7 +308,7 @@ function toStructureMarkers(
     }, 70);
   }
 
-  if (structure.displacement && Number.isFinite(structure.displacement.time)) {
+  if (filters.patterns && structure.displacement && Number.isFinite(structure.displacement.time)) {
     const bullish = structure.displacement.type === "DISPLACEMENT_BULLISH";
     addEvent({
       time: structure.displacement.time as UTCTimestamp,
@@ -296,7 +319,7 @@ function toStructureMarkers(
     }, 60);
   }
 
-  if (structure.engulfing && Number.isFinite(structure.engulfing.time)) {
+  if (filters.patterns && structure.engulfing && Number.isFinite(structure.engulfing.time)) {
     const bullish = structure.engulfing.type === "ENGULFING_BULLISH";
     addEvent({
       time: structure.engulfing.time as UTCTimestamp,
@@ -310,7 +333,7 @@ function toStructureMarkers(
   // Keep the latest swings, but remove SH/SL labels close to an
   // important event on the same side of the candle.
   const protectedEvents = candidates.filter((item) => item.suppressNearbySwings);
-  const visibleSwings = [
+  const visibleSwings = filters.swings ? [
     ...structure.swing_highs
       .filter((point) => Number.isFinite(point.time) && Number.isFinite(point.price))
       .map((point) => ({ point, kind: "high" as const })),
@@ -326,7 +349,7 @@ function toStructureMarkers(
         event.marker.position === position &&
         Math.abs(Number(event.marker.time) - swing.point.time) <= SWING_COLLISION_SECONDS
       );
-    });
+    }) : [];
 
   for (const swing of visibleSwings) {
     const isHigh = swing.kind === "high";
@@ -418,6 +441,14 @@ export default function MarketChart({
       null,
     );
 
+  const structureButtonRef =
+    useRef<HTMLButtonElement | null>(null);
+
+  const [structureMenuPosition, setStructureMenuPosition] = useState({
+    top: 0,
+    right: 16,
+  });
+
   const chartRef =
     useRef<IChartApi | null>(
       null,
@@ -485,6 +516,18 @@ export default function MarketChart({
 
   const structureVisibleRef =
     useRef(true);
+
+  const smartViewRef =
+    useRef(false);
+
+  const structureFiltersRef =
+    useRef<StructureFilters>(DEFAULT_STRUCTURE_FILTERS);
+
+  const latestStructureRef =
+    useRef<MarketStructure | null>(null);
+
+  const latestChartDataRef =
+    useRef<CandlestickData<UTCTimestamp>[]>([]);
 
   const requestGenerationRef =
     useRef(0);
@@ -569,6 +612,11 @@ export default function MarketChart({
     structureVisible,
     setStructureVisible,
   ] = useState(true);
+
+  const [structureMenuOpen, setStructureMenuOpen] = useState(false);
+  const [smartView, setSmartView] = useState(false);
+  const [structureFilters, setStructureFilters] =
+    useState<StructureFilters>(DEFAULT_STRUCTURE_FILTERS);
 
   const normalizedSymbol =
     useMemo(
@@ -935,6 +983,7 @@ export default function MarketChart({
         visible: boolean,
         currentPrice: number | null = null,
         candleCountForRanking: number = 0,
+        smartMode: boolean = false,
       ) => {
         const candleSeries =
           seriesRef.current;
@@ -1098,7 +1147,7 @@ export default function MarketChart({
                 right.score -
                 left.score,
             )
-            .slice(0, 3);
+            .slice(0, smartMode ? 2 : 3);
 
         const belowZones =
           scoredZones
@@ -1116,7 +1165,7 @@ export default function MarketChart({
                 right.score -
                 left.score,
             )
-            .slice(0, 3);
+            .slice(0, smartMode ? 2 : 3);
 
         const selectedByKey =
           new Map<
@@ -1393,6 +1442,7 @@ export default function MarketChart({
           MarketStructure["equal_highs_lows"] | null,
         visible: boolean,
         candles: CandlestickData<UTCTimestamp>[] = [],
+        smartMode: boolean = false,
       ) => {
         const chart = chartRef.current;
 
@@ -1481,7 +1531,7 @@ export default function MarketChart({
         const selectedCandidates: DisplayLevelCandidate[] = [];
 
         for (const item of rankedLevels) {
-          if (selectedLevels.length >= 8) {
+          if (selectedLevels.length >= (smartMode ? 4 : 8)) {
             break;
           }
 
@@ -1550,42 +1600,38 @@ export default function MarketChart({
     );
 
   useEffect(() => {
-    structureVisibleRef.current =
-      structureVisible;
+    structureVisibleRef.current = structureVisible;
+    structureFiltersRef.current = structureFilters;
+    smartViewRef.current = smartView;
 
-    structureMarkersRef.current?.setMarkers(
-      structureVisible
-        ? structureMarkerDataRef.current
-        : [],
-    );
+    const latestStructure = latestStructureRef.current;
+    const latestChartData = latestChartDataRef.current;
+    if (latestStructure) {
+      const markers = toStructureMarkers(latestStructure, structureFilters, smartView);
+      structureMarkerDataRef.current = markers;
+      structureMarkersRef.current?.setMarkers(structureVisible ? markers : []);
+    } else {
+      structureMarkersRef.current?.setMarkers([]);
+    }
 
     renderSupportResistance(
       supportResistanceDataRef.current,
-      structureVisible,
+      structureVisible && structureFilters.supportResistance,
       supportResistanceCurrentPriceRef.current,
       supportResistanceCandleCountRef.current,
+      smartView,
     );
-
     renderPremiumDiscount(
       premiumDiscountDataRef.current,
-      structureVisible,
+      structureVisible && structureFilters.premiumDiscount,
     );
-
-    // EQH/EQL are re-rendered with the latest candle dataset during loads.
-    // When Structure is hidden, remove them immediately.
-    if (!structureVisible) {
-      renderEqualHighsLows(
-        equalHighLowDataRef.current,
-        false,
-        [],
-      );
-    }
-  }, [
-    renderEqualHighsLows,
-    renderPremiumDiscount,
-    renderSupportResistance,
-    structureVisible,
-  ]);
+    renderEqualHighsLows(
+      equalHighLowDataRef.current,
+      structureVisible && structureFilters.equalHighsLows,
+      latestChartData,
+      smartView,
+    );
+  }, [renderEqualHighsLows, renderPremiumDiscount, renderSupportResistance, smartView, structureFilters, structureVisible]);
 
   const loadCandles =
     useCallback(
@@ -1663,10 +1709,11 @@ export default function MarketChart({
             adx14Data,
           );
 
+          latestStructureRef.current = result.market_structure;
+          latestChartDataRef.current = chartData;
+          const activeStructureFilters = structureFiltersRef.current;
           const structureMarkers =
-            toStructureMarkers(
-              result.market_structure,
-            );
+            toStructureMarkers(result.market_structure, activeStructureFilters, smartViewRef.current);
 
           structureMarkerDataRef.current =
             structureMarkers;
@@ -1696,9 +1743,10 @@ export default function MarketChart({
 
           renderSupportResistance(
             result.market_structure.support_resistance,
-            structureVisibleRef.current,
+            structureVisibleRef.current && activeStructureFilters.supportResistance,
             currentClose,
             chartData.length,
+            smartViewRef.current,
           );
 
           premiumDiscountDataRef.current =
@@ -1706,7 +1754,7 @@ export default function MarketChart({
 
           renderPremiumDiscount(
             result.market_structure.premium_discount,
-            structureVisibleRef.current,
+            structureVisibleRef.current && activeStructureFilters.premiumDiscount,
           );
 
           equalHighLowDataRef.current =
@@ -1714,8 +1762,9 @@ export default function MarketChart({
 
           renderEqualHighsLows(
             result.market_structure.equal_highs_lows,
-            structureVisibleRef.current,
+            structureVisibleRef.current && activeStructureFilters.equalHighsLows,
             chartData,
+            smartViewRef.current,
           );
 
           setBrokerSymbol(
@@ -1849,6 +1898,63 @@ export default function MarketChart({
     );
   };
 
+  const toggleStructureFilter = (key: keyof StructureFilters) => {
+    setSmartView(false);
+    setStructureFilters((current) => ({ ...current, [key]: !current[key] }));
+  };
+  const showAllStructure = () => {
+    setSmartView(false);
+    setStructureVisible(true);
+    setStructureFilters({ ...DEFAULT_STRUCTURE_FILTERS });
+  };
+  const useCleanStructureView = () => {
+    setSmartView(false);
+    setStructureVisible(true);
+    setStructureFilters({ ...CLEAN_STRUCTURE_FILTERS });
+  };
+  const useSmartStructureView = () => {
+    setStructureVisible(true);
+    setSmartView(true);
+    setStructureFilters({ ...DEFAULT_STRUCTURE_FILTERS });
+  };
+  const hideAllStructure = () => {
+    setSmartView(false);
+    setStructureVisible(false);
+  };
+
+  const updateStructureMenuPosition = useCallback(() => {
+    const button = structureButtonRef.current;
+    if (!button) return;
+
+    const rect = button.getBoundingClientRect();
+    const viewportPadding = 16;
+    const menuWidth = Math.min(460, window.innerWidth - viewportPadding * 2);
+    const right = Math.max(
+      viewportPadding,
+      window.innerWidth - Math.min(rect.right, window.innerWidth - viewportPadding),
+    );
+
+    setStructureMenuPosition({
+      top: rect.bottom + 8,
+      right: Math.min(right, Math.max(viewportPadding, window.innerWidth - menuWidth - viewportPadding)),
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!structureMenuOpen) return;
+
+    updateStructureMenuPosition();
+    const handleViewportChange = () => updateStructureMenuPosition();
+
+    window.addEventListener("resize", handleViewportChange);
+    window.addEventListener("scroll", handleViewportChange, true);
+
+    return () => {
+      window.removeEventListener("resize", handleViewportChange);
+      window.removeEventListener("scroll", handleViewportChange, true);
+    };
+  }, [structureMenuOpen, updateStructureMenuPosition]);
+
   const priceDirection =
     latestCandle
       ? latestCandle.close >=
@@ -1860,14 +1966,14 @@ export default function MarketChart({
   return (
     <section
       className={[
-        "overflow-hidden rounded-xl border border-slate-800 bg-slate-950 shadow-2xl",
+        "relative overflow-visible rounded-xl border border-slate-800 bg-slate-950 shadow-2xl",
         className,
       ]
         .filter(Boolean)
         .join(" ")}
       aria-label={`${normalizedSymbol} MT5 market chart`}
     >
-      <div className="border-b border-slate-800 bg-slate-950/95 px-4 py-3">
+      <div className="relative z-50 rounded-t-xl border-b border-slate-800 bg-slate-950/95 px-4 py-3">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
             <div>
@@ -2028,28 +2134,45 @@ export default function MarketChart({
                 ADX 14
               </button>
 
-              <button
-                type="button"
-                onClick={() =>
-                  setStructureVisible(
-                    (visible) => !visible,
-                  )
-                }
-                className={[
-                  "rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors",
-                  structureVisible
-                    ? "bg-fuchsia-500 text-slate-950 shadow"
-                    : "text-slate-400 hover:bg-slate-800 hover:text-slate-100",
-                ].join(" ")}
-                aria-pressed={structureVisible}
-                title={
-                  structureVisible
-                    ? "Hide market structure"
-                    : "Show market structure"
-                }
-              >
-                Structure
-              </button>
+              <div className="relative z-[120] flex items-center">
+                <button type="button" onClick={() => { setSmartView(false); setStructureVisible((visible) => !visible); }}
+                  className={["rounded-l-md px-2.5 py-1.5 text-xs font-semibold transition-colors", structureVisible ? "bg-fuchsia-500 text-slate-950 shadow" : "text-slate-400 hover:bg-slate-800 hover:text-slate-100"].join(" ")}
+                  aria-pressed={structureVisible} title={structureVisible ? "Hide all market structure" : "Show market structure"}>
+                  Structure
+                </button>
+                <button ref={structureButtonRef} type="button" onClick={() => setStructureMenuOpen((open) => !open)}
+                  className={["rounded-r-md border-l px-2 py-1.5 text-xs font-semibold transition-colors", structureVisible ? "border-fuchsia-700/50 bg-fuchsia-500 text-slate-950" : "border-slate-700 text-slate-400 hover:bg-slate-800"].join(" ")}
+                  aria-expanded={structureMenuOpen} aria-label="Market structure filters">▾</button>
+                {structureMenuOpen && (
+                  <div
+                    className="fixed z-[9999] w-[460px] max-w-[calc(100vw-2rem)] rounded-xl border border-slate-600 bg-slate-950 p-4 shadow-2xl"
+                    style={{ top: structureMenuPosition.top, right: structureMenuPosition.right }}
+                  >
+                    <div className="mb-3 flex items-center justify-between">
+                      <div><p className="text-xs font-semibold text-slate-100">Structure Layers</p><p className="text-[10px] text-slate-500">{smartView ? "Smart View active" : "Visualization only"}</p></div>
+                      <button type="button" onClick={() => setStructureMenuOpen(false)} className="rounded px-2 py-1 text-xs text-slate-500 hover:bg-slate-800">✕</button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {([
+                        ["swings", "Swings"], ["supportResistance", "S/R"],
+                        ["equalHighsLows", "EQH/EQL"], ["bosChoch", "BOS/CHoCH"],
+                        ["orderBlockFvg", "OB/FVG"], ["liquidity", "Liquidity"],
+                        ["patterns", "Patterns"], ["premiumDiscount", "Premium/Discount"],
+                      ] as const).map(([key, label]) => (
+                        <button key={key} type="button" onClick={() => { setStructureVisible(true); toggleStructureFilter(key); }}
+                          className={["w-full min-w-0 rounded-md border px-3 py-2.5 text-center text-[11px] font-semibold leading-tight transition-colors", structureFilters[key] ? "border-fuchsia-500/40 bg-fuchsia-500/15 text-fuchsia-200" : "border-slate-800 bg-slate-900/70 text-slate-500 hover:text-slate-300"].join(" ")}
+                          aria-pressed={structureFilters[key]}>{label}</button>
+                      ))}
+                    </div>
+                    <div className="mt-4 grid grid-cols-2 gap-2 border-t border-slate-800 pt-3">
+                      <button type="button" onClick={useSmartStructureView} className={["rounded-md px-2 py-2 text-[10px] font-semibold", smartView ? "bg-emerald-500 text-slate-950" : "bg-emerald-500/15 text-emerald-200"].join(" ")}>Smart View</button>
+                      <button type="button" onClick={showAllStructure} className="rounded-md bg-fuchsia-500/15 px-2 py-2 text-[10px] font-semibold text-fuchsia-200">Show All</button>
+                      <button type="button" onClick={useCleanStructureView} className="rounded-md bg-sky-500/15 px-2 py-2 text-[10px] font-semibold text-sky-200">Clean View</button>
+                      <button type="button" onClick={hideAllStructure} className="rounded-md bg-slate-800 px-2 py-2 text-[10px] font-semibold text-slate-300">Hide All</button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="flex items-center gap-1 rounded-lg border border-slate-800 bg-slate-900/70 p-1">
