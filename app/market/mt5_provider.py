@@ -339,6 +339,166 @@ class MT5DataProvider:
         }
 
     # ======================================================
+    # ACCOUNT RISK INFORMATION
+    # ======================================================
+
+    def get_account_risk_info(
+        self,
+    ) -> dict:
+        """
+        Return the read-only MT5 account information required
+        by the deterministic pre-trade RiskService.
+
+        This method does not calculate risk, determine trade
+        direction, size positions, or execute trades.
+        """
+
+        self.connect()
+
+        account_info = mt5.account_info()
+
+        if account_info is None:
+            error = mt5.last_error()
+
+            raise RuntimeError(
+                "Unable to retrieve MT5 account "
+                f"information: {error}"
+            )
+
+        equity = float(
+            account_info.equity
+        )
+
+        balance = float(
+            account_info.balance
+        )
+
+        margin = float(
+            account_info.margin
+        )
+
+        margin_free = float(
+            account_info.margin_free
+        )
+
+        if equity <= 0:
+            raise RuntimeError(
+                "Invalid MT5 account equity."
+            )
+
+        return {
+            "equity": equity,
+            "balance": balance,
+            "margin": margin,
+            "margin_free": margin_free,
+        }
+
+    # ======================================================
+    # SYMBOL RISK INFORMATION
+    # ======================================================
+
+    def get_symbol_risk_info(
+        self,
+        symbol: str,
+    ) -> dict:
+        """
+        Return broker symbol specifications required by
+        the deterministic pre-trade RiskService.
+
+        Values come directly from MT5 symbol_info().
+
+        This method performs no position sizing and no
+        trade execution.
+        """
+
+        logical_symbol = normalize_symbol(
+            symbol
+        )
+
+        resolved_symbol = self._select_symbol(
+            logical_symbol
+        )
+
+        symbol_info = mt5.symbol_info(
+            resolved_symbol
+        )
+
+        if symbol_info is None:
+            error = mt5.last_error()
+
+            raise RuntimeError(
+                "Unable to retrieve MT5 symbol "
+                f"information for {resolved_symbol}: "
+                f"{error}"
+            )
+
+        trade_tick_size = float(
+            symbol_info.trade_tick_size
+        )
+
+        trade_tick_value = float(
+            symbol_info.trade_tick_value
+        )
+
+        volume_min = float(
+            symbol_info.volume_min
+        )
+
+        volume_max = float(
+            symbol_info.volume_max
+        )
+
+        volume_step = float(
+            symbol_info.volume_step
+        )
+
+        if trade_tick_size <= 0:
+            raise RuntimeError(
+                "Invalid MT5 trade tick size for "
+                f"{resolved_symbol}."
+            )
+
+        if trade_tick_value <= 0:
+            raise RuntimeError(
+                "Invalid MT5 trade tick value for "
+                f"{resolved_symbol}."
+            )
+
+        if volume_min <= 0:
+            raise RuntimeError(
+                "Invalid MT5 minimum volume for "
+                f"{resolved_symbol}."
+            )
+
+        if volume_max <= 0:
+            raise RuntimeError(
+                "Invalid MT5 maximum volume for "
+                f"{resolved_symbol}."
+            )
+
+        if volume_step <= 0:
+            raise RuntimeError(
+                "Invalid MT5 volume step for "
+                f"{resolved_symbol}."
+            )
+
+        if volume_min > volume_max:
+            raise RuntimeError(
+                "Invalid MT5 volume range for "
+                f"{resolved_symbol}."
+            )
+
+        return {
+            "symbol": logical_symbol,
+            "broker_symbol": resolved_symbol,
+            "trade_tick_size": trade_tick_size,
+            "trade_tick_value": trade_tick_value,
+            "volume_min": volume_min,
+            "volume_max": volume_max,
+            "volume_step": volume_step,
+        }
+
+    # ======================================================
     # MARKET CANDLES
     # ======================================================
 

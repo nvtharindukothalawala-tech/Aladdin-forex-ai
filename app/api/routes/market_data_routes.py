@@ -56,6 +56,10 @@ from app.services.trade_setup_service import (
     TradeSetupService,
 )
 
+from app.services.risk_service import (
+    RiskService,
+)
+
 
 
 router = APIRouter(
@@ -895,6 +899,74 @@ def get_market_candles(
         )
 
         # --------------------------------------------------
+        # RISK ANALYSIS
+        # --------------------------------------------------
+        #
+        # RiskService remains deterministic and performs
+        # no MT5 calls itself.
+        #
+        # Broker/account risk information is requested only
+        # when TradeSetupService has produced an executable
+        # TRADE setup. WAIT setups require no position sizing.
+
+        if trade_setup["status"] == "TRADE":
+
+            account_risk_info = (
+                provider.get_account_risk_info()
+            )
+
+            symbol_risk_info = (
+                provider.get_symbol_risk_info(
+                    normalized_symbol
+                )
+            )
+
+            risk = (
+                RiskService.analyze(
+                    trade_setup=trade_setup,
+                    equity=account_risk_info[
+                        "equity"
+                    ],
+                    trade_tick_size=(
+                        symbol_risk_info[
+                            "trade_tick_size"
+                        ]
+                    ),
+                    trade_tick_value=(
+                        symbol_risk_info[
+                            "trade_tick_value"
+                        ]
+                    ),
+                    volume_min=(
+                        symbol_risk_info[
+                            "volume_min"
+                        ]
+                    ),
+                    volume_max=(
+                        symbol_risk_info[
+                            "volume_max"
+                        ]
+                    ),
+                    volume_step=(
+                        symbol_risk_info[
+                            "volume_step"
+                        ]
+                    ),
+                )
+            )
+
+        else:
+
+            risk = {
+                "status": "REJECTED",
+                "approved": False,
+                "reason": (
+                    "Trade setup is not executable."
+                ),
+                "engine": "DETERMINISTIC",
+            }
+
+        # --------------------------------------------------
         # RESPONSE
         # --------------------------------------------------
 
@@ -952,6 +1024,12 @@ def get_market_candles(
             # ----------------------------------------------
 
             "trade_setup": trade_setup,
+
+            # ----------------------------------------------
+            # RISK
+            # ----------------------------------------------
+
+            "risk": risk,
 
             # ----------------------------------------------
             # MARKET STRUCTURE

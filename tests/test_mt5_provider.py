@@ -28,8 +28,8 @@ from app.market.mt5_provider import (
 
 class FakeMT5Module:
     """
-    Minimal fake MetaTrader5 module required
-    for MT5DataProvider quote tests.
+    Minimal deterministic fake MetaTrader5 module used by
+    MT5DataProvider quote and pre-trade risk-data tests.
     """
 
     def __init__(self):
@@ -37,23 +37,57 @@ class FakeMT5Module:
         self.shutdown_called = False
         self.selected_symbols = []
 
+        # ------------------------------------------
+        # Account information
+        # ------------------------------------------
+
+        self.account = SimpleNamespace(
+            equity=10_250.50,
+            balance=10_000.00,
+            margin=500.00,
+            margin_free=9_750.50,
+        )
+
+        # ------------------------------------------
+        # Symbol information
+        # ------------------------------------------
+
         self.symbols = {
             "EURUSD": SimpleNamespace(
                 name="EURUSD",
                 point=0.00001,
                 digits=5,
+                trade_tick_size=0.00001,
+                trade_tick_value=1.0,
+                volume_min=0.01,
+                volume_max=100.0,
+                volume_step=0.01,
             ),
             "USDJPY": SimpleNamespace(
                 name="USDJPY",
                 point=0.001,
                 digits=3,
+                trade_tick_size=0.001,
+                trade_tick_value=0.68,
+                volume_min=0.01,
+                volume_max=100.0,
+                volume_step=0.01,
             ),
             "GOLD": SimpleNamespace(
                 name="GOLD",
                 point=0.01,
                 digits=2,
+                trade_tick_size=0.01,
+                trade_tick_value=1.0,
+                volume_min=0.01,
+                volume_max=50.0,
+                volume_step=0.01,
             ),
         }
+
+        # ------------------------------------------
+        # Live ticks
+        # ------------------------------------------
 
         self.ticks = {
             "EURUSD": SimpleNamespace(
@@ -86,6 +120,9 @@ class FakeMT5Module:
             0,
             "No error",
         )
+
+    def account_info(self):
+        return self.account
 
     def symbol_info(
         self,
@@ -354,6 +391,294 @@ def test_get_quote_rejects_negative_spread(
         provider.get_quote(
             "EURUSD"
         )
+
+
+# ==========================================================
+# ACCOUNT RISK INFORMATION
+# ==========================================================
+
+
+def test_get_account_risk_info_returns_required_fields(
+    fake_mt5,
+    provider,
+):
+    """
+    Risk account data should expose the read-only
+    account values required by the RiskService.
+    """
+
+    result = provider.get_account_risk_info()
+
+    assert result == {
+        "equity": 10_250.50,
+        "balance": 10_000.00,
+        "margin": 500.00,
+        "margin_free": 9_750.50,
+    }
+
+    assert fake_mt5.initialized is True
+    assert provider.connected is True
+
+
+def test_get_account_risk_info_rejects_missing_account(
+    fake_mt5,
+    provider,
+):
+    """
+    Missing MT5 account information should fail safely.
+    """
+
+    fake_mt5.account = None
+
+    with pytest.raises(
+        RuntimeError,
+        match="Unable to retrieve MT5 account information",
+    ):
+        provider.get_account_risk_info()
+
+
+@pytest.mark.parametrize(
+    "equity",
+    [
+        0.0,
+        -1.0,
+    ],
+)
+def test_get_account_risk_info_rejects_invalid_equity(
+    fake_mt5,
+    provider,
+    equity,
+):
+    """
+    Risk sizing must not continue with zero or
+    negative account equity.
+    """
+
+    fake_mt5.account = SimpleNamespace(
+        equity=equity,
+        balance=10_000.00,
+        margin=500.00,
+        margin_free=9_500.00,
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="Invalid MT5 account equity",
+    ):
+        provider.get_account_risk_info()
+
+
+# ==========================================================
+# SYMBOL RISK INFORMATION
+# ==========================================================
+
+
+def test_get_symbol_risk_info_returns_required_fields(
+    fake_mt5,
+    provider,
+):
+    """
+    Symbol risk data should expose the broker values
+    required for deterministic position sizing.
+    """
+
+    result = provider.get_symbol_risk_info(
+        "EUR/USD"
+    )
+
+    assert result == {
+        "symbol": "EURUSD",
+        "broker_symbol": "EURUSD",
+        "trade_tick_size": 0.00001,
+        "trade_tick_value": 1.0,
+        "volume_min": 0.01,
+        "volume_max": 100.0,
+        "volume_step": 0.01,
+    }
+
+    assert (
+        "EURUSD"
+        in fake_mt5.selected_symbols
+    )
+
+
+def test_get_symbol_risk_info_resolves_xauusd_to_gold(
+    fake_mt5,
+    provider,
+):
+    """
+    Risk specifications should use the same broker
+    symbol resolution as the quote/candle provider.
+    """
+
+    result = provider.get_symbol_risk_info(
+        "XAU/USD"
+    )
+
+    assert result["symbol"] == "XAUUSD"
+    assert result["broker_symbol"] == "GOLD"
+    assert result["trade_tick_size"] == 0.01
+    assert result["trade_tick_value"] == 1.0
+    assert result["volume_min"] == 0.01
+    assert result["volume_max"] == 50.0
+    assert result["volume_step"] == 0.01
+
+    assert (
+        "GOLD"
+        in fake_mt5.selected_symbols
+    )
+
+
+def test_get_symbol_risk_info_rejects_missing_symbol_info(
+    fake_mt5,
+    provider,
+    monkeypatch,
+):
+    """
+    A broker symbol that disappears after resolution
+    should fail instead of returning incomplete specs.
+    """
+
+    original_symbol_info = fake_mt5.symbol_info
+    calls = {"count": 0}
+
+    def disappearing_symbol_info(symbol):
+        calls["count"] += 1
+
+        # Resolver can see the symbol first; the provider's
+        # subsequent specification read then returns None.
+        if calls["count"] >= 2:
+            return None
+
+        return original_symbol_info(symbol)
+
+    monkeypatch.setattr(
+        fake_mt5,
+        "symbol_info",
+        disappearing_symbol_info,
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="Unable to retrieve MT5 symbol information",
+    ):
+        provider.get_symbol_risk_info(
+            "EURUSD"
+        )
+
+
+@pytest.mark.parametrize(
+    (
+        "field",
+        "value",
+        "message",
+    ),
+    [
+        (
+            "trade_tick_size",
+            0.0,
+            "Invalid MT5 trade tick size",
+        ),
+        (
+            "trade_tick_value",
+            0.0,
+            "Invalid MT5 trade tick value",
+        ),
+        (
+            "volume_min",
+            0.0,
+            "Invalid MT5 minimum volume",
+        ),
+        (
+            "volume_max",
+            0.0,
+            "Invalid MT5 maximum volume",
+        ),
+        (
+            "volume_step",
+            0.0,
+            "Invalid MT5 volume step",
+        ),
+    ],
+)
+def test_get_symbol_risk_info_rejects_non_positive_specs(
+    fake_mt5,
+    provider,
+    field,
+    value,
+    message,
+):
+    """
+    Non-positive broker sizing specifications
+    must be rejected before RiskService receives them.
+    """
+
+    setattr(
+        fake_mt5.symbols["EURUSD"],
+        field,
+        value,
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match=message,
+    ):
+        provider.get_symbol_risk_info(
+            "EURUSD"
+        )
+
+
+def test_get_symbol_risk_info_rejects_invalid_volume_range(
+    fake_mt5,
+    provider,
+):
+    """
+    Broker minimum volume must never exceed
+    broker maximum volume.
+    """
+
+    fake_mt5.symbols[
+        "EURUSD"
+    ].volume_min = 2.0
+
+    fake_mt5.symbols[
+        "EURUSD"
+    ].volume_max = 1.0
+
+    with pytest.raises(
+        RuntimeError,
+        match="Invalid MT5 volume range",
+    ):
+        provider.get_symbol_risk_info(
+            "EURUSD"
+        )
+
+
+# ==========================================================
+# CONNECTION REUSE
+# ==========================================================
+
+
+def test_risk_info_methods_reuse_provider_connection(
+    fake_mt5,
+    provider,
+):
+    """
+    Account and symbol risk reads should reuse the same
+    connected provider session instead of creating a
+    second MT5 provider/session.
+    """
+
+    account = provider.get_account_risk_info()
+
+    symbol = provider.get_symbol_risk_info(
+        "EURUSD"
+    )
+
+    assert account["equity"] == 10_250.50
+    assert symbol["broker_symbol"] == "EURUSD"
+    assert provider.connected is True
+    assert fake_mt5.initialized is True
 
 
 # ==========================================================

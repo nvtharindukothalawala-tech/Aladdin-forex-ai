@@ -255,6 +255,30 @@ class FakeMT5DataProvider:
             **values,
         }
 
+    def get_account_risk_info(self):
+        """Return deterministic account data for RiskService route tests."""
+        return {
+            "equity": 10000.0,
+            "balance": 10000.0,
+            "margin": 0.0,
+            "margin_free": 10000.0,
+        }
+
+    def get_symbol_risk_info(
+        self,
+        symbol,
+    ):
+        """Return deterministic broker contract data for RiskService."""
+        return {
+            "symbol": symbol,
+            "broker_symbol": symbol,
+            "trade_tick_size": 0.00001,
+            "trade_tick_value": 1.0,
+            "volume_min": 0.01,
+            "volume_max": 100.0,
+            "volume_step": 0.01,
+        }
+
     def disconnect(self):
         FakeMT5DataProvider.disconnected = True
 
@@ -2070,3 +2094,247 @@ def test_trade_setup_reuses_single_candle_fetch(
         FakeStructureMT5DataProvider.candle_fetch_count
         == 1
     )
+
+# ==========================================
+# Risk Service API Integration
+# ==========================================
+
+
+def _deterministic_trade_setup():
+    """Return a stable executable BUY setup."""
+
+    return {
+        "status": "TRADE",
+        "direction": "BUY",
+        "symbol": "EURUSD",
+        "timeframe": "H1",
+        "current_price": 1.1000,
+        "entry": {
+            "type": "ZONE",
+            "source": "SUPPORT",
+            "low": 1.0998,
+            "high": 1.1002,
+            "preferred": 1.1000,
+        },
+        "stop_loss": 1.0950,
+        "targets": [{"price": 1.1100}],
+        "risk_reward": 2.0,
+        "bias": "BULLISH",
+        "bias_strength": "STRONG",
+        "confidence": 80.0,
+        "bias_score": 5.0,
+        "reasons": [],
+        "invalidation": "Setup invalidates below stop loss.",
+        "engine": "DETERMINISTIC",
+    }
+
+
+def _deterministic_wait_setup():
+    """Return a stable non-executable setup."""
+
+    return {
+        "status": "WAIT",
+        "direction": None,
+        "symbol": "EURUSD",
+        "timeframe": "H1",
+        "current_price": 1.1000,
+        "entry": None,
+        "stop_loss": None,
+        "targets": [],
+        "risk_reward": None,
+        "bias": "NEUTRAL",
+        "bias_strength": "WEAK",
+        "confidence": 0.0,
+        "bias_score": 0.0,
+        "reasons": [],
+        "invalidation": "No executable trade setup.",
+        "engine": "DETERMINISTIC",
+    }
+
+
+def test_market_candles_include_risk_analysis(monkeypatch):
+    """TRADE setups must expose deterministic risk analysis."""
+
+    monkeypatch.setattr(
+        market_data_routes,
+        "MT5DataProvider",
+        FakeStructureMT5DataProvider,
+    )
+    monkeypatch.setattr(
+        market_data_routes.TradeSetupService,
+        "analyze",
+        lambda *args, **kwargs: _deterministic_trade_setup(),
+    )
+
+    FakeStructureMT5DataProvider.candle_fetch_count = 0
+    headers = get_auth_headers()
+
+    response = client.get(
+        "/market-data/candles?symbol=EURUSD&timeframe=H1&count=100",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+
+    assert "risk" in data
+    risk = data["risk"]
+    assert risk["status"] == "APPROVED"
+    assert risk["approved"] is True
+    assert risk["engine"] == "DETERMINISTIC"
+    assert risk["equity"] == 10000.0
+    assert risk["risk_percent"] == 1.0
+    assert risk["risk_amount"] == 100.0
+    assert risk["entry_price"] == 1.1000
+    assert risk["stop_loss"] == 1.0950
+    assert risk["volume"] == 0.2
+    assert risk["estimated_loss"] == 100.0
+
+    assert FakeStructureMT5DataProvider.candle_fetch_count == 1
+
+
+def test_risk_service_receives_trade_and_broker_data(monkeypatch):
+    """Existing setup and broker risk data must be passed to RiskService."""
+
+    captured = {}
+    trade_setup = _deterministic_trade_setup()
+
+    monkeypatch.setattr(
+        market_data_routes,
+        "MT5DataProvider",
+        FakeStructureMT5DataProvider,
+    )
+    monkeypatch.setattr(
+        market_data_routes.TradeSetupService,
+        "analyze",
+        lambda *args, **kwargs: trade_setup,
+    )
+
+    def capture_risk_call(*args, **kwargs):
+        captured.update(kwargs)
+        return {
+            "status": "APPROVED",
+            "approved": True,
+            "engine": "DETERMINISTIC",
+        }
+
+    monkeypatch.setattr(
+        market_data_routes.RiskService,
+        "analyze",
+        capture_risk_call,
+    )
+
+    FakeStructureMT5DataProvider.candle_fetch_count = 0
+    headers = get_auth_headers()
+
+    response = client.get(
+        "/market-data/candles?symbol=EURUSD&timeframe=H1&count=100",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    assert captured["trade_setup"] is trade_setup
+    assert captured["equity"] == 10000.0
+    assert captured["trade_tick_size"] == 0.00001
+    assert captured["trade_tick_value"] == 1.0
+    assert captured["volume_min"] == 0.01
+    assert captured["volume_max"] == 100.0
+    assert captured["volume_step"] == 0.01
+    assert FakeStructureMT5DataProvider.candle_fetch_count == 1
+
+
+def test_wait_setup_skips_broker_risk_reads(monkeypatch):
+    """WAIT setups must not request account or symbol risk data."""
+
+    class WaitRiskProvider(FakeStructureMT5DataProvider):
+        account_risk_calls = 0
+        symbol_risk_calls = 0
+
+        def get_account_risk_info(self):
+            WaitRiskProvider.account_risk_calls += 1
+            raise AssertionError(
+                "Account risk data must not be read for a WAIT setup."
+            )
+
+        def get_symbol_risk_info(self, symbol):
+            WaitRiskProvider.symbol_risk_calls += 1
+            raise AssertionError(
+                "Symbol risk data must not be read for a WAIT setup."
+            )
+
+    monkeypatch.setattr(
+        market_data_routes,
+        "MT5DataProvider",
+        WaitRiskProvider,
+    )
+    monkeypatch.setattr(
+        market_data_routes.TradeSetupService,
+        "analyze",
+        lambda *args, **kwargs: _deterministic_wait_setup(),
+    )
+
+    FakeStructureMT5DataProvider.candle_fetch_count = 0
+    WaitRiskProvider.account_risk_calls = 0
+    WaitRiskProvider.symbol_risk_calls = 0
+
+    headers = get_auth_headers()
+    response = client.get(
+        "/market-data/candles?symbol=EURUSD&timeframe=H1&count=100",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["risk"] == {
+        "status": "REJECTED",
+        "approved": False,
+        "reason": "Trade setup is not executable.",
+        "engine": "DETERMINISTIC",
+    }
+    assert WaitRiskProvider.account_risk_calls == 0
+    assert WaitRiskProvider.symbol_risk_calls == 0
+    assert FakeStructureMT5DataProvider.candle_fetch_count == 1
+
+
+def test_risk_integration_reuses_single_candle_fetch(monkeypatch):
+    """Risk integration must never fetch a second candle dataset."""
+
+    class CountingRiskProvider(FakeStructureMT5DataProvider):
+        account_risk_calls = 0
+        symbol_risk_calls = 0
+
+        def get_account_risk_info(self):
+            CountingRiskProvider.account_risk_calls += 1
+            return super().get_account_risk_info()
+
+        def get_symbol_risk_info(self, symbol):
+            CountingRiskProvider.symbol_risk_calls += 1
+            return super().get_symbol_risk_info(symbol)
+
+    monkeypatch.setattr(
+        market_data_routes,
+        "MT5DataProvider",
+        CountingRiskProvider,
+    )
+    monkeypatch.setattr(
+        market_data_routes.TradeSetupService,
+        "analyze",
+        lambda *args, **kwargs: _deterministic_trade_setup(),
+    )
+
+    FakeStructureMT5DataProvider.candle_fetch_count = 0
+    CountingRiskProvider.account_risk_calls = 0
+    CountingRiskProvider.symbol_risk_calls = 0
+
+    headers = get_auth_headers()
+    response = client.get(
+        "/market-data/candles?symbol=EURUSD&timeframe=H1&count=100",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["trade_setup"]["status"] == "TRADE"
+    assert data["risk"]["status"] == "APPROVED"
+    assert FakeStructureMT5DataProvider.candle_fetch_count == 1
+    assert CountingRiskProvider.account_risk_calls == 1
+    assert CountingRiskProvider.symbol_risk_calls == 1
