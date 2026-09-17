@@ -1576,3 +1576,182 @@ def test_support_resistance_zone_response_shape(
             zone["first_index"]
             <= zone["last_index"]
         )
+
+# ==========================================
+# Market Bias API Integration
+# ==========================================
+
+
+def test_market_candles_include_market_bias(
+    monkeypatch,
+):
+    """
+    Market candle responses must expose the
+    deterministic market-bias analysis.
+    """
+
+    monkeypatch.setattr(
+        market_data_routes,
+        "MT5DataProvider",
+        FakeStructureMT5DataProvider,
+    )
+
+    FakeStructureMT5DataProvider.candle_fetch_count = 0
+
+    headers = get_auth_headers()
+
+    response = client.get(
+        "/market-data/candles"
+        "?symbol=EURUSD"
+        "&timeframe=H1"
+        "&count=100",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    # ------------------------------------------
+    # Top-level market bias
+    # ------------------------------------------
+
+    assert "market_bias" in data
+
+    market_bias = data["market_bias"]
+
+    assert isinstance(
+        market_bias,
+        dict,
+    )
+
+    # ------------------------------------------
+    # Required market-bias fields
+    # ------------------------------------------
+
+    assert "bias" in market_bias
+    assert "score" in market_bias
+    assert "confidence" in market_bias
+    assert "bullish_score" in market_bias
+    assert "bearish_score" in market_bias
+    assert "reasons" in market_bias
+
+    # ------------------------------------------
+    # Bias value
+    # ------------------------------------------
+
+    assert market_bias["bias"] in {
+        "BULLISH",
+        "BEARISH",
+        "NEUTRAL",
+    }
+
+    # ------------------------------------------
+    # Numeric score fields
+    # ------------------------------------------
+
+    assert isinstance(
+        market_bias["score"],
+        (int, float),
+    )
+
+    assert isinstance(
+        market_bias["confidence"],
+        (int, float),
+    )
+
+    assert isinstance(
+        market_bias["bullish_score"],
+        (int, float),
+    )
+
+    assert isinstance(
+        market_bias["bearish_score"],
+        (int, float),
+    )
+
+    # Confidence must remain in percentage range.
+
+    assert (
+        0.0
+        <= market_bias["confidence"]
+        <= 100.0
+    )
+
+    # ------------------------------------------
+    # Explanation reasons
+    # ------------------------------------------
+
+    assert isinstance(
+        market_bias["reasons"],
+        list,
+    )
+
+    for reason in market_bias["reasons"]:
+
+        assert isinstance(
+            reason,
+            dict,
+        )
+
+        assert "source" in reason
+        assert "direction" in reason
+        assert "weight" in reason
+        assert "message" in reason
+
+        assert reason["direction"] in {
+            "BULLISH",
+            "BEARISH",
+            "NEUTRAL",
+        }
+
+        assert isinstance(
+            reason["weight"],
+            (int, float),
+        )
+
+        assert isinstance(
+            reason["message"],
+            str,
+        )
+
+
+def test_market_bias_reuses_single_candle_fetch(
+    monkeypatch,
+):
+    """
+    Market bias must reuse the candle dataset
+    already fetched by the chart route.
+
+    It must not create an additional MT5 candle
+    request.
+    """
+
+    monkeypatch.setattr(
+        market_data_routes,
+        "MT5DataProvider",
+        FakeStructureMT5DataProvider,
+    )
+
+    FakeStructureMT5DataProvider.candle_fetch_count = 0
+
+    headers = get_auth_headers()
+
+    response = client.get(
+        "/market-data/candles"
+        "?symbol=EURUSD"
+        "&timeframe=H1"
+        "&count=100",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert "market_bias" in data
+
+    assert (
+        FakeStructureMT5DataProvider.candle_fetch_count
+        == 1
+    )

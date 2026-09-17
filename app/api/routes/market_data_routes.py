@@ -48,6 +48,11 @@ from app.services.market_structure_service import (
     MarketStructureService,
 )
 
+from app.services.market_bias_service import (
+    MarketBiasService,
+)
+
+
 
 router = APIRouter(
     prefix="/market-data",
@@ -824,6 +829,38 @@ def get_market_candles(
         )
 
         # --------------------------------------------------
+        # MARKET BIAS
+        # --------------------------------------------------
+
+        market_bias = (
+            MarketBiasService
+            .analyze(
+                candles=candles,
+                ema20_series=ema20_series,
+                rsi14_series=rsi14_series,
+                adx14_series=adx14_series,
+                latest_bos=latest_bos,
+                latest_choch=latest_choch,
+                latest_liquidity_sweep=(
+                    latest_liquidity_sweep
+                ),
+                latest_order_block=(
+                    latest_order_block
+                ),
+                latest_fvg=latest_fvg,
+                latest_engulfing=(
+                    latest_engulfing
+                ),
+                latest_displacement=(
+                    latest_displacement
+                ),
+                latest_premium_discount=(
+                    latest_premium_discount
+                ),
+            )
+        )
+
+        # --------------------------------------------------
         # RESPONSE
         # --------------------------------------------------
 
@@ -869,6 +906,12 @@ def get_market_candles(
                     "series": adx14_series,
                 },
             },
+
+            # ----------------------------------------------
+            # MARKET BIAS
+            # ----------------------------------------------
+
+            "market_bias": market_bias,
 
             # ----------------------------------------------
             # MARKET STRUCTURE
