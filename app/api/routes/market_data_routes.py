@@ -52,6 +52,10 @@ from app.services.market_bias_service import (
     MarketBiasService,
 )
 
+from app.services.trade_setup_service import (
+    TradeSetupService,
+)
+
 
 
 router = APIRouter(
@@ -861,6 +865,36 @@ def get_market_candles(
         )
 
         # --------------------------------------------------
+        # TRADE SETUP
+        # --------------------------------------------------
+
+        trade_setup = (
+            TradeSetupService
+            .analyze(
+                candles=candles,
+                market_bias=market_bias,
+                atr=support_resistance_atr,
+                latest_bos=latest_bos,
+                latest_choch=latest_choch,
+                latest_liquidity_sweep=(
+                    latest_liquidity_sweep
+                ),
+                latest_order_block=(
+                    latest_order_block
+                ),
+                latest_fvg=latest_fvg,
+                latest_premium_discount=(
+                    latest_premium_discount
+                ),
+                support_resistance=(
+                    support_resistance
+                ),
+                symbol=normalized_symbol,
+                timeframe=normalized_timeframe,
+            )
+        )
+
+        # --------------------------------------------------
         # RESPONSE
         # --------------------------------------------------
 
@@ -912,6 +946,12 @@ def get_market_candles(
             # ----------------------------------------------
 
             "market_bias": market_bias,
+
+            # ----------------------------------------------
+            # TRADE SETUP
+            # ----------------------------------------------
+
+            "trade_setup": trade_setup,
 
             # ----------------------------------------------
             # MARKET STRUCTURE

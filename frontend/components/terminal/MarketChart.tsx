@@ -22,6 +22,7 @@ import {
   getMarketCandles,
   type MarketCandle,
   type MarketBias,
+  type TradeSetup,
   type MarketStructure,
   type MarketTimeframe,
 } from "@/lib/api";
@@ -638,6 +639,13 @@ export default function MarketChart({
     marketBias,
     setMarketBias,
   ] = useState<MarketBias | null>(
+    null,
+  );
+
+  const [
+    tradeSetup,
+    setTradeSetup,
+  ] = useState<TradeSetup | null>(
     null,
   );
 
@@ -1760,6 +1768,7 @@ export default function MarketChart({
           latestStructureRef.current = result.market_structure;
           latestChartDataRef.current = chartData;
           setMarketBias(result.market_bias);
+          setTradeSetup(result.trade_setup);
           const activeStructureFilters = structureFiltersRef.current;
           const structureMarkers =
             toStructureMarkers(result.market_structure, activeStructureFilters, smartViewRef.current);
@@ -1900,6 +1909,7 @@ export default function MarketChart({
 
     setBrokerSymbol("");
     setMarketBias(null);
+    setTradeSetup(null);
     setLatestCandle(null);
     setCandleTotal(0);
     setLastUpdated(null);
@@ -2046,6 +2056,28 @@ export default function MarketChart({
           reason.message.trim().length > 0,
       )
       .slice(0, 5) ?? [];
+
+  const tradeSetupBiasClasses =
+    getBiasClasses(tradeSetup?.bias);
+
+  const tradeSetupIsTrade =
+    tradeSetup?.status === "TRADE";
+
+  const tradeSetupDirectionClasses =
+    tradeSetup?.direction === "BUY"
+      ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300"
+      : tradeSetup?.direction === "SELL"
+        ? "border-red-500/40 bg-red-500/15 text-red-300"
+        : "border-amber-500/40 bg-amber-500/15 text-amber-300";
+
+  const keyTradeSetupReasons =
+    tradeSetup?.reasons
+      ?.filter(
+        (reason) =>
+          typeof reason === "string" &&
+          reason.trim().length > 0,
+      )
+      .slice(0, 6) ?? [];
 
   return (
     <section
@@ -2452,6 +2484,309 @@ export default function MarketChart({
           ) : (
             <p className="mt-2 text-xs text-slate-500">
               {loading ? "Calculating market bias..." : "Market bias unavailable."}
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div className="border-b border-slate-800 bg-slate-950/85 px-4 py-3">
+        <div className="rounded-xl border border-slate-800 bg-slate-900/55 p-3 shadow-inner">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-violet-300">
+              ALADDIN TRADE SETUP
+            </p>
+
+            <span className="text-[10px] text-slate-500">
+              {normalizedSymbol} · {selectedTimeframe}
+            </span>
+
+            {tradeSetup && (
+              <>
+                <span
+                  className={[
+                    "rounded-md border px-2 py-1 text-[10px] font-bold tracking-wider",
+                    tradeSetup.status === "TRADE"
+                      ? "border-sky-500/40 bg-sky-500/15 text-sky-300"
+                      : "border-amber-500/40 bg-amber-500/15 text-amber-300",
+                  ].join(" ")}
+                >
+                  {tradeSetup.status}
+                </span>
+
+                <span
+                  className={[
+                    "rounded-md border px-2 py-1 text-[10px] font-bold tracking-wider",
+                    tradeSetupDirectionClasses,
+                  ].join(" ")}
+                >
+                  {tradeSetup.direction ?? "NO DIRECTION"}
+                </span>
+
+                <span
+                  className={[
+                    "rounded-md border px-2 py-1 text-[10px] font-bold tracking-wider",
+                    tradeSetupBiasClasses.badge,
+                  ].join(" ")}
+                >
+                  {tradeSetup.bias}
+                </span>
+              </>
+            )}
+          </div>
+
+          {tradeSetup ? (
+            <div className="mt-3 space-y-3">
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+                <div className="min-w-0 rounded-lg border border-slate-800/80 bg-slate-950/45 px-3 py-2">
+                  <p className="text-[9px] uppercase tracking-wider text-slate-500">
+                    Status
+                  </p>
+                  <p
+                    className={[
+                      "mt-1 truncate text-sm font-bold",
+                      tradeSetupIsTrade
+                        ? "text-sky-300"
+                        : "text-amber-300",
+                    ].join(" ")}
+                  >
+                    {tradeSetup.status}
+                  </p>
+                </div>
+
+                <div className="min-w-0 rounded-lg border border-slate-800/80 bg-slate-950/45 px-3 py-2">
+                  <p className="text-[9px] uppercase tracking-wider text-slate-500">
+                    Direction
+                  </p>
+                  <p
+                    className={[
+                      "mt-1 truncate text-sm font-bold",
+                      tradeSetup.direction === "BUY"
+                        ? "text-emerald-300"
+                        : tradeSetup.direction === "SELL"
+                          ? "text-red-300"
+                          : "text-slate-400",
+                    ].join(" ")}
+                  >
+                    {tradeSetup.direction ?? "-"}
+                  </p>
+                </div>
+
+                <div className="min-w-0 rounded-lg border border-slate-800/80 bg-slate-950/45 px-3 py-2">
+                  <p className="text-[9px] uppercase tracking-wider text-slate-500">
+                    Bias
+                  </p>
+                  <p
+                    className={`mt-1 truncate text-sm font-bold ${tradeSetupBiasClasses.text}`}
+                  >
+                    {tradeSetup.bias}
+                  </p>
+                </div>
+
+                <div className="min-w-0 rounded-lg border border-slate-800/80 bg-slate-950/45 px-3 py-2">
+                  <p className="text-[9px] uppercase tracking-wider text-slate-500">
+                    Strength
+                  </p>
+                  <p
+                    className={`mt-1 truncate text-sm font-bold ${tradeSetupBiasClasses.text}`}
+                  >
+                    {tradeSetup.bias_strength?.replaceAll("_", " ") ?? "-"}
+                  </p>
+                </div>
+
+                <div className="min-w-0 rounded-lg border border-slate-800/80 bg-slate-950/45 px-3 py-2">
+                  <p className="text-[9px] uppercase tracking-wider text-slate-500">
+                    Confidence
+                  </p>
+                  <p className="mt-1 truncate text-sm font-bold text-slate-200">
+                    {tradeSetup.confidence !== null
+                      ? formatBiasConfidence(tradeSetup.confidence)
+                      : "-"}
+                  </p>
+                </div>
+
+                <div className="min-w-0 rounded-lg border border-slate-800/80 bg-slate-950/45 px-3 py-2">
+                  <p className="text-[9px] uppercase tracking-wider text-slate-500">
+                    Bias Score
+                  </p>
+                  <p className="mt-1 truncate font-mono text-sm font-semibold text-slate-200">
+                    {tradeSetup.bias_score !== null ? (
+                      <>
+                        {tradeSetup.bias_score > 0 ? "+" : ""}
+                        {formatBiasNumber(tradeSetup.bias_score)}
+                      </>
+                    ) : (
+                      "-"
+                    )}
+                  </p>
+                </div>
+
+                <div className="min-w-0 rounded-lg border border-slate-800/80 bg-slate-950/45 px-3 py-2">
+                  <p className="text-[9px] uppercase tracking-wider text-slate-500">
+                    Engine
+                  </p>
+                  <p className="mt-1 truncate text-xs font-semibold text-slate-300">
+                    {tradeSetup.engine}
+                  </p>
+                </div>
+              </div>
+
+              {tradeSetupIsTrade &&
+              tradeSetup.entry &&
+              tradeSetup.stop_loss !== null ? (
+                <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(300px,0.8fr)]">
+                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                    <div className="rounded-lg border border-sky-500/20 bg-sky-500/5 px-3 py-2.5">
+                      <p className="text-[9px] uppercase tracking-wider text-slate-500">
+                        Entry
+                      </p>
+                      <p className="mt-1 font-mono text-sm font-bold text-sky-300">
+                        {formatPrice(
+                          tradeSetup.entry.preferred,
+                          normalizedSymbol,
+                        )}
+                      </p>
+                      <p className="mt-1 text-[9px] text-slate-500">
+                        {tradeSetup.entry.type.replaceAll("_", " ")}
+                      </p>
+                    </div>
+
+                    <div className="rounded-lg border border-sky-500/20 bg-sky-500/5 px-3 py-2.5">
+                      <p className="text-[9px] uppercase tracking-wider text-slate-500">
+                        Entry Range
+                      </p>
+                      <p className="mt-1 font-mono text-xs font-semibold text-slate-200">
+                        {formatPrice(
+                          tradeSetup.entry.low,
+                          normalizedSymbol,
+                        )}
+                        {" - "}
+                        {formatPrice(
+                          tradeSetup.entry.high,
+                          normalizedSymbol,
+                        )}
+                      </p>
+                      <p className="mt-1 text-[9px] text-slate-500">
+                        Source: {tradeSetup.entry.source.replaceAll("_", " ")}
+                      </p>
+                    </div>
+
+                    <div className="rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-2.5">
+                      <p className="text-[9px] uppercase tracking-wider text-slate-500">
+                        Stop Loss
+                      </p>
+                      <p className="mt-1 font-mono text-sm font-bold text-red-300">
+                        {formatPrice(
+                          tradeSetup.stop_loss,
+                          normalizedSymbol,
+                        )}
+                      </p>
+                    </div>
+
+                    <div className="rounded-lg border border-violet-500/20 bg-violet-500/5 px-3 py-2.5">
+                      <p className="text-[9px] uppercase tracking-wider text-slate-500">
+                        Risk : Reward
+                      </p>
+                      <p className="mt-1 font-mono text-sm font-bold text-violet-300">
+                        {tradeSetup.risk_reward !== null
+                          ? `1:${formatBiasNumber(tradeSetup.risk_reward)}`
+                          : "-"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border border-slate-800/80 bg-slate-950/45 p-3">
+                    <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-500">
+                      Targets
+                    </p>
+
+                    {tradeSetup.targets.length > 0 ? (
+                      <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
+                        {tradeSetup.targets.map((target, index) => (
+                          <div
+                            key={`${target.name}-${target.price}-${index}`}
+                            className="flex items-center justify-between gap-3 rounded-md border border-emerald-500/20 bg-emerald-500/5 px-2.5 py-2"
+                          >
+                            <div className="min-w-0">
+                              <p className="truncate text-[10px] font-bold text-emerald-300">
+                                {target.name}
+                              </p>
+                              <p className="truncate text-[9px] text-slate-500">
+                                {target.source.replaceAll("_", " ")}
+                              </p>
+                            </div>
+
+                            <div className="text-right">
+                              <p className="font-mono text-xs font-semibold text-slate-200">
+                                {formatPrice(
+                                  target.price,
+                                  normalizedSymbol,
+                                )}
+                              </p>
+                              <p className="text-[9px] text-slate-500">
+                                R:R {formatBiasNumber(target.rr)}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="mt-2 text-xs text-slate-500">
+                        No targets returned.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-3">
+                  <p className="text-xs font-semibold text-amber-300">
+                    WAIT — no executable trade levels are active.
+                  </p>
+                  <p className="mt-1 text-[10px] leading-4 text-slate-400">
+                    Entry, stop loss, targets, and risk/reward remain empty until
+                    the deterministic backend confirms a valid setup.
+                  </p>
+                </div>
+              )}
+
+              <div className="grid gap-3 xl:grid-cols-2">
+                <div className="rounded-lg border border-slate-800/80 bg-slate-950/45 p-3">
+                  <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-500">
+                    Invalidation
+                  </p>
+                  <p className="mt-2 text-[10px] leading-5 text-slate-300">
+                    {tradeSetup.invalidation || "-"}
+                  </p>
+                </div>
+
+                <div className="rounded-lg border border-slate-800/80 bg-slate-950/45 p-3">
+                  <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-500">
+                    Why this setup?
+                  </p>
+
+                  {keyTradeSetupReasons.length > 0 ? (
+                    <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
+                      {keyTradeSetupReasons.map((reason, index) => (
+                        <div
+                          key={`${reason}-${index}`}
+                          className="rounded-md border border-slate-700/80 bg-slate-800/60 px-2.5 py-2 text-[9px] leading-4 text-slate-300"
+                        >
+                          {reason}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-xs text-slate-500">
+                      No setup reasons returned.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <p className="mt-2 text-xs text-slate-500">
+              {loading
+                ? "Calculating deterministic trade setup..."
+                : "Trade setup unavailable."}
             </p>
           )}
         </div>

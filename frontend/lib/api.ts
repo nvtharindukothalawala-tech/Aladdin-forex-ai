@@ -924,6 +924,71 @@ export type MarketBias = {
 };
 
 
+/*
+ * Deterministic trade setup returned by /market-data/candles.
+ *
+ * The backend owns all trade-setup calculations.
+ * The frontend only consumes and displays this contract.
+ */
+export type TradeSetupStatus =
+  | "TRADE"
+  | "WAIT";
+
+export type TradeSetupDirection =
+  | "BUY"
+  | "SELL"
+  | null;
+
+export type TradeSetupEntry = {
+  type: string;
+  source: string;
+  low: number;
+  high: number;
+  preferred: number;
+};
+
+export type TradeSetupTarget = {
+  name: string;
+  price: number;
+  rr: number;
+  source: string;
+};
+
+export type TradeSetup = {
+  status: TradeSetupStatus;
+
+  direction: TradeSetupDirection;
+
+  symbol: string;
+
+  timeframe: MarketTimeframe;
+
+  current_price: number;
+
+  entry: TradeSetupEntry | null;
+
+  stop_loss: number | null;
+
+  targets: TradeSetupTarget[];
+
+  risk_reward: number | null;
+
+  bias: MarketBiasDirection | null;
+
+  bias_strength: MarketBiasStrength | null;
+
+  confidence: number | null;
+
+  bias_score: number | null;
+
+  reasons: string[];
+
+  invalidation: string | null;
+
+  engine: "DETERMINISTIC";
+};
+
+
 export type MarketCandlesResponse = {
   symbol: string;
 
@@ -955,6 +1020,8 @@ export type MarketCandlesResponse = {
   market_structure: MarketStructure;
 
   market_bias: MarketBias;
+
+  trade_setup: TradeSetup;
 };
 
 

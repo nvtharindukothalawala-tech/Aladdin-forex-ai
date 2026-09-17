@@ -1755,3 +1755,318 @@ def test_market_bias_reuses_single_candle_fetch(
         FakeStructureMT5DataProvider.candle_fetch_count
         == 1
     )
+
+# ==========================================
+# Trade Setup API Integration
+# ==========================================
+
+
+def test_market_candles_include_trade_setup(
+    monkeypatch,
+):
+    """
+    Market candle responses must expose the
+    deterministic Trade Setup analysis.
+    """
+
+    monkeypatch.setattr(
+        market_data_routes,
+        "MT5DataProvider",
+        FakeStructureMT5DataProvider,
+    )
+
+    FakeStructureMT5DataProvider.candle_fetch_count = 0
+
+    headers = get_auth_headers()
+
+    response = client.get(
+        "/market-data/candles"
+        "?symbol=EURUSD"
+        "&timeframe=H1"
+        "&count=100",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert "trade_setup" in data
+
+    trade_setup = data["trade_setup"]
+
+    assert isinstance(
+        trade_setup,
+        dict,
+    )
+
+    # ------------------------------------------
+    # Required response fields
+    # ------------------------------------------
+
+    required_fields = {
+        "status",
+        "direction",
+        "symbol",
+        "timeframe",
+        "current_price",
+        "entry",
+        "stop_loss",
+        "targets",
+        "risk_reward",
+        "bias",
+        "bias_strength",
+        "confidence",
+        "bias_score",
+        "reasons",
+        "invalidation",
+        "engine",
+    }
+
+    assert required_fields.issubset(
+        trade_setup.keys()
+    )
+
+    # ------------------------------------------
+    # Core contract
+    # ------------------------------------------
+
+    assert trade_setup["status"] in {
+        "TRADE",
+        "WAIT",
+    }
+
+    assert trade_setup["symbol"] == "EURUSD"
+    assert trade_setup["timeframe"] == "H1"
+
+    assert trade_setup["engine"] == "DETERMINISTIC"
+
+    assert isinstance(
+        trade_setup["current_price"],
+        (int, float),
+    )
+
+    assert isinstance(
+        trade_setup["reasons"],
+        list,
+    )
+
+    assert isinstance(
+        trade_setup["invalidation"],
+        str,
+    )
+
+    # ------------------------------------------
+    # Market-bias propagation
+    # ------------------------------------------
+
+    market_bias = data["market_bias"]
+
+    assert (
+        trade_setup["bias"]
+        == market_bias["bias"]
+    )
+
+    assert (
+        trade_setup["confidence"]
+        == market_bias["confidence"]
+    )
+
+    assert (
+        trade_setup["bias_strength"]
+        == market_bias["strength"]
+    )
+
+    assert (
+        trade_setup["bias_score"]
+        == market_bias["score"]
+    )
+
+    # ------------------------------------------
+    # TRADE / WAIT specific contract
+    # ------------------------------------------
+
+    if trade_setup["status"] == "TRADE":
+
+        assert trade_setup["direction"] in {
+            "BUY",
+            "SELL",
+        }
+
+        assert isinstance(
+            trade_setup["entry"],
+            dict,
+        )
+
+        assert isinstance(
+            trade_setup["stop_loss"],
+            (int, float),
+        )
+
+        assert isinstance(
+            trade_setup["targets"],
+            list,
+        )
+
+        assert len(
+            trade_setup["targets"]
+        ) > 0
+
+        assert isinstance(
+            trade_setup["risk_reward"],
+            (int, float),
+        )
+
+        assert (
+            trade_setup["risk_reward"]
+            >= 1.5
+        )
+
+    else:
+
+        assert trade_setup["direction"] is None
+
+        assert trade_setup["entry"] is None
+
+        assert trade_setup["stop_loss"] is None
+
+        assert trade_setup["targets"] == []
+
+        assert trade_setup["risk_reward"] is None
+
+
+def test_trade_setup_receives_existing_market_data(
+    monkeypatch,
+):
+    """
+    TradeSetupService must receive the already-calculated
+    candle and market-analysis data from the route.
+
+    The service must not fetch its own MT5 candles.
+    """
+
+    captured = {}
+
+    original_analyze = (
+        market_data_routes
+        .TradeSetupService
+        .analyze
+    )
+
+    def capture_trade_setup_call(
+        *args,
+        **kwargs,
+    ):
+        captured.update(kwargs)
+
+        return original_analyze(
+            *args,
+            **kwargs,
+        )
+
+    monkeypatch.setattr(
+        market_data_routes,
+        "MT5DataProvider",
+        FakeStructureMT5DataProvider,
+    )
+
+    monkeypatch.setattr(
+        market_data_routes.TradeSetupService,
+        "analyze",
+        capture_trade_setup_call,
+    )
+
+    FakeStructureMT5DataProvider.candle_fetch_count = 0
+
+    headers = get_auth_headers()
+
+    response = client.get(
+        "/market-data/candles"
+        "?symbol=EURUSD"
+        "&timeframe=H1"
+        "&count=100",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+
+    assert "candles" in captured
+    assert "market_bias" in captured
+    assert "atr" in captured
+    assert "latest_bos" in captured
+    assert "latest_choch" in captured
+    assert "latest_liquidity_sweep" in captured
+    assert "latest_order_block" in captured
+    assert "latest_fvg" in captured
+    assert "latest_premium_discount" in captured
+    assert "support_resistance" in captured
+    assert "symbol" in captured
+    assert "timeframe" in captured
+
+    assert len(captured["candles"]) == 100
+
+    assert captured["symbol"] == "EURUSD"
+    assert captured["timeframe"] == "H1"
+
+    assert isinstance(
+        captured["market_bias"],
+        dict,
+    )
+
+    assert isinstance(
+        captured["atr"],
+        (int, float),
+    )
+
+    assert (
+        captured["support_resistance"]
+        is not None
+    )
+
+    # Most important architecture protection:
+    # the route still fetched MT5 candles only once.
+    assert (
+        FakeStructureMT5DataProvider.candle_fetch_count
+        == 1
+    )
+
+
+def test_trade_setup_reuses_single_candle_fetch(
+    monkeypatch,
+):
+    """
+    Trade Setup must reuse the same MT5 candle dataset
+    already fetched by the market-data route.
+
+    No second MT5 candle request is allowed.
+    """
+
+    monkeypatch.setattr(
+        market_data_routes,
+        "MT5DataProvider",
+        FakeStructureMT5DataProvider,
+    )
+
+    FakeStructureMT5DataProvider.candle_fetch_count = 0
+
+    headers = get_auth_headers()
+
+    response = client.get(
+        "/market-data/candles"
+        "?symbol=EURUSD"
+        "&timeframe=H1"
+        "&count=100",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert "market_bias" in data
+    assert "trade_setup" in data
+
+    assert (
+        FakeStructureMT5DataProvider.candle_fetch_count
+        == 1
+    )
