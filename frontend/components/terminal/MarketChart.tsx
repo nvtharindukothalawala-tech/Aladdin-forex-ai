@@ -21,6 +21,7 @@ import {
 import {
   getMarketCandles,
   type MarketCandle,
+  type MarketBias,
   type MarketStructure,
   type MarketTimeframe,
 } from "@/lib/api";
@@ -427,6 +428,46 @@ function getStructureLabelSpacing(
   return Math.max(tolerance * 1.25, priceBased, Number.EPSILON);
 }
 
+
+function formatBiasNumber(
+  value: number | null | undefined,
+): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) {
+    return "-";
+  }
+  return value.toFixed(2);
+}
+
+function formatBiasConfidence(
+  value: number | null | undefined,
+): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) {
+    return "-";
+  }
+  return `${Math.max(0, Math.min(100, value)).toFixed(0)}%`;
+}
+
+function getBiasClasses(
+  bias: MarketBias["bias"] | null | undefined,
+): { badge: string; text: string } {
+  if (bias === "BULLISH") {
+    return {
+      badge: "border-emerald-500/40 bg-emerald-500/15 text-emerald-300",
+      text: "text-emerald-300",
+    };
+  }
+  if (bias === "BEARISH") {
+    return {
+      badge: "border-red-500/40 bg-red-500/15 text-red-300",
+      text: "text-red-300",
+    };
+  }
+  return {
+    badge: "border-slate-600 bg-slate-800/80 text-slate-300",
+    text: "text-slate-300",
+  };
+}
+
 export default function MarketChart({
   symbol,
   timeframe = "H1",
@@ -592,6 +633,13 @@ export default function MarketChart({
     useState<string | null>(
       null,
     );
+
+  const [
+    marketBias,
+    setMarketBias,
+  ] = useState<MarketBias | null>(
+    null,
+  );
 
   const [
     ema20Visible,
@@ -1711,6 +1759,7 @@ export default function MarketChart({
 
           latestStructureRef.current = result.market_structure;
           latestChartDataRef.current = chartData;
+          setMarketBias(result.market_bias);
           const activeStructureFilters = structureFiltersRef.current;
           const structureMarkers =
             toStructureMarkers(result.market_structure, activeStructureFilters, smartViewRef.current);
@@ -1850,6 +1899,7 @@ export default function MarketChart({
       null;
 
     setBrokerSymbol("");
+    setMarketBias(null);
     setLatestCandle(null);
     setCandleTotal(0);
     setLastUpdated(null);
@@ -1962,6 +2012,40 @@ export default function MarketChart({
         ? "up"
         : "down"
       : "neutral";
+
+  const biasClasses =
+    getBiasClasses(marketBias?.bias);
+
+  const bullishScore =
+    marketBias && Number.isFinite(marketBias.bullish_score)
+      ? Math.max(0, marketBias.bullish_score)
+      : 0;
+
+  const bearishScore =
+    marketBias && Number.isFinite(marketBias.bearish_score)
+      ? Math.max(0, marketBias.bearish_score)
+      : 0;
+
+  const totalDirectionalScore = bullishScore + bearishScore;
+
+  const bullishWidth =
+    totalDirectionalScore > 0
+      ? (bullishScore / totalDirectionalScore) * 100
+      : 0;
+
+  const bearishWidth =
+    totalDirectionalScore > 0
+      ? (bearishScore / totalDirectionalScore) * 100
+      : 0;
+
+  const keyBiasReasons =
+    marketBias?.reasons
+      ?.filter(
+        (reason) =>
+          typeof reason.message === "string" &&
+          reason.message.trim().length > 0,
+      )
+      .slice(0, 5) ?? [];
 
   return (
     <section
@@ -2254,6 +2338,122 @@ export default function MarketChart({
               )}
             </div>
           </div>
+        </div>
+      </div>
+
+      <div className="border-b border-slate-800 bg-slate-950/80 px-4 py-3">
+        <div className="rounded-xl border border-slate-800 bg-slate-900/55 p-3 shadow-inner">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-sky-300">
+              ALADDIN MARKET BIAS
+            </p>
+            <span className="text-[10px] text-slate-500">
+              {normalizedSymbol} · {selectedTimeframe}
+            </span>
+            {marketBias && (
+              <span
+                className={[
+                  "rounded-md border px-2 py-1 text-[10px] font-bold tracking-wider",
+                  biasClasses.badge,
+                ].join(" ")}
+              >
+                {marketBias.bias}
+              </span>
+            )}
+          </div>
+
+          {marketBias ? (
+            <div className="mt-3 grid gap-4 2xl:grid-cols-[minmax(0,0.95fr)_minmax(360px,1.35fr)]">
+              <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6 2xl:grid-cols-3">
+                <div className="min-w-0 rounded-lg border border-slate-800/80 bg-slate-950/45 px-3 py-2">
+                  <p className="text-[9px] uppercase tracking-wider text-slate-500">Confidence</p>
+                  <p className={`mt-1 truncate text-sm font-bold ${biasClasses.text}`}>
+                    {formatBiasConfidence(marketBias.confidence)}
+                  </p>
+                </div>
+                <div className="min-w-0 rounded-lg border border-slate-800/80 bg-slate-950/45 px-3 py-2">
+                  <p className="text-[9px] uppercase tracking-wider text-slate-500">Strength</p>
+                  <p className={`mt-1 truncate text-sm font-bold ${biasClasses.text}`}>
+                    {marketBias.strength.replaceAll("_", " ")}
+                  </p>
+                </div>
+                <div className="min-w-0 rounded-lg border border-slate-800/80 bg-slate-950/45 px-3 py-2">
+                  <p className="text-[9px] uppercase tracking-wider text-slate-500">Score</p>
+                  <p className="mt-1 truncate font-mono text-sm font-semibold text-slate-200">
+                    {marketBias.score > 0 ? "+" : ""}{formatBiasNumber(marketBias.score)}
+                  </p>
+                </div>
+                <div className="min-w-0 rounded-lg border border-slate-800/80 bg-slate-950/45 px-3 py-2">
+                  <p className="text-[9px] uppercase tracking-wider text-slate-500">Bullish</p>
+                  <p className="mt-1 truncate font-mono text-sm font-semibold text-emerald-300">
+                    {formatBiasNumber(marketBias.bullish_score)}
+                  </p>
+                </div>
+                <div className="min-w-0 rounded-lg border border-slate-800/80 bg-slate-950/45 px-3 py-2">
+                  <p className="text-[9px] uppercase tracking-wider text-slate-500">Bearish</p>
+                  <p className="mt-1 truncate font-mono text-sm font-semibold text-red-300">
+                    {formatBiasNumber(marketBias.bearish_score)}
+                  </p>
+                </div>
+                <div className="min-w-0 rounded-lg border border-slate-800/80 bg-slate-950/45 px-3 py-2">
+                  <p className="text-[9px] uppercase tracking-wider text-slate-500">Engine</p>
+                  <p className="mt-1 truncate text-xs font-semibold text-slate-300">Deterministic</p>
+                </div>
+              </div>
+
+              <div className="min-w-0">
+                <div className="flex items-center justify-between gap-4 text-[10px]">
+                  <span className="font-semibold text-emerald-300">
+                    Bullish {formatBiasNumber(marketBias.bullish_score)}
+                  </span>
+                  <span className="font-semibold text-red-300">
+                    Bearish {formatBiasNumber(marketBias.bearish_score)}
+                  </span>
+                </div>
+                <div className="mt-1.5 flex h-2 overflow-hidden rounded-full bg-slate-800">
+                  {totalDirectionalScore > 0 ? (
+                    <>
+                      <div
+                        className="bg-emerald-500 transition-[width] duration-300"
+                        style={{ width: `${bullishWidth}%` }}
+                      />
+                      <div
+                        className="bg-red-500 transition-[width] duration-300"
+                        style={{ width: `${bearishWidth}%` }}
+                      />
+                    </>
+                  ) : (
+                    <div className="h-full w-full bg-slate-600" />
+                  )}
+                </div>
+
+                {keyBiasReasons.length > 0 && (
+                  <div className="mt-3 grid gap-1.5 sm:grid-cols-2">
+                    {keyBiasReasons.map((reason, index) => (
+                      <div
+                        key={`${reason.source}-${index}`}
+                        title={`${reason.source}: ${reason.message}`}
+                        className={[
+                          "min-w-0 rounded-md border px-2.5 py-2 text-[9px] leading-4",
+                          reason.direction === "BULLISH"
+                            ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-200"
+                            : reason.direction === "BEARISH"
+                              ? "border-red-500/25 bg-red-500/10 text-red-200"
+                              : "border-slate-700 bg-slate-800/70 text-slate-300",
+                        ].join(" ")}
+                      >
+                        <span className="block break-words">{reason.message}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <p className="mt-2 text-xs text-slate-500">
+              {loading ? "Calculating market bias..." : "Market bias unavailable."}
+            </p>
+          )}
         </div>
       </div>
 

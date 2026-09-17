@@ -889,6 +889,41 @@ export type MarketStructure = {
 };
 
 
+
+/*
+ * Deterministic market bias returned by /market-data/candles.
+ * Display/analysis data only; the frontend does not recalculate it.
+ */
+export type MarketBiasDirection =
+  | "BULLISH"
+  | "BEARISH"
+  | "NEUTRAL";
+
+export type MarketBiasStrength =
+  | "VERY_WEAK"
+  | "WEAK"
+  | "MODERATE"
+  | "STRONG"
+  | "VERY_STRONG";
+
+export type MarketBiasReason = {
+  source: string;
+  direction: MarketBiasDirection | string;
+  weight: number;
+  message: string;
+};
+
+export type MarketBias = {
+  bias: MarketBiasDirection;
+  strength: MarketBiasStrength;
+  score: number;
+  confidence: number;
+  bullish_score: number;
+  bearish_score: number;
+  reasons: MarketBiasReason[];
+};
+
+
 export type MarketCandlesResponse = {
   symbol: string;
 
@@ -918,6 +953,8 @@ export type MarketCandlesResponse = {
   };
 
   market_structure: MarketStructure;
+
+  market_bias: MarketBias;
 };
 
 

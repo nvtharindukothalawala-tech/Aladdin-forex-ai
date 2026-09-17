@@ -516,3 +516,102 @@ def test_numeric_indicator_series_is_supported():
     assert result["ema20"] == 1.1000
     assert result["rsi14"] == 60.0
     assert result["adx14"] == 30.0
+
+# ============================================================
+# BIAS STRENGTH CLASSIFICATION
+# ============================================================
+
+@pytest.mark.parametrize(
+    ("confidence", "expected"),
+    [
+        (0.0, "VERY_WEAK"),
+        (19.99, "VERY_WEAK"),
+        (20.0, "WEAK"),
+        (39.99, "WEAK"),
+        (40.0, "MODERATE"),
+        (59.99, "MODERATE"),
+        (60.0, "STRONG"),
+        (79.99, "STRONG"),
+        (80.0, "VERY_STRONG"),
+        (100.0, "VERY_STRONG"),
+    ],
+)
+def test_classify_strength_boundaries(
+    confidence,
+    expected,
+):
+    assert (
+        MarketBiasService.classify_strength(
+            confidence
+        )
+        == expected
+    )
+
+
+def test_classify_strength_clamps_out_of_range_values():
+    assert (
+        MarketBiasService.classify_strength(
+            -25.0
+        )
+        == "VERY_WEAK"
+    )
+
+    assert (
+        MarketBiasService.classify_strength(
+            150.0
+        )
+        == "VERY_STRONG"
+    )
+
+
+def test_classify_strength_rejects_non_numeric_value():
+    with pytest.raises(
+        ValueError,
+        match="must be numeric",
+    ):
+        MarketBiasService.classify_strength(
+            "not-a-number"
+        )
+
+
+def test_market_bias_result_contains_strength():
+    result = analyze(
+        close=1.1100,
+        ema=1.1000,
+    )
+
+    assert "strength" in result
+    assert result["strength"] == "VERY_STRONG"
+
+
+def test_neutral_conflicting_evidence_has_very_weak_strength():
+    result = analyze(
+        close=1.1000,
+        ema=1.1000,
+        rsi=50.0,
+        bos={
+            "type": "BOS_BULLISH",
+        },
+        choch={
+            "type": "CHOCH_BEARISH",
+        },
+    )
+
+    assert result["bias"] == "NEUTRAL"
+    assert result["confidence"] == 0.0
+    assert result["strength"] == "VERY_WEAK"
+
+
+def test_strength_matches_returned_confidence():
+    result = analyze(
+        close=1.1100,
+        ema=1.1000,
+        rsi=40.0,
+    )
+
+    assert result["confidence"] == pytest.approx(
+        33.33,
+        abs=0.01,
+    )
+    assert result["strength"] == "WEAK"
+

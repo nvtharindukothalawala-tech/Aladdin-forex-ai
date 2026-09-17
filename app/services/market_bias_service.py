@@ -35,6 +35,16 @@ class MarketBiasService:
     NEUTRAL = "NEUTRAL"
 
     # ----------------------------------------------------------
+    # Bias-strength labels
+    # ----------------------------------------------------------
+
+    VERY_WEAK = "VERY_WEAK"
+    WEAK = "WEAK"
+    MODERATE = "MODERATE"
+    STRONG = "STRONG"
+    VERY_STRONG = "VERY_STRONG"
+
+    # ----------------------------------------------------------
     # Score weights
     # ----------------------------------------------------------
 
@@ -147,6 +157,57 @@ class MarketBiasService:
             }
         )
 
+    @staticmethod
+    def classify_strength(
+        confidence,
+    ):
+        """
+        Convert evidence-dominance confidence into a
+        human-readable strength label.
+
+        Boundaries:
+            0 <= confidence < 20   -> VERY_WEAK
+            20 <= confidence < 40 -> WEAK
+            40 <= confidence < 60 -> MODERATE
+            60 <= confidence < 80 -> STRONG
+            80 <= confidence       -> VERY_STRONG
+        """
+
+        try:
+            value = float(confidence)
+        except (
+            TypeError,
+            ValueError,
+        ) as error:
+            raise ValueError(
+                "Bias confidence must be numeric."
+            ) from error
+
+        # Confidence produced by analyze() is always 0..100.
+        # Clamp here as well so this helper is safe when called
+        # independently.
+        value = max(
+            0.0,
+            min(
+                value,
+                100.0,
+            ),
+        )
+
+        if value >= 80.0:
+            return MarketBiasService.VERY_STRONG
+
+        if value >= 60.0:
+            return MarketBiasService.STRONG
+
+        if value >= 40.0:
+            return MarketBiasService.MODERATE
+
+        if value >= 20.0:
+            return MarketBiasService.WEAK
+
+        return MarketBiasService.VERY_WEAK
+
     @classmethod
     def analyze(
         cls,
@@ -176,6 +237,7 @@ class MarketBiasService:
                 "bias": "BULLISH",
                 "score": 5.5,
                 "confidence": 68.75,
+                "strength": "STRONG",
                 "bullish_score": 7.0,
                 "bearish_score": 1.5,
                 "reasons": [...]
@@ -749,6 +811,14 @@ class MarketBiasService:
         )
 
         # ======================================================
+        # STRENGTH
+        # ======================================================
+
+        strength = cls.classify_strength(
+            confidence
+        )
+
+        # ======================================================
         # RETURN CONTRACT
         # ======================================================
 
@@ -756,6 +826,7 @@ class MarketBiasService:
             "bias": bias,
             "score": net_score,
             "confidence": confidence,
+            "strength": strength,
             "bullish_score": bullish_score,
             "bearish_score": bearish_score,
             "current_close": current_close,
