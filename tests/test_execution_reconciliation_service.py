@@ -1100,3 +1100,206 @@ def test_reconciliation_with_approved_safety_audit(monkeypatch):
     assert result["conflict_count"] == 0
     assert execution.status == "EXECUTED"
     assert execution.broker_order_id == "9701"
+
+# ============================================================
+# SAFETY AUDIT FIELD BINDING
+# ============================================================
+
+
+def _set_custom_safety_audit(
+    repository,
+    *,
+    execution_id: int,
+    audit_execution_id: int | None = None,
+    user_id: int = 1,
+    safety_status: str = "APPROVED",
+    safety_engine: str = "DETERMINISTIC",
+    execution_mode: str = "DEMO",
+    symbol: str = "EURUSD",
+    direction: str = "BUY",
+    volume: float = 0.01,
+):
+    """
+    Configure one explicit safety audit for a
+    reconciliation test.
+    """
+
+    audit = SimpleNamespace(
+        execution_id=(
+            execution_id
+            if audit_execution_id is None
+            else audit_execution_id
+        ),
+        user_id=user_id,
+        safety_status=safety_status,
+        safety_engine=safety_engine,
+        execution_mode=execution_mode,
+        symbol=symbol,
+        direction=direction,
+        volume=volume,
+    )
+
+    repository.get_safety_audit_by_execution_id = (
+        lambda requested_execution_id: audit
+    )
+
+
+def _run_safety_audit_conflict_test(
+    monkeypatch,
+    *,
+    execution_id: int,
+    **audit_overrides,
+):
+    """
+    Run reconciliation with valid broker evidence
+    and a deliberately inconsistent safety audit.
+    """
+
+    execution = make_pending_execution(
+        execution_id=execution_id,
+    )
+
+    repository = FakeExecutionRepository(
+        [execution]
+    )
+
+    _set_custom_safety_audit(
+        repository,
+        execution_id=execution_id,
+        **audit_overrides,
+    )
+
+    service = ExecutionReconciliationService(
+        repository
+    )
+
+    set_demo_mode(monkeypatch)
+
+    _set_single_open_position_evidence(
+        monkeypatch,
+        execution_id=execution_id,
+        ticket=9800 + execution_id,
+    )
+
+    result = (
+        service.reconcile_pending_executions(
+            user_id=1
+        )
+    )
+
+    assert result["reconciled_count"] == 0
+    assert result["conflict_count"] == 1
+
+    assert execution.status == "PENDING"
+
+    assert (
+        repository.updated_executions
+        == []
+    )
+
+    return result["conflicts"][0]
+
+
+def test_reconciliation_rejects_safety_audit_execution_id_mismatch(
+    monkeypatch,
+):
+    conflict = _run_safety_audit_conflict_test(
+        monkeypatch,
+        execution_id=859,
+        audit_execution_id=999999,
+    )
+
+    assert conflict["reason"] == (
+        "Execution safety audit does not "
+        "belong to the execution."
+    )
+
+
+def test_reconciliation_rejects_safety_audit_user_mismatch(
+    monkeypatch,
+):
+    conflict = _run_safety_audit_conflict_test(
+        monkeypatch,
+        execution_id=860,
+        user_id=2,
+    )
+
+    assert conflict["reason"] == (
+        "Execution safety audit user does not "
+        "match the execution owner."
+    )
+
+
+def test_reconciliation_rejects_non_deterministic_safety_engine(
+    monkeypatch,
+):
+    conflict = _run_safety_audit_conflict_test(
+        monkeypatch,
+        execution_id=861,
+        safety_engine="LEGACY",
+    )
+
+    assert conflict["reason"] == (
+        "Execution safety audit was not produced "
+        "by the deterministic safety engine."
+    )
+
+
+def test_reconciliation_rejects_safety_audit_execution_mode_mismatch(
+    monkeypatch,
+):
+    conflict = _run_safety_audit_conflict_test(
+        monkeypatch,
+        execution_id=862,
+        execution_mode="MOCK",
+    )
+
+    assert conflict["reason"] == (
+        "Execution safety audit was not created "
+        "in DEMO mode."
+    )
+
+
+def test_reconciliation_rejects_safety_audit_symbol_mismatch(
+    monkeypatch,
+):
+    conflict = _run_safety_audit_conflict_test(
+        monkeypatch,
+        execution_id=863,
+        symbol="GBPUSD",
+    )
+
+    assert conflict["reason"] == (
+        "Execution safety audit symbol does not "
+        "match the execution."
+    )
+
+
+def test_reconciliation_rejects_safety_audit_direction_mismatch(
+    monkeypatch,
+):
+    conflict = _run_safety_audit_conflict_test(
+        monkeypatch,
+        execution_id=864,
+        direction="SELL",
+    )
+
+    assert conflict["reason"] == (
+        "Execution safety audit direction does "
+        "not match the execution."
+    )
+
+
+def test_reconciliation_rejects_safety_audit_volume_mismatch(
+    monkeypatch,
+):
+    conflict = _run_safety_audit_conflict_test(
+        monkeypatch,
+        execution_id=865,
+        volume=0.02,
+    )
+
+    assert conflict["reason"] == (
+        "Execution safety audit volume does not "
+        "match the execution."
+    )
