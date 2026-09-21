@@ -23,6 +23,7 @@ import {
   type MarketCandle,
   type MarketBias,
   type TradeSetup,
+  type MarketRiskAnalysis,
   type MarketStructure,
   type MarketTimeframe,
 } from "@/lib/api";
@@ -448,6 +449,56 @@ function formatBiasConfidence(
   return `${Math.max(0, Math.min(100, value)).toFixed(0)}%`;
 }
 
+function formatRiskMoney(
+  value: number | null | undefined,
+): string {
+  if (
+    value === null ||
+    value === undefined ||
+    !Number.isFinite(value)
+  ) {
+    return "-";
+  }
+
+  return new Intl.NumberFormat(
+    "en-US",
+    {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    },
+  ).format(value);
+}
+
+function formatRiskPercent(
+  value: number | null | undefined,
+): string {
+  if (
+    value === null ||
+    value === undefined ||
+    !Number.isFinite(value)
+  ) {
+    return "-";
+  }
+
+  return `${value.toFixed(2)}%`;
+}
+
+function formatRiskVolume(
+  value: number | null | undefined,
+): string {
+  if (
+    value === null ||
+    value === undefined ||
+    !Number.isFinite(value)
+  ) {
+    return "-";
+  }
+
+  return `${value.toFixed(2)} lots`;
+}
+
 function getBiasClasses(
   bias: MarketBias["bias"] | null | undefined,
 ): { badge: string; text: string } {
@@ -646,6 +697,13 @@ export default function MarketChart({
     tradeSetup,
     setTradeSetup,
   ] = useState<TradeSetup | null>(
+    null,
+  );
+
+  const [
+    riskAnalysis,
+    setRiskAnalysis,
+  ] = useState<MarketRiskAnalysis | null>(
     null,
   );
 
@@ -1769,6 +1827,7 @@ export default function MarketChart({
           latestChartDataRef.current = chartData;
           setMarketBias(result.market_bias);
           setTradeSetup(result.trade_setup);
+          setRiskAnalysis(result.risk);
           const activeStructureFilters = structureFiltersRef.current;
           const structureMarkers =
             toStructureMarkers(result.market_structure, activeStructureFilters, smartViewRef.current);
@@ -1910,6 +1969,7 @@ export default function MarketChart({
     setBrokerSymbol("");
     setMarketBias(null);
     setTradeSetup(null);
+    setRiskAnalysis(null);
     setLatestCandle(null);
     setCandleTotal(0);
     setLastUpdated(null);
@@ -2078,6 +2138,15 @@ export default function MarketChart({
           reason.trim().length > 0,
       )
       .slice(0, 6) ?? [];
+
+  const riskApproved =
+    riskAnalysis?.approved === true &&
+    riskAnalysis.status === "APPROVED";
+
+  const riskStatusClasses =
+    riskApproved
+      ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300"
+      : "border-red-500/40 bg-red-500/15 text-red-300";
 
   return (
     <section
@@ -2598,9 +2667,7 @@ export default function MarketChart({
                     Confidence
                   </p>
                   <p className="mt-1 truncate text-sm font-bold text-slate-200">
-                    {tradeSetup.confidence !== null
-                      ? formatBiasConfidence(tradeSetup.confidence)
-                      : "-"}
+                    {formatBiasConfidence(tradeSetup.confidence)}
                   </p>
                 </div>
 
@@ -2609,14 +2676,8 @@ export default function MarketChart({
                     Bias Score
                   </p>
                   <p className="mt-1 truncate font-mono text-sm font-semibold text-slate-200">
-                    {tradeSetup.bias_score !== null ? (
-                      <>
-                        {tradeSetup.bias_score > 0 ? "+" : ""}
-                        {formatBiasNumber(tradeSetup.bias_score)}
-                      </>
-                    ) : (
-                      "-"
-                    )}
+                    {tradeSetup.bias_score !== null && tradeSetup.bias_score > 0 ? "+" : ""}
+                    {formatBiasNumber(tradeSetup.bias_score)}
                   </p>
                 </div>
 
@@ -2666,7 +2727,7 @@ export default function MarketChart({
                         )}
                       </p>
                       <p className="mt-1 text-[9px] text-slate-500">
-                        Source: {tradeSetup.entry.source.replaceAll("_", " ")}
+                        Deterministic entry zone
                       </p>
                     </div>
 
@@ -2787,6 +2848,152 @@ export default function MarketChart({
               {loading
                 ? "Calculating deterministic trade setup..."
                 : "Trade setup unavailable."}
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div className="border-b border-slate-800 bg-slate-950/85 px-4 py-3">
+        <div className="rounded-xl border border-slate-800 bg-slate-900/55 p-3 shadow-inner">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-300">
+              PRE-TRADE RISK
+            </p>
+
+            <span className="text-[10px] text-slate-500">
+              {normalizedSymbol} · {selectedTimeframe}
+            </span>
+
+            {riskAnalysis && (
+              <>
+                <span
+                  className={[
+                    "rounded-md border px-2 py-1 text-[10px] font-bold tracking-wider",
+                    riskStatusClasses,
+                  ].join(" ")}
+                >
+                  {riskAnalysis.status}
+                </span>
+
+                <span className="rounded-md border border-violet-500/30 bg-violet-500/10 px-2 py-1 text-[10px] font-bold tracking-wider text-violet-300">
+                  {riskAnalysis.engine}
+                </span>
+              </>
+            )}
+          </div>
+
+          {riskAnalysis ? (
+            riskApproved ? (
+              <div className="mt-3 space-y-3">
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+                  <div className="rounded-lg border border-slate-800/80 bg-slate-950/45 px-3 py-2.5">
+                    <p className="text-[9px] uppercase tracking-wider text-slate-500">
+                      Account Equity
+                    </p>
+                    <p className="mt-1 font-mono text-sm font-bold text-slate-200">
+                      {formatRiskMoney(riskAnalysis.equity)}
+                    </p>
+                  </div>
+
+                  <div className="rounded-lg border border-slate-800/80 bg-slate-950/45 px-3 py-2.5">
+                    <p className="text-[9px] uppercase tracking-wider text-slate-500">
+                      Risk
+                    </p>
+                    <p className="mt-1 font-mono text-sm font-bold text-amber-300">
+                      {formatRiskPercent(riskAnalysis.risk_percent)}
+                    </p>
+                  </div>
+
+                  <div className="rounded-lg border border-slate-800/80 bg-slate-950/45 px-3 py-2.5">
+                    <p className="text-[9px] uppercase tracking-wider text-slate-500">
+                      Risk Amount
+                    </p>
+                    <p className="mt-1 font-mono text-sm font-bold text-amber-300">
+                      {formatRiskMoney(riskAnalysis.risk_amount)}
+                    </p>
+                  </div>
+
+                  <div className="rounded-lg border border-emerald-500/25 bg-emerald-500/5 px-3 py-2.5">
+                    <p className="text-[9px] uppercase tracking-wider text-slate-500">
+                      Safe Lot Size
+                    </p>
+                    <p className="mt-1 font-mono text-sm font-bold text-emerald-300">
+                      {formatRiskVolume(riskAnalysis.volume)}
+                    </p>
+                  </div>
+
+                  <div className="rounded-lg border border-sky-500/20 bg-sky-500/5 px-3 py-2.5">
+                    <p className="text-[9px] uppercase tracking-wider text-slate-500">
+                      Entry
+                    </p>
+                    <p className="mt-1 font-mono text-sm font-bold text-sky-300">
+                      {formatPrice(
+                        riskAnalysis.entry_price ?? null,
+                        normalizedSymbol,
+                      )}
+                    </p>
+                  </div>
+
+                  <div className="rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-2.5">
+                    <p className="text-[9px] uppercase tracking-wider text-slate-500">
+                      Stop Loss
+                    </p>
+                    <p className="mt-1 font-mono text-sm font-bold text-red-300">
+                      {formatPrice(
+                        riskAnalysis.stop_loss ?? null,
+                        normalizedSymbol,
+                      )}
+                    </p>
+                  </div>
+
+                  <div className="rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-2.5">
+                    <p className="text-[9px] uppercase tracking-wider text-slate-500">
+                      Estimated Loss
+                    </p>
+                    <p className="mt-1 font-mono text-sm font-bold text-red-300">
+                      {formatRiskMoney(riskAnalysis.estimated_loss)}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2">
+                  <p className="text-[10px] leading-4 text-slate-400">
+                    Position size is calculated by the backend RiskService using
+                    MT5 account equity and broker symbol specifications.
+                  </p>
+
+                  <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-emerald-300">
+                    Backend-calculated · no frontend sizing
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-3 rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-xs font-bold text-red-300">
+                    Position sizing not approved.
+                  </p>
+
+                  <span className="rounded-md border border-red-500/30 bg-red-500/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-red-300">
+                    No executable size
+                  </span>
+                </div>
+
+                <p className="mt-1 text-[10px] leading-5 text-slate-400">
+                  {riskAnalysis.reason ||
+                    "The deterministic backend risk engine rejected this setup."}
+                </p>
+
+                <p className="mt-1 text-[9px] text-slate-500">
+                  No lot size is calculated in the frontend.
+                </p>
+              </div>
+            )
+          ) : (
+            <p className="mt-2 text-xs text-slate-500">
+              {loading
+                ? "Calculating deterministic pre-trade risk..."
+                : "Pre-trade risk unavailable."}
             </p>
           )}
         </div>

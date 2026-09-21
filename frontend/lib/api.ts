@@ -988,6 +988,84 @@ export type TradeSetup = {
   engine: "DETERMINISTIC";
 };
 
+/*
+ * Deterministic pre-trade risk analysis returned by
+ * /market-data/candles.
+ *
+ * Risk calculations are owned by the backend RiskService.
+ * The frontend must not recalculate position size.
+ */
+export type MarketRiskAnalysis = {
+  status:
+    | "APPROVED"
+    | "REJECTED"
+    | string;
+
+  approved: boolean;
+
+  reason?: string | null;
+
+  engine: "DETERMINISTIC";
+
+  equity?: number | null;
+
+  risk_percent?: number | null;
+
+  risk_amount?: number | null;
+
+  entry_price?: number | null;
+
+  stop_loss?: number | null;
+
+  stop_distance?: number | null;
+
+  trade_tick_size?: number | null;
+
+  trade_tick_value?: number | null;
+
+  raw_volume?: number | null;
+
+  volume?: number | null;
+
+  estimated_loss?: number | null;
+};
+
+/*
+ * Deterministic pre-trade risk analysis returned by /market-data/candles.
+ *
+ * The backend RiskService owns all risk calculations.
+ * The frontend only consumes and displays this contract.
+ */
+export type RiskAnalysis = {
+  status:
+    | "APPROVED"
+    | "REJECTED"
+    | "WAIT"
+    | string;
+
+  approved: boolean;
+
+  symbol: string;
+
+  direction:
+    | "BUY"
+    | "SELL"
+    | null;
+
+  entry_price: number | null;
+
+  stop_loss: number | null;
+
+  volume: number | null;
+
+  risk_percent: number | null;
+
+  risk_amount: number | null;
+
+  estimated_loss: number | null;
+
+  reason: string | null;
+};
 
 export type MarketCandlesResponse = {
   symbol: string;
@@ -1022,6 +1100,8 @@ export type MarketCandlesResponse = {
   market_bias: MarketBias;
 
   trade_setup: TradeSetup;
+
+  risk: MarketRiskAnalysis;
 };
 
 
