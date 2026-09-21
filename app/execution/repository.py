@@ -13,6 +13,11 @@ from app.execution.models import (
     ExecutionSafetyAuditModel,
 )
 
+from app.execution.models import (
+    ExecutionModel,
+    ExecutionReconciliationAuditModel,
+    ExecutionSafetyAuditModel,
+)
 
 class ExecutionRepository:
     """
@@ -315,6 +320,124 @@ class ExecutionRepository:
             )
             .filter(
                 ExecutionSafetyAuditModel.user_id
+                == user_id
+            )
+            .count()
+        )
+
+        # ==================================================
+    # EXECUTION RECONCILIATION AUDIT
+    # ==================================================
+
+    def save_reconciliation_audit(
+        self,
+        *,
+        execution_id: int,
+        user_id: int,
+        outcome: str,
+        reason: str,
+        evidence_source: str | None,
+        broker_order_id: str | None,
+        symbol: str,
+        direction: str,
+        volume: float,
+        details_json: str = "{}",
+    ):
+        """
+        Persist one immutable reconciliation outcome.
+
+        Multiple audit records may belong to the same
+        execution because reconciliation can run more
+        than once while an execution remains PENDING.
+        """
+
+        audit = ExecutionReconciliationAuditModel(
+            execution_id=execution_id,
+            user_id=user_id,
+            outcome=outcome,
+            reason=reason,
+            evidence_source=evidence_source,
+            broker_order_id=broker_order_id,
+            symbol=symbol,
+            direction=direction,
+            volume=volume,
+            details_json=details_json,
+        )
+
+        try:
+            self.session.add(audit)
+            self.session.commit()
+            self.session.refresh(audit)
+
+            return audit
+
+        except Exception:
+            self.session.rollback()
+            raise
+
+    def get_reconciliation_audits_by_execution_id(
+        self,
+        execution_id: int,
+    ):
+        """
+        Return reconciliation history for one execution.
+
+        Oldest records are returned first.
+        """
+
+        return (
+            self.session.query(
+                ExecutionReconciliationAuditModel
+            )
+            .filter(
+                ExecutionReconciliationAuditModel.execution_id
+                == execution_id
+            )
+            .order_by(
+                ExecutionReconciliationAuditModel.id.asc()
+            )
+            .all()
+        )
+
+    def get_user_reconciliation_audits(
+        self,
+        user_id: int,
+    ):
+        """
+        Return reconciliation audit history for one user.
+
+        Oldest records are returned first.
+        """
+
+        return (
+            self.session.query(
+                ExecutionReconciliationAuditModel
+            )
+            .filter(
+                ExecutionReconciliationAuditModel.user_id
+                == user_id
+            )
+            .order_by(
+                ExecutionReconciliationAuditModel.id.asc()
+            )
+            .all()
+        )
+
+    def count_user_reconciliation_audits(
+        self,
+        user_id: int,
+    ):
+        """
+        Count reconciliation audit records belonging
+        to one user.
+        """
+
+        return (
+            self.session.query(
+                ExecutionReconciliationAuditModel
+            )
+            .filter(
+                ExecutionReconciliationAuditModel.user_id
                 == user_id
             )
             .count()

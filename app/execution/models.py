@@ -210,3 +210,93 @@ class ExecutionSafetyAuditModel(Base):
         ),
         nullable=False,
     )
+
+class ExecutionReconciliationAuditModel(Base):
+    """
+    Immutable audit record describing one execution
+    reconciliation outcome.
+
+    Unlike ExecutionSafetyAuditModel, multiple
+    reconciliation audit records may belong to the
+    same execution because a PENDING execution can
+    be checked more than once before it is resolved.
+    """
+
+    __tablename__ = "execution_reconciliation_audits"
+
+    __table_args__ = (
+        Index(
+            "ix_execution_reconciliation_audits_execution_id",
+            "execution_id",
+        ),
+        Index(
+            "ix_execution_reconciliation_audits_user_id",
+            "user_id",
+        ),
+    )
+
+    id = Column(
+        Integer,
+        primary_key=True,
+        index=True,
+    )
+
+    execution_id = Column(
+        Integer,
+        ForeignKey("execution_orders.id"),
+        nullable=False,
+    )
+
+    user_id = Column(
+        Integer,
+        nullable=False,
+    )
+
+    outcome = Column(
+        String,
+        nullable=False,
+    )
+
+    reason = Column(
+        Text,
+        nullable=False,
+    )
+
+    evidence_source = Column(
+        String,
+        nullable=True,
+    )
+
+    broker_order_id = Column(
+        String,
+        nullable=True,
+    )
+
+    symbol = Column(
+        String,
+        nullable=False,
+    )
+
+    direction = Column(
+        String,
+        nullable=False,
+    )
+
+    volume = Column(
+        Float,
+        nullable=False,
+    )
+
+    details_json = Column(
+        Text,
+        nullable=False,
+        default="{}",
+    )
+
+    created_at = Column(
+        DateTime,
+        default=lambda: datetime.now(
+            timezone.utc
+        ),
+        nullable=False,
+    )

@@ -22,6 +22,7 @@ Author: Tharindu Kothalawala
 Project: Aladdin
 """
 
+import json
 import math
 import re
 
@@ -457,6 +458,62 @@ class ExecutionReconciliationService:
         return errors
 
     # ==================================================
+    # RECONCILIATION AUDIT
+    # ==================================================
+
+    def _save_reconciliation_audit(
+        self,
+        *,
+        execution,
+        outcome: str,
+        reason: str,
+        evidence=None,
+        details=None,
+    ):
+        """
+        Persist one immutable reconciliation outcome.
+
+        Audit persistence does not change execution state.
+        UNMATCHED and CONFLICT executions therefore remain
+        PENDING. A RECONCILED audit is written only after the
+        local execution has been successfully finalized.
+        """
+
+        evidence = evidence or {}
+        details = details or {}
+
+        broker_order_id = evidence.get(
+            "broker_order_id"
+        )
+
+        return (
+            self.repository
+            .save_reconciliation_audit(
+                execution_id=int(execution.id),
+                user_id=int(execution.user_id),
+                outcome=str(outcome).strip().upper(),
+                reason=str(reason),
+                evidence_source=(
+                    evidence.get("source")
+                ),
+                broker_order_id=(
+                    str(broker_order_id)
+                    if broker_order_id is not None
+                    else None
+                ),
+                symbol=str(execution.symbol),
+                direction=str(execution.direction),
+                volume=float(execution.volume),
+                details_json=json.dumps(
+                    details,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                    default=str,
+                ),
+            )
+        )
+
+    # ==================================================
     # RECONCILIATION
     # ==================================================
 
@@ -758,6 +815,18 @@ class ExecutionReconciliationService:
                     }
                 )
 
+                self._save_reconciliation_audit(
+                    execution=execution,
+                    outcome="UNMATCHED",
+                    reason=(
+                        "No exact MT5 broker correlation was found."
+                    ),
+                    details={
+                        "history_days": history_days,
+                        "evidence_count": 0,
+                    },
+                )
+
                 self.logger.warning(
                     "Execution reconciliation unmatched: "
                     "execution_id=%s symbol=%s "
@@ -801,6 +870,22 @@ class ExecutionReconciliationService:
                             len(matches)
                         ),
                     }
+                )
+
+                self._save_reconciliation_audit(
+                    execution=execution,
+                    outcome="CONFLICT",
+                    reason=(
+                        "Multiple MT5 broker records use the same "
+                        "execution correlation ID."
+                    ),
+                    details={
+                        "evidence_count": len(matches),
+                        "evidence_sources": [
+                            item.get("source")
+                            for item in matches
+                        ],
+                    },
                 )
 
                 self.logger.warning(
@@ -861,6 +946,18 @@ class ExecutionReconciliationService:
                     }
                 )
 
+                self._save_reconciliation_audit(
+                    execution=execution,
+                    outcome="CONFLICT",
+                    reason=(
+                        "Broker evidence did not match the local execution."
+                    ),
+                    evidence=evidence,
+                    details={
+                        "errors": consistency_errors,
+                    },
+                )
+
                 self.logger.warning(
                     "Execution reconciliation conflict: "
                     "execution_id=%s source=%s "
@@ -897,6 +994,16 @@ class ExecutionReconciliationService:
                         "Reconciliation was blocked."
                     ),
                 })
+                self._save_reconciliation_audit(
+                    execution=execution,
+                    outcome="CONFLICT",
+                    reason='Execution safety audit is missing. Reconciliation was blocked.',
+                    evidence=evidence,
+                    details={
+                        "safety_audit_present": False,
+                    },
+                )
+
                 continue
 
             if getattr(safety_audit, "execution_id", None) != execution_id:
@@ -911,6 +1018,16 @@ class ExecutionReconciliationService:
                         "to the execution."
                     ),
                 })
+                self._save_reconciliation_audit(
+                    execution=execution,
+                    outcome="CONFLICT",
+                    reason='Execution safety audit does not belong to the execution.',
+                    evidence=evidence,
+                    details={
+                        "safety_audit_present": True,
+                    },
+                )
+
                 continue
 
             if getattr(safety_audit, "user_id", None) != execution.user_id:
@@ -925,6 +1042,16 @@ class ExecutionReconciliationService:
                         "match the execution owner."
                     ),
                 })
+                self._save_reconciliation_audit(
+                    execution=execution,
+                    outcome="CONFLICT",
+                    reason='Execution safety audit user does not match the execution owner.',
+                    evidence=evidence,
+                    details={
+                        "safety_audit_present": True,
+                    },
+                )
+
                 continue
 
             safety_status = str(
@@ -944,6 +1071,16 @@ class ExecutionReconciliationService:
                         "an approved safety decision."
                     ),
                 })
+                self._save_reconciliation_audit(
+                    execution=execution,
+                    outcome="CONFLICT",
+                    reason='Execution safety audit does not contain an approved safety decision.',
+                    evidence=evidence,
+                    details={
+                        "safety_audit_present": True,
+                    },
+                )
+
                 continue
 
             safety_engine = str(
@@ -962,6 +1099,16 @@ class ExecutionReconciliationService:
                         "by the deterministic safety engine."
                     ),
                 })
+                self._save_reconciliation_audit(
+                    execution=execution,
+                    outcome="CONFLICT",
+                    reason='Execution safety audit was not produced by the deterministic safety engine.',
+                    evidence=evidence,
+                    details={
+                        "safety_audit_present": True,
+                    },
+                )
+
                 continue
 
             audit_execution_mode = str(
@@ -980,6 +1127,16 @@ class ExecutionReconciliationService:
                         "in DEMO mode."
                     ),
                 })
+                self._save_reconciliation_audit(
+                    execution=execution,
+                    outcome="CONFLICT",
+                    reason='Execution safety audit was not created in DEMO mode.',
+                    evidence=evidence,
+                    details={
+                        "safety_audit_present": True,
+                    },
+                )
+
                 continue
 
             audit_symbol = self._normalize_symbol(
@@ -999,6 +1156,16 @@ class ExecutionReconciliationService:
                         "match the execution."
                     ),
                 })
+                self._save_reconciliation_audit(
+                    execution=execution,
+                    outcome="CONFLICT",
+                    reason='Execution safety audit symbol does not match the execution.',
+                    evidence=evidence,
+                    details={
+                        "safety_audit_present": True,
+                    },
+                )
+
                 continue
 
             audit_direction = self._normalize_direction(
@@ -1021,6 +1188,16 @@ class ExecutionReconciliationService:
                         "match the execution."
                     ),
                 })
+                self._save_reconciliation_audit(
+                    execution=execution,
+                    outcome="CONFLICT",
+                    reason='Execution safety audit direction does not match the execution.',
+                    evidence=evidence,
+                    details={
+                        "safety_audit_present": True,
+                    },
+                )
+
                 continue
 
             if not self._volume_matches(
@@ -1038,6 +1215,16 @@ class ExecutionReconciliationService:
                         "match the execution."
                     ),
                 })
+                self._save_reconciliation_audit(
+                    execution=execution,
+                    outcome="CONFLICT",
+                    reason='Execution safety audit volume does not match the execution.',
+                    evidence=evidence,
+                    details={
+                        "safety_audit_present": True,
+                    },
+                )
+
                 continue
 
             # ============================================
@@ -1077,6 +1264,19 @@ class ExecutionReconciliationService:
                             "identifier was available."
                         ),
                     }
+                )
+
+                self._save_reconciliation_audit(
+                    execution=execution,
+                    outcome="CONFLICT",
+                    reason=(
+                        "Exact broker correlation was found, but no broker "
+                        "identifier was available."
+                    ),
+                    evidence=evidence,
+                    details={
+                        "broker_identifier_available": False,
+                    },
                 )
 
                 self.logger.warning(
@@ -1136,6 +1336,20 @@ class ExecutionReconciliationService:
                         )
                     ),
                 }
+            )
+
+            self._save_reconciliation_audit(
+                execution=updated_execution,
+                outcome="RECONCILED",
+                reason=(
+                    "Execution reconciled from read-only MT5 broker evidence."
+                ),
+                evidence=evidence,
+                details={
+                    "safety_status": safety_status,
+                    "safety_engine": safety_engine,
+                    "execution_mode": audit_execution_mode,
+                },
             )
 
             self.logger.info(

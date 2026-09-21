@@ -21,6 +21,7 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 
 from app.execution.models import (
+    ExecutionReconciliationAuditModel,
     ExecutionSafetyAuditModel,
 )
 
@@ -878,6 +879,365 @@ def test_execution_allows_only_one_safety_audit():
 
             if stored_execution is not None:
                 session.delete(stored_execution)
+
+        session.commit()
+        session.close()
+
+# ======================================================
+# EXECUTION RECONCILIATION AUDIT TESTS
+# ======================================================
+
+
+def test_save_execution_reconciliation_audit():
+    """
+    One reconciliation outcome can be persisted
+    against an existing execution.
+    """
+
+    session = SessionLocal()
+    repository = ExecutionRepository(session)
+
+    test_user_id = (
+        uuid4().int % 2_000_000_000
+    ) + 1
+
+    execution = None
+    audit = None
+
+    try:
+        execution = repository.save_execution(
+            user_id=test_user_id,
+            symbol="EURUSD",
+            direction="BUY",
+            volume=0.10,
+            status="PENDING",
+        )
+
+        details = {
+            "errors": [
+                "Symbol does not match.",
+            ],
+        }
+
+        audit = (
+            repository.save_reconciliation_audit(
+                execution_id=execution.id,
+                user_id=test_user_id,
+                outcome="CONFLICT",
+                reason=(
+                    "Broker evidence did not match "
+                    "the local execution."
+                ),
+                evidence_source="OPEN_POSITION",
+                broker_order_id="123456",
+                symbol="EURUSD",
+                direction="BUY",
+                volume=0.10,
+                details_json=json.dumps(
+                    details,
+                    sort_keys=True,
+                ),
+            )
+        )
+
+        assert audit.id is not None
+        assert audit.execution_id == execution.id
+        assert audit.user_id == test_user_id
+        assert audit.outcome == "CONFLICT"
+
+        assert audit.reason == (
+            "Broker evidence did not match "
+            "the local execution."
+        )
+
+        assert (
+            audit.evidence_source
+            == "OPEN_POSITION"
+        )
+
+        assert audit.broker_order_id == "123456"
+        assert audit.symbol == "EURUSD"
+        assert audit.direction == "BUY"
+        assert audit.volume == 0.10
+
+        assert (
+            json.loads(audit.details_json)
+            == details
+        )
+
+        assert audit.created_at is not None
+
+    finally:
+        if audit is not None:
+            session.delete(audit)
+
+        if execution is not None:
+            session.delete(execution)
+
+        session.commit()
+        session.close()
+
+
+def test_reconciliation_allows_multiple_audits_per_execution():
+    """
+    Reconciliation history is append-only.
+
+    The same execution may be checked repeatedly
+    while it remains unresolved.
+    """
+
+    session = SessionLocal()
+    repository = ExecutionRepository(session)
+
+    test_user_id = (
+        uuid4().int % 2_000_000_000
+    ) + 1
+
+    execution = None
+    audits = []
+
+    try:
+        execution = repository.save_execution(
+            user_id=test_user_id,
+            symbol="EURUSD",
+            direction="BUY",
+            volume=0.10,
+            status="PENDING",
+        )
+
+        first_audit = (
+            repository.save_reconciliation_audit(
+                execution_id=execution.id,
+                user_id=test_user_id,
+                outcome="UNMATCHED",
+                reason=(
+                    "No exact MT5 broker "
+                    "correlation was found."
+                ),
+                evidence_source=None,
+                broker_order_id=None,
+                symbol=execution.symbol,
+                direction=execution.direction,
+                volume=execution.volume,
+                details_json="{}",
+            )
+        )
+
+        audits.append(first_audit)
+
+        second_audit = (
+            repository.save_reconciliation_audit(
+                execution_id=execution.id,
+                user_id=test_user_id,
+                outcome="CONFLICT",
+                reason=(
+                    "Execution safety audit "
+                    "is missing."
+                ),
+                evidence_source="OPEN_POSITION",
+                broker_order_id="123456",
+                symbol=execution.symbol,
+                direction=execution.direction,
+                volume=execution.volume,
+                details_json="{}",
+            )
+        )
+
+        audits.append(second_audit)
+
+        loaded = (
+            repository
+            .get_reconciliation_audits_by_execution_id(
+                execution.id
+            )
+        )
+
+        assert len(loaded) == 2
+
+        assert [
+            item.id
+            for item in loaded
+        ] == [
+            first_audit.id,
+            second_audit.id,
+        ]
+
+        assert [
+            item.outcome
+            for item in loaded
+        ] == [
+            "UNMATCHED",
+            "CONFLICT",
+        ]
+
+    finally:
+        for audit in audits:
+            session.delete(audit)
+
+        session.commit()
+
+        if execution is not None:
+            session.delete(execution)
+
+        session.commit()
+        session.close()
+
+
+def test_get_user_reconciliation_audits_is_user_scoped():
+    """
+    Reconciliation history must not leak records
+    belonging to another user.
+    """
+
+    session = SessionLocal()
+    repository = ExecutionRepository(session)
+
+    first_user_id = (
+        uuid4().int % 1_000_000_000
+    ) + 1
+
+    second_user_id = (
+        first_user_id
+        + 1_000_000_000
+    )
+
+    executions = []
+    audits = []
+
+    try:
+        for user_id, symbol in (
+            (first_user_id, "EURUSD"),
+            (first_user_id, "GBPUSD"),
+            (second_user_id, "USDJPY"),
+        ):
+            execution = repository.save_execution(
+                user_id=user_id,
+                symbol=symbol,
+                direction="BUY",
+                volume=0.10,
+                status="PENDING",
+            )
+
+            executions.append(execution)
+
+            audit = (
+                repository.save_reconciliation_audit(
+                    execution_id=execution.id,
+                    user_id=user_id,
+                    outcome="UNMATCHED",
+                    reason=(
+                        "No exact MT5 broker "
+                        "correlation was found."
+                    ),
+                    evidence_source=None,
+                    broker_order_id=None,
+                    symbol=execution.symbol,
+                    direction=execution.direction,
+                    volume=execution.volume,
+                    details_json="{}",
+                )
+            )
+
+            audits.append(audit)
+
+        user_audits = (
+            repository
+            .get_user_reconciliation_audits(
+                first_user_id
+            )
+        )
+
+        assert len(user_audits) == 2
+
+        assert all(
+            audit.user_id == first_user_id
+            for audit in user_audits
+        )
+
+        assert [
+            audit.execution_id
+            for audit in user_audits
+        ] == [
+            executions[0].id,
+            executions[1].id,
+        ]
+
+    finally:
+        for audit in audits:
+            session.delete(audit)
+
+        session.commit()
+
+        for execution in executions:
+            session.delete(execution)
+
+        session.commit()
+        session.close()
+
+
+def test_count_user_reconciliation_audits():
+    """
+    Reconciliation audit count must be scoped
+    to the requested user.
+    """
+
+    session = SessionLocal()
+    repository = ExecutionRepository(session)
+
+    test_user_id = (
+        uuid4().int % 2_000_000_000
+    ) + 1
+
+    execution = None
+    audits = []
+
+    try:
+        execution = repository.save_execution(
+            user_id=test_user_id,
+            symbol="EURUSD",
+            direction="BUY",
+            volume=0.10,
+            status="PENDING",
+        )
+
+        for outcome in (
+            "UNMATCHED",
+            "CONFLICT",
+        ):
+            audit = (
+                repository.save_reconciliation_audit(
+                    execution_id=execution.id,
+                    user_id=test_user_id,
+                    outcome=outcome,
+                    reason="Test reconciliation outcome.",
+                    evidence_source=None,
+                    broker_order_id=None,
+                    symbol=execution.symbol,
+                    direction=execution.direction,
+                    volume=execution.volume,
+                    details_json="{}",
+                )
+            )
+
+            audits.append(audit)
+
+        count = (
+            repository
+            .count_user_reconciliation_audits(
+                test_user_id
+            )
+        )
+
+        assert count == 2
+
+    finally:
+        for audit in audits:
+            session.delete(audit)
+
+        session.commit()
+
+        if execution is not None:
+            session.delete(execution)
 
         session.commit()
         session.close()

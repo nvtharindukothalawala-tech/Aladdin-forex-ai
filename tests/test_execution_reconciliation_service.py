@@ -11,6 +11,7 @@ Author: Tharindu Kothalawala
 Project: Aladdin
 """
 
+import json
 from types import SimpleNamespace
 
 import pytest
@@ -40,6 +41,7 @@ class FakeExecutionRepository:
         )
 
         self.updated_executions = []
+        self.reconciliation_audits = []
 
     def get_safety_audit_by_execution_id(
         self,
@@ -109,6 +111,41 @@ class FakeExecutionRepository:
         )
 
         return execution
+
+    def save_reconciliation_audit(
+        self,
+        *,
+        execution_id: int,
+        user_id: int,
+        outcome: str,
+        reason: str,
+        evidence_source: str | None,
+        broker_order_id: str | None,
+        symbol: str,
+        direction: str,
+        volume: float,
+        details_json: str = "{}",
+    ):
+        """
+        Store one reconciliation audit in memory.
+        """
+
+        audit = SimpleNamespace(
+            id=len(self.reconciliation_audits) + 1,
+            execution_id=execution_id,
+            user_id=user_id,
+            outcome=outcome,
+            reason=reason,
+            evidence_source=evidence_source,
+            broker_order_id=broker_order_id,
+            symbol=symbol,
+            direction=direction,
+            volume=volume,
+            details_json=details_json,
+        )
+
+        self.reconciliation_audits.append(audit)
+        return audit
 
 
 def make_pending_execution(
@@ -1303,3 +1340,176 @@ def test_reconciliation_rejects_safety_audit_volume_mismatch(
         "Execution safety audit volume does not "
         "match the execution."
     )
+
+# ============================================================
+# PERSISTENT RECONCILIATION AUDIT
+# ============================================================
+
+
+def test_unmatched_reconciliation_is_persisted(monkeypatch):
+    execution = make_pending_execution(execution_id=866)
+    repository = FakeExecutionRepository([execution])
+    service = ExecutionReconciliationService(repository)
+    set_demo_mode(monkeypatch)
+
+    monkeypatch.setattr(
+        BrokerService,
+        "get_open_positions",
+        lambda: {
+            "execution_mode": "DEMO",
+            "connected": True,
+            "position_count": 0,
+            "positions": [],
+        },
+    )
+    monkeypatch.setattr(
+        BrokerService,
+        "get_trade_history",
+        lambda days=None: {
+            "execution_mode": "DEMO",
+            "connected": True,
+            "history_days": days,
+            "closed_trade_count": 0,
+            "closed_trades": [],
+        },
+    )
+
+    result = service.reconcile_pending_executions(user_id=1)
+
+    assert result["unmatched_count"] == 1
+    assert execution.status == "PENDING"
+    assert len(repository.reconciliation_audits) == 1
+
+    audit = repository.reconciliation_audits[0]
+    assert audit.execution_id == 866
+    assert audit.outcome == "UNMATCHED"
+    assert audit.evidence_source is None
+    assert audit.broker_order_id is None
+    assert audit.reason == (
+        "No exact MT5 broker correlation was found."
+    )
+    assert json.loads(audit.details_json)["evidence_count"] == 0
+
+
+def test_conflict_reconciliation_is_persisted(monkeypatch):
+    execution = make_pending_execution(execution_id=867)
+    repository = FakeExecutionRepository([execution])
+    service = ExecutionReconciliationService(repository)
+    set_demo_mode(monkeypatch)
+
+    monkeypatch.setattr(
+        BrokerService,
+        "get_open_positions",
+        lambda: {
+            "execution_mode": "DEMO",
+            "connected": True,
+            "position_count": 1,
+            "positions": [
+                {
+                    "ticket": 9901,
+                    "identifier": 9902,
+                    "symbol": "GBPUSD",
+                    "direction": "SELL",
+                    "volume": 0.50,
+                    "comment": "ALADDIN E867",
+                }
+            ],
+        },
+    )
+    monkeypatch.setattr(
+        BrokerService,
+        "get_trade_history",
+        lambda days=None: {
+            "execution_mode": "DEMO",
+            "connected": True,
+            "history_days": days,
+            "closed_trade_count": 0,
+            "closed_trades": [],
+        },
+    )
+
+    result = service.reconcile_pending_executions(user_id=1)
+
+    assert result["conflict_count"] == 1
+    assert execution.status == "PENDING"
+    assert len(repository.reconciliation_audits) == 1
+
+    audit = repository.reconciliation_audits[0]
+    assert audit.outcome == "CONFLICT"
+    assert audit.evidence_source == "OPEN_POSITION"
+    assert audit.broker_order_id == "9901"
+    assert audit.reason == (
+        "Broker evidence did not match the local execution."
+    )
+    assert json.loads(audit.details_json)["errors"] == [
+        "Symbol does not match.",
+        "Direction does not match.",
+        "Volume does not match.",
+    ]
+
+
+def test_successful_reconciliation_is_persisted(monkeypatch):
+    execution = make_pending_execution(execution_id=868)
+    repository = FakeExecutionRepository([execution])
+    service = ExecutionReconciliationService(repository)
+    set_demo_mode(monkeypatch)
+    _set_single_open_position_evidence(
+        monkeypatch,
+        execution_id=868,
+        ticket=9910,
+    )
+
+    result = service.reconcile_pending_executions(user_id=1)
+
+    assert result["reconciled_count"] == 1
+    assert execution.status == "EXECUTED"
+    assert len(repository.reconciliation_audits) == 1
+
+    audit = repository.reconciliation_audits[0]
+    assert audit.outcome == "RECONCILED"
+    assert audit.evidence_source == "OPEN_POSITION"
+    assert audit.broker_order_id == "9910"
+    assert audit.reason == (
+        "Execution reconciled from read-only MT5 broker evidence."
+    )
+
+    details = json.loads(audit.details_json)
+    assert details["safety_status"] == "APPROVED"
+    assert details["safety_engine"] == "DETERMINISTIC"
+    assert details["execution_mode"] == "DEMO"
+
+
+def test_safety_gate_conflict_is_persisted(monkeypatch):
+    execution = make_pending_execution(execution_id=869)
+    repository = FakeExecutionRepository([execution])
+    repository.get_safety_audit_by_execution_id = (
+        lambda execution_id: None
+    )
+    service = ExecutionReconciliationService(repository)
+    set_demo_mode(monkeypatch)
+    _set_single_open_position_evidence(
+        monkeypatch,
+        execution_id=869,
+        ticket=9920,
+    )
+
+    result = service.reconcile_pending_executions(user_id=1)
+
+    assert result["conflict_count"] == 1
+    assert execution.status == "PENDING"
+    assert len(repository.reconciliation_audits) == 1
+
+    audit = repository.reconciliation_audits[0]
+    assert audit.outcome == "CONFLICT"
+    assert audit.evidence_source == "OPEN_POSITION"
+    assert audit.reason == (
+        "Execution safety audit is missing. "
+        "Reconciliation was blocked."
+    )
+    assert (
+        json.loads(audit.details_json)[
+            "safety_audit_present"
+        ]
+        is False
+    )
+
