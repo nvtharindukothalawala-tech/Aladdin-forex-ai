@@ -31,6 +31,9 @@ from app.mt5.mt5_connector import (
     MT5ExecutionResult,
 )
 
+from app.execution.execution_safety_context import (
+    ExecutionSafetyContext,
+)
 
 def create_idempotency_key(
     prefix: str,
@@ -1367,4 +1370,515 @@ def test_execution_safety_price_mismatch_blocks_mt5(
         assert request.execution_id is None
 
     finally:
+        session.close()
+
+# ======================================================
+# EXECUTION SAFETY AUDIT INTEGRATION
+# ======================================================
+
+
+def test_execution_safety_approval_persists_audit_before_mt5(
+    monkeypatch,
+):
+    """
+    An approved deterministic safety decision must
+    create exactly one safety audit before MT5 is
+    contacted.
+    """
+
+    from app.services import execution_service as module
+
+    session = SessionLocal()
+    repository = ExecutionRepository(session)
+    service = ExecutionService(repository)
+
+    request = ExecutionManager.prepare_execution(
+        symbol="EUR/USD",
+        direction="BUY",
+        lot_size=0.20,
+        approved=True,
+        entry_price=1.1000,
+        stop_loss=1.0950,
+        take_profit=1.1100,
+    )
+
+    safety_context = ExecutionSafetyContext(
+        trade_setup={},
+        risk={},
+        quote={},
+        symbol_info={},
+    )
+
+    call_order = []
+
+    def approve_safety(*args, **kwargs):
+        return {
+            "status": "APPROVED",
+            "approved": True,
+            "engine": "DETERMINISTIC",
+            "checks": {
+                "spread": True,
+                "risk": True,
+            },
+            "reasons": [
+                "Execution safety checks passed."
+            ],
+            "limits": {
+                "max_volume": 1.0,
+            },
+            "execution_binding": {
+                "symbol": "EUR/USD",
+                "direction": "BUY",
+                "volume": 0.20,
+                "entry_price": 1.1000,
+                "stop_loss": 1.0950,
+                "take_profit": 1.1100,
+            },
+        }
+
+    original_save_safety_audit = (
+        repository.save_safety_audit
+    )
+
+    def tracked_save_safety_audit(
+        *args,
+        **kwargs,
+    ):
+        call_order.append("AUDIT")
+
+        return original_save_safety_audit(
+            *args,
+            **kwargs,
+        )
+
+    class FakeBrokerResult:
+        success = True
+        order_id = "AUDIT_TEST_ORDER"
+        message = "Executed."
+
+    def fake_execute_with_mt5(
+        execution_request,
+    ):
+        call_order.append("MT5")
+
+        return FakeBrokerResult()
+
+    monkeypatch.setattr(
+        module.ExecutionSafetyService,
+        "analyze",
+        approve_safety,
+    )
+
+    monkeypatch.setattr(
+        repository,
+        "save_safety_audit",
+        tracked_save_safety_audit,
+    )
+
+    monkeypatch.setattr(
+        ExecutionManager,
+        "execute_with_mt5",
+        fake_execute_with_mt5,
+    )
+
+    execution = None
+    audit = None
+
+    try:
+        execution = service.execute_trade(
+            user_id=1,
+            execution_request=request,
+            safety_context=safety_context,
+        )
+
+        assert execution.status == "EXECUTED"
+
+        assert call_order == [
+            "AUDIT",
+            "MT5",
+        ]
+
+        audit = (
+            repository
+            .get_safety_audit_by_execution_id(
+                execution.id
+            )
+        )
+
+        assert audit is not None
+
+        assert (
+            audit.execution_id
+            == execution.id
+        )
+
+        assert audit.safety_status == "APPROVED"
+
+        assert (
+            audit.safety_engine
+            == "DETERMINISTIC"
+        )
+
+        assert audit.symbol == "EUR/USD"
+        assert audit.direction == "BUY"
+        assert audit.volume == 0.20
+
+        assert audit.entry_price == 1.1000
+        assert audit.stop_loss == 1.0950
+        assert audit.take_profit == 1.1100
+
+    finally:
+        if execution is not None:
+            stored_audit = (
+                repository
+                .get_safety_audit_by_execution_id(
+                    execution.id
+                )
+            )
+
+            if stored_audit is not None:
+                session.delete(stored_audit)
+
+            session.delete(execution)
+
+            session.commit()
+
+        session.close()
+
+
+def test_execution_safety_audit_failure_blocks_mt5(
+    monkeypatch,
+):
+    """
+    If the approved safety snapshot cannot be
+    persisted, MT5 must never be contacted.
+    """
+
+    from app.services import execution_service as module
+
+    session = SessionLocal()
+    repository = ExecutionRepository(session)
+    service = ExecutionService(repository)
+
+    request = ExecutionManager.prepare_execution(
+        symbol="EUR/USD",
+        direction="BUY",
+        lot_size=0.20,
+        approved=True,
+        entry_price=1.1000,
+        stop_loss=1.0950,
+        take_profit=1.1100,
+    )
+
+    safety_context = ExecutionSafetyContext(
+        trade_setup={},
+        risk={},
+        quote={},
+        symbol_info={},
+    )
+
+    broker_called = {
+        "value": False,
+    }
+
+    def approve_safety(*args, **kwargs):
+        return {
+            "status": "APPROVED",
+            "approved": True,
+            "engine": "DETERMINISTIC",
+            "checks": {},
+            "reasons": [
+                "Approved."
+            ],
+            "limits": {},
+            "execution_binding": {
+                "symbol": "EUR/USD",
+                "direction": "BUY",
+                "volume": 0.20,
+                "entry_price": 1.1000,
+                "stop_loss": 1.0950,
+                "take_profit": 1.1100,
+            },
+        }
+
+    def fail_audit_save(
+        *args,
+        **kwargs,
+    ):
+        raise RuntimeError(
+            "Safety audit persistence failed."
+        )
+
+    def fake_execute_with_mt5(
+        execution_request,
+    ):
+        broker_called["value"] = True
+
+        raise AssertionError(
+            "MT5 must not be contacted when "
+            "safety audit persistence fails."
+        )
+
+    monkeypatch.setattr(
+        module.ExecutionSafetyService,
+        "analyze",
+        approve_safety,
+    )
+
+    monkeypatch.setattr(
+        repository,
+        "save_safety_audit",
+        fail_audit_save,
+    )
+
+    monkeypatch.setattr(
+        ExecutionManager,
+        "execute_with_mt5",
+        fake_execute_with_mt5,
+    )
+
+    before_count = (
+        repository.count_user_executions(1)
+    )
+
+    try:
+        with pytest.raises(
+            RuntimeError,
+            match=(
+                "Safety audit persistence failed"
+            ),
+        ):
+            service.execute_trade(
+                user_id=1,
+                execution_request=request,
+                safety_context=safety_context,
+            )
+
+        assert (
+            broker_called["value"]
+            is False
+        )
+
+        # PENDING is intentionally created before
+        # audit persistence so a stable execution ID
+        # exists for the audit relationship.
+        after_count = (
+            repository.count_user_executions(1)
+        )
+
+        assert (
+            after_count
+            == before_count + 1
+        )
+
+        user_executions = (
+            repository.get_user_executions(1)
+        )
+
+        pending_execution = max(
+            user_executions,
+            key=lambda item: item.id,
+        )
+
+        assert (
+            pending_execution.status
+            == "PENDING"
+        )
+
+        audit = (
+            repository
+            .get_safety_audit_by_execution_id(
+                pending_execution.id
+            )
+        )
+
+        assert audit is None
+
+        session.delete(
+            pending_execution
+        )
+
+        session.commit()
+
+    finally:
+        session.close()
+
+
+def test_idempotent_execution_replay_does_not_duplicate_safety_audit(
+    monkeypatch,
+):
+    """
+    Replaying the same idempotent execution must
+    return the existing execution without creating
+    another safety audit or contacting MT5 again.
+    """
+
+    from app.services import execution_service as module
+
+    session = SessionLocal()
+    repository = ExecutionRepository(session)
+    service = ExecutionService(repository)
+
+    idempotency_key = (
+        f"safety-audit-{uuid4()}"
+    )
+
+    safety_context = ExecutionSafetyContext(
+        trade_setup={},
+        risk={},
+        quote={},
+        symbol_info={},
+    )
+
+    safety_calls = {
+        "count": 0,
+    }
+
+    broker_calls = {
+        "count": 0,
+    }
+
+    def approve_safety(*args, **kwargs):
+        safety_calls["count"] += 1
+
+        return {
+            "status": "APPROVED",
+            "approved": True,
+            "engine": "DETERMINISTIC",
+            "checks": {
+                "risk": True,
+            },
+            "reasons": [
+                "Approved."
+            ],
+            "limits": {
+                "max_volume": 1.0,
+            },
+            "execution_binding": {
+                "symbol": "EUR/USD",
+                "direction": "BUY",
+                "volume": 0.20,
+                "entry_price": 1.1000,
+                "stop_loss": 1.0950,
+                "take_profit": 1.1100,
+            },
+        }
+
+    class FakeBrokerResult:
+        success = True
+        order_id = "IDEMPOTENT_AUDIT_ORDER"
+        message = "Executed."
+
+    def fake_execute_with_mt5(
+        execution_request,
+    ):
+        broker_calls["count"] += 1
+
+        return FakeBrokerResult()
+
+    monkeypatch.setattr(
+        module.ExecutionSafetyService,
+        "analyze",
+        approve_safety,
+    )
+
+    monkeypatch.setattr(
+        ExecutionManager,
+        "execute_with_mt5",
+        fake_execute_with_mt5,
+    )
+
+    first_request = (
+        ExecutionManager.prepare_execution(
+            symbol="EUR/USD",
+            direction="BUY",
+            lot_size=0.20,
+            approved=True,
+            entry_price=1.1000,
+            stop_loss=1.0950,
+            take_profit=1.1100,
+        )
+    )
+
+    second_request = (
+        ExecutionManager.prepare_execution(
+            symbol="EUR/USD",
+            direction="BUY",
+            lot_size=0.20,
+            approved=True,
+            entry_price=1.1000,
+            stop_loss=1.0950,
+            take_profit=1.1100,
+        )
+    )
+
+    execution = None
+
+    try:
+        first_result = service.execute_trade(
+            user_id=1,
+            execution_request=first_request,
+            idempotency_key=idempotency_key,
+            safety_context=safety_context,
+        )
+
+        first_audit_count = (
+            repository.count_user_safety_audits(
+                1
+            )
+        )
+
+        second_result = service.execute_trade(
+            user_id=1,
+            execution_request=second_request,
+            idempotency_key=idempotency_key,
+            safety_context=safety_context,
+        )
+
+        execution = first_result
+
+        assert (
+            first_result.id
+            == second_result.id
+        )
+
+        assert safety_calls["count"] == 1
+        assert broker_calls["count"] == 1
+
+        second_audit_count = (
+            repository.count_user_safety_audits(
+                1
+            )
+        )
+
+        assert (
+            second_audit_count
+            == first_audit_count
+        )
+
+        audit = (
+            repository
+            .get_safety_audit_by_execution_id(
+                first_result.id
+            )
+        )
+
+        assert audit is not None
+
+    finally:
+        if execution is not None:
+            audit = (
+                repository
+                .get_safety_audit_by_execution_id(
+                    execution.id
+                )
+            )
+
+            if audit is not None:
+                session.delete(audit)
+
+            session.delete(execution)
+
+            session.commit()
+
         session.close()
