@@ -230,6 +230,50 @@ class ExecutionSafetyService:
             )
         )
 
+        # ======================================================
+        # EXECUTION BINDING
+        # ======================================================
+        #
+        # Bind the safety decision to the exact execution
+        # parameters validated above. ExecutionService can
+        # compare this immutable result with the prepared
+        # execution request before contacting MT5.
+        #
+        # Symbol remains optional here for backward
+        # compatibility with existing TradeSetupService
+        # fixtures that do not expose a symbol.
+        #
+
+        symbol = None
+
+        if isinstance(
+            trade_setup,
+            dict,
+        ):
+            raw_symbol = trade_setup.get(
+                "symbol"
+            )
+
+            if raw_symbol is not None:
+                normalized_symbol = (
+                    str(raw_symbol)
+                    .replace("/", "")
+                    .strip()
+                    .upper()
+                )
+
+                if normalized_symbol:
+                    symbol = normalized_symbol
+
+        execution_binding = {
+            "symbol": symbol,
+            "direction": direction,
+            "volume": volume,
+            "entry_price": entry_price,
+            "stop_loss": stop_loss,
+            "take_profit": take_profit,
+        }
+
         return {
             "status": (
                 "APPROVED"
@@ -239,6 +283,9 @@ class ExecutionSafetyService:
             "approved": approved,
             "engine": cls.ENGINE,
             "execution_mode": mode,
+            "execution_binding": (
+                execution_binding
+            ),
             "checks": checks,
             "reasons": reasons,
             "limits": {
