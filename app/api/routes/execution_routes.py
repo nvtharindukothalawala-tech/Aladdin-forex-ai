@@ -148,6 +148,11 @@ def verify_execution_ownership(
 # ==========================================
 
 
+# ==========================================
+# Direct Trade Execution
+# ==========================================
+
+
 @router.post(
     "/execute",
     response_model=ExecutionResponseSchema,
@@ -167,16 +172,28 @@ def execute_trade(
     Execution ownership is derived from the
     authenticated JWT user.
 
-    When an idempotency key is supplied, repeated
-    requests for the same execution return the
-    existing execution instead of contacting the
-    broker again.
+    Optional Entry, Stop Loss and Take Profit
+    values are forwarded to ExecutionManager
+    when supplied.
+
+    When an idempotency key is supplied,
+    repeated requests for the same execution
+    return the existing execution instead of
+    contacting the broker again.
     """
+
+    # ==========================================
+    # Authenticated User Ownership
+    # ==========================================
 
     user_id = verify_execution_ownership(
         request.user_id,
         current_user,
     )
+
+    # ==========================================
+    # Repository / Service
+    # ==========================================
 
     repository = ExecutionRepository(
         database
@@ -186,6 +203,10 @@ def execute_trade(
         repository
     )
 
+    # ==========================================
+    # Prepare Execution
+    # ==========================================
+
     try:
 
         execution_request = (
@@ -194,6 +215,9 @@ def execute_trade(
                 direction=request.direction,
                 lot_size=request.volume,
                 approved=request.approved,
+                entry_price=request.entry_price,
+                stop_loss=request.stop_loss,
+                take_profit=request.take_profit,
             )
         )
 
@@ -203,6 +227,10 @@ def execute_trade(
             status_code=403,
             detail=str(error),
         ) from error
+
+    # ==========================================
+    # Execute Trade
+    # ==========================================
 
     try:
 

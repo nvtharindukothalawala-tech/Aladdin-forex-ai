@@ -23,6 +23,7 @@ from app.execution.execution_manager import (
 
 from app.services.execution_service import (
     ExecutionIdempotencyConflictError,
+    ExecutionSafetyRejectedError,
     ExecutionService,
 )
 
@@ -869,3 +870,390 @@ def test_same_idempotency_key_is_allowed_for_different_users(
     )
 
     session.close()
+
+
+# ==========================================================
+# EXECUTION SAFETY GATE INTEGRATION
+# ==========================================================
+
+
+class _SafetyContextStub:
+    """
+    Minimal context object matching the attributes consumed
+    by ExecutionService._run_execution_safety_gate().
+    """
+
+    def __init__(self):
+        self.trade_setup = {
+            "status": "TRADE",
+            "direction": "BUY",
+        }
+        self.risk = {
+            "status": "APPROVED",
+            "approved": True,
+            "volume": 0.20,
+        }
+        self.quote = {
+            "bid": 1.1000,
+            "ask": 1.1001,
+        }
+        self.symbol_info = {
+            "volume_min": 0.01,
+            "volume_max": 100.0,
+            "volume_step": 0.01,
+        }
+
+
+def test_execution_safety_rejection_never_contacts_mt5(
+    monkeypatch,
+):
+    """
+    A rejected safety decision must stop before the PENDING
+    audit record is created and before MT5 is contacted.
+    """
+
+    from app.services import execution_service as module
+
+    session = SessionLocal()
+    repository = ExecutionRepository(session)
+    service = ExecutionService(repository)
+
+    request = ExecutionManager.prepare_execution(
+        symbol="EUR/USD",
+        direction="BUY",
+        lot_size=0.20,
+        approved=True,
+        entry_price=1.1000,
+        stop_loss=1.0950,
+        take_profit=1.1100,
+    )
+
+    broker_called = {"value": False}
+
+    def reject_safety(*args, **kwargs):
+        return {
+            "status": "REJECTED",
+            "approved": False,
+            "reason": "Spread exceeds configured limit.",
+            "engine": "DETERMINISTIC",
+        }
+
+    def fake_execute_with_mt5(execution_request):
+        broker_called["value"] = True
+        raise AssertionError(
+            "MT5 must not be contacted after safety rejection."
+        )
+
+    monkeypatch.setattr(
+        module.ExecutionSafetyService,
+        "analyze",
+        reject_safety,
+    )
+    monkeypatch.setattr(
+        ExecutionManager,
+        "execute_with_mt5",
+        fake_execute_with_mt5,
+    )
+
+    try:
+        with pytest.raises(
+            ExecutionSafetyRejectedError,
+            match="Spread exceeds configured limit",
+        ):
+            service.execute_trade(
+                user_id=910001,
+                execution_request=request,
+                safety_context=_SafetyContextStub(),
+            )
+
+        assert broker_called["value"] is False
+        assert request.execution_id is None
+    finally:
+        session.close()
+
+
+def test_execution_safety_approval_reaches_mt5(
+    monkeypatch,
+):
+    """
+    An approved safety decision may continue through the
+    existing PENDING -> broker -> final status lifecycle.
+    """
+
+    from app.services import execution_service as module
+
+    session = SessionLocal()
+    repository = ExecutionRepository(session)
+    service = ExecutionService(repository)
+
+    request = ExecutionManager.prepare_execution(
+        symbol="EUR/USD",
+        direction="BUY",
+        lot_size=0.20,
+        approved=True,
+        entry_price=1.1000,
+        stop_loss=1.0950,
+        take_profit=1.1100,
+    )
+
+    broker_called = {"value": False}
+
+    def approve_safety(*args, **kwargs):
+        return {
+            "status": "APPROVED",
+            "approved": True,
+            "reason": "Execution passed deterministic safety checks.",
+            "engine": "DETERMINISTIC",
+            "symbol": "EUR/USD",
+            "direction": "BUY",
+            "volume": 0.20,
+        }
+
+    def fake_execute_with_mt5(execution_request):
+        broker_called["value"] = True
+        assert execution_request.execution_id is not None
+
+        return MT5ExecutionResult(
+            success=True,
+            message="Safety-approved mock execution succeeded.",
+            order_id="SAFETY_TEST_ORDER_001",
+        )
+
+    monkeypatch.setattr(
+        module.ExecutionSafetyService,
+        "analyze",
+        approve_safety,
+    )
+    monkeypatch.setattr(
+        ExecutionManager,
+        "execute_with_mt5",
+        fake_execute_with_mt5,
+    )
+
+    try:
+        execution = service.execute_trade(
+            user_id=910002,
+            execution_request=request,
+            safety_context=_SafetyContextStub(),
+        )
+
+        assert broker_called["value"] is True
+        assert execution.status == "EXECUTED"
+        assert (
+            execution.broker_order_id
+            == "SAFETY_TEST_ORDER_001"
+        )
+        assert request.execution_id == execution.id
+    finally:
+        session.close()
+
+
+def test_execution_safety_symbol_mismatch_blocks_mt5(
+    monkeypatch,
+):
+    """
+    Approval for a different symbol must not authorize the
+    execution request.
+    """
+
+    from app.services import execution_service as module
+
+    session = SessionLocal()
+    repository = ExecutionRepository(session)
+    service = ExecutionService(repository)
+
+    request = ExecutionManager.prepare_execution(
+        symbol="EUR/USD",
+        direction="BUY",
+        lot_size=0.20,
+        approved=True,
+        entry_price=1.1000,
+        stop_loss=1.0950,
+        take_profit=1.1100,
+    )
+
+    broker_called = {"value": False}
+
+    def approve_wrong_symbol(*args, **kwargs):
+        return {
+            "status": "APPROVED",
+            "approved": True,
+            "engine": "DETERMINISTIC",
+            "symbol": "GBP/USD",
+            "direction": "BUY",
+            "volume": 0.20,
+        }
+
+    def fake_execute_with_mt5(execution_request):
+        broker_called["value"] = True
+        raise AssertionError(
+            "MT5 must not be contacted for symbol mismatch."
+        )
+
+    monkeypatch.setattr(
+        module.ExecutionSafetyService,
+        "analyze",
+        approve_wrong_symbol,
+    )
+    monkeypatch.setattr(
+        ExecutionManager,
+        "execute_with_mt5",
+        fake_execute_with_mt5,
+    )
+
+    try:
+        with pytest.raises(
+            ExecutionSafetyRejectedError,
+            match="symbol does not match",
+        ):
+            service.execute_trade(
+                user_id=910003,
+                execution_request=request,
+                safety_context=_SafetyContextStub(),
+            )
+
+        assert broker_called["value"] is False
+        assert request.execution_id is None
+    finally:
+        session.close()
+
+
+def test_execution_safety_direction_mismatch_blocks_mt5(
+    monkeypatch,
+):
+    """
+    Approval for a different direction must not authorize
+    the execution request.
+    """
+
+    from app.services import execution_service as module
+
+    session = SessionLocal()
+    repository = ExecutionRepository(session)
+    service = ExecutionService(repository)
+
+    request = ExecutionManager.prepare_execution(
+        symbol="EUR/USD",
+        direction="BUY",
+        lot_size=0.20,
+        approved=True,
+        entry_price=1.1000,
+        stop_loss=1.0950,
+        take_profit=1.1100,
+    )
+
+    broker_called = {"value": False}
+
+    def approve_wrong_direction(*args, **kwargs):
+        return {
+            "status": "APPROVED",
+            "approved": True,
+            "engine": "DETERMINISTIC",
+            "symbol": "EUR/USD",
+            "direction": "SELL",
+            "volume": 0.20,
+        }
+
+    def fake_execute_with_mt5(execution_request):
+        broker_called["value"] = True
+        raise AssertionError(
+            "MT5 must not be contacted for direction mismatch."
+        )
+
+    monkeypatch.setattr(
+        module.ExecutionSafetyService,
+        "analyze",
+        approve_wrong_direction,
+    )
+    monkeypatch.setattr(
+        ExecutionManager,
+        "execute_with_mt5",
+        fake_execute_with_mt5,
+    )
+
+    try:
+        with pytest.raises(
+            ExecutionSafetyRejectedError,
+            match="direction does not match",
+        ):
+            service.execute_trade(
+                user_id=910004,
+                execution_request=request,
+                safety_context=_SafetyContextStub(),
+            )
+
+        assert broker_called["value"] is False
+        assert request.execution_id is None
+    finally:
+        session.close()
+
+
+def test_execution_safety_volume_mismatch_blocks_mt5(
+    monkeypatch,
+):
+    """
+    Approval for a different volume must not authorize the
+    execution request.
+    """
+
+    from app.services import execution_service as module
+
+    session = SessionLocal()
+    repository = ExecutionRepository(session)
+    service = ExecutionService(repository)
+
+    request = ExecutionManager.prepare_execution(
+        symbol="EUR/USD",
+        direction="BUY",
+        lot_size=0.20,
+        approved=True,
+        entry_price=1.1000,
+        stop_loss=1.0950,
+        take_profit=1.1100,
+    )
+
+    broker_called = {"value": False}
+
+    def approve_wrong_volume(*args, **kwargs):
+        return {
+            "status": "APPROVED",
+            "approved": True,
+            "engine": "DETERMINISTIC",
+            "symbol": "EUR/USD",
+            "direction": "BUY",
+            "volume": 0.50,
+        }
+
+    def fake_execute_with_mt5(execution_request):
+        broker_called["value"] = True
+        raise AssertionError(
+            "MT5 must not be contacted for volume mismatch."
+        )
+
+    monkeypatch.setattr(
+        module.ExecutionSafetyService,
+        "analyze",
+        approve_wrong_volume,
+    )
+    monkeypatch.setattr(
+        ExecutionManager,
+        "execute_with_mt5",
+        fake_execute_with_mt5,
+    )
+
+    try:
+        with pytest.raises(
+            ExecutionSafetyRejectedError,
+            match="volume does not match",
+        ):
+            service.execute_trade(
+                user_id=910005,
+                execution_request=request,
+                safety_context=_SafetyContextStub(),
+            )
+
+        assert broker_called["value"] is False
+        assert request.execution_id is None
+    finally:
+        session.close()
+

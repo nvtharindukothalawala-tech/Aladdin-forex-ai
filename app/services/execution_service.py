@@ -17,11 +17,26 @@ from app.execution.execution_manager import (
     ExecutionManager,
 )
 
+from app.execution.execution_safety_context import (
+    ExecutionSafetyContext,
+)
+
+from app.services.execution_safety_service import (
+    ExecutionSafetyService,
+)
+
 
 class ExecutionIdempotencyConflictError(Exception):
     """
     Raised when an idempotency key is reused for a
     different execution request.
+    """
+
+
+class ExecutionSafetyRejectedError(Exception):
+    """
+    Raised when the deterministic execution safety
+    gate rejects a trade before broker execution.
     """
 
 
@@ -247,11 +262,132 @@ class ExecutionService:
 
         return execution
 
+    @staticmethod
+    def _run_execution_safety_gate(
+        execution_request,
+        safety_context: ExecutionSafetyContext,
+        execution_mode: str,
+        demo_execution_enabled: bool,
+    ) -> dict:
+        """
+        Run the deterministic final execution safety gate.
+
+        The gate runs before a PENDING execution record is
+        created and before MT5 is contacted.
+        """
+
+        safety_result = ExecutionSafetyService.analyze(
+            trade_setup=safety_context.trade_setup,
+            risk=safety_context.risk,
+            quote=safety_context.quote,
+            symbol_info=safety_context.symbol_info,
+            execution_mode=execution_mode,
+            demo_execution_enabled=demo_execution_enabled,
+        )
+
+        if not safety_result.get(
+            "approved",
+            False,
+        ):
+            reason = ""
+
+            # Current safety-service contract:
+            #     "reasons": [...]
+            reasons = safety_result.get(
+                "reasons"
+            )
+
+            if isinstance(
+                reasons,
+                (list, tuple),
+            ):
+                reason = "; ".join(
+                    str(item).strip()
+                    for item in reasons
+                    if str(item).strip()
+                )
+
+            elif reasons is not None:
+                reason = str(
+                    reasons
+                ).strip()
+
+            # Backward compatibility for older
+            # integrations/tests using:
+            #     "reason": "..."
+            if not reason:
+                legacy_reason = (
+                    safety_result.get(
+                        "reason"
+                    )
+                )
+
+                if legacy_reason is not None:
+                    reason = str(
+                        legacy_reason
+                    ).strip()
+
+            if not reason:
+                reason = (
+                    "Execution safety gate "
+                    "rejected trade."
+                )
+
+            raise ExecutionSafetyRejectedError(
+                reason
+            )
+
+        # The safety decision must authorize the exact trade
+        # that will be sent to the broker.
+        safety_symbol = str(
+            safety_result.get("symbol", "")
+        ).strip().upper()
+        request_symbol = str(
+            execution_request.symbol
+        ).strip().upper()
+
+        if safety_symbol and safety_symbol != request_symbol:
+            raise ExecutionSafetyRejectedError(
+                "Execution symbol does not match "
+                "the approved safety analysis."
+            )
+
+        safety_direction = str(
+            safety_result.get("direction", "")
+        ).strip().upper()
+        request_direction = str(
+            execution_request.order_type
+        ).strip().upper()
+
+        if (
+            safety_direction
+            and safety_direction != request_direction
+        ):
+            raise ExecutionSafetyRejectedError(
+                "Execution direction does not match "
+                "the approved safety analysis."
+            )
+
+        safety_volume = safety_result.get("volume")
+
+        if safety_volume is not None:
+            if abs(
+                float(safety_volume)
+                - float(execution_request.volume)
+            ) > 1e-9:
+                raise ExecutionSafetyRejectedError(
+                    "Execution volume does not match "
+                    "the approved safety analysis."
+                )
+
+        return safety_result
+
     def execute_trade(
         self,
         user_id: int,
         execution_request,
         idempotency_key: str | None = None,
+        safety_context: ExecutionSafetyContext | None = None,
     ):
         """
         Execute an approved trade and store
@@ -333,6 +469,28 @@ class ExecutionService:
                         ),
                     )
                 )
+
+        # ==========================================
+        # Deterministic Execution Safety Gate
+        # ==========================================
+        #
+        # The context is optional during migration so legacy
+        # callers remain backward compatible. New deterministic
+        # execution callers should provide it.
+        #
+        # Idempotent replays return above and therefore do not
+        # rerun safety analysis or contact the broker.
+        #
+
+        if safety_context is not None:
+            self._run_execution_safety_gate(
+                execution_request=execution_request,
+                safety_context=safety_context,
+                execution_mode=execution_mode,
+                demo_execution_enabled=(
+                    demo_execution_enabled
+                ),
+            )
 
         # ==========================================
         # Create Audit Record Before Broker Call

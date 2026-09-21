@@ -188,7 +188,388 @@ def test_execution_api_rejects_unapproved_trade():
 
     assert response.status_code == 403
 
+# ==========================================================
+# DIRECT EXECUTION PRICE STRUCTURE
+# ==========================================================
 
+
+def test_execute_trade_api_accepts_complete_buy_price_structure(
+    monkeypatch,
+):
+    """
+    Direct BUY execution must forward Entry,
+    Stop Loss and Take Profit to
+    ExecutionManager.
+    """
+
+    from app.api.routes import (
+        execution_routes,
+    )
+
+    captured = {}
+
+    original_prepare_execution = (
+        execution_routes
+        .ExecutionManager
+        .prepare_execution
+    )
+
+    def capture_prepare_execution(
+        *args,
+        **kwargs,
+    ):
+        captured.update(
+            kwargs
+        )
+
+        return original_prepare_execution(
+            *args,
+            **kwargs,
+        )
+
+    monkeypatch.setattr(
+        execution_routes.ExecutionManager,
+        "prepare_execution",
+        capture_prepare_execution,
+    )
+
+    response = client.post(
+        "/execution/execute",
+        json={
+            "user_id": 1,
+            "symbol": "EUR/USD",
+            "direction": "BUY",
+            "volume": 0.20,
+            "approved": True,
+            "entry_price": 1.1000,
+            "stop_loss": 1.0950,
+            "take_profit": 1.1100,
+        },
+    )
+
+    assert response.status_code == 200
+
+    assert (
+        captured["symbol"]
+        == "EUR/USD"
+    )
+
+    assert (
+        captured["direction"]
+        == "BUY"
+    )
+
+    assert (
+        captured["lot_size"]
+        == 0.20
+    )
+
+    assert (
+        captured["approved"]
+        is True
+    )
+
+    assert (
+        captured["entry_price"]
+        == 1.1000
+    )
+
+    assert (
+        captured["stop_loss"]
+        == 1.0950
+    )
+
+    assert (
+        captured["take_profit"]
+        == 1.1100
+    )
+
+
+def test_execute_trade_api_accepts_complete_sell_price_structure(
+    monkeypatch,
+):
+    """
+    Direct SELL execution must forward Entry,
+    Stop Loss and Take Profit to
+    ExecutionManager.
+    """
+
+    from app.api.routes import (
+        execution_routes,
+    )
+
+    captured = {}
+
+    original_prepare_execution = (
+        execution_routes
+        .ExecutionManager
+        .prepare_execution
+    )
+
+    def capture_prepare_execution(
+        *args,
+        **kwargs,
+    ):
+        captured.update(
+            kwargs
+        )
+
+        return original_prepare_execution(
+            *args,
+            **kwargs,
+        )
+
+    monkeypatch.setattr(
+        execution_routes.ExecutionManager,
+        "prepare_execution",
+        capture_prepare_execution,
+    )
+
+    response = client.post(
+        "/execution/execute",
+        json={
+            "user_id": 1,
+            "symbol": "EUR/USD",
+            "direction": "SELL",
+            "volume": 0.20,
+            "approved": True,
+            "entry_price": 1.1000,
+            "stop_loss": 1.1050,
+            "take_profit": 1.0900,
+        },
+    )
+
+    assert response.status_code == 200
+
+    assert (
+        captured["direction"]
+        == "SELL"
+    )
+
+    assert (
+        captured["entry_price"]
+        == 1.1000
+    )
+
+    assert (
+        captured["stop_loss"]
+        == 1.1050
+    )
+
+    assert (
+        captured["take_profit"]
+        == 1.0900
+    )
+
+
+def test_execute_trade_api_rejects_partial_price_structure():
+    """
+    Entry, Stop Loss and Take Profit must
+    always be supplied together.
+    """
+
+    response = client.post(
+        "/execution/execute",
+        json={
+            "user_id": 1,
+            "symbol": "EUR/USD",
+            "direction": "BUY",
+            "volume": 0.20,
+            "approved": True,
+            "entry_price": 1.1000,
+            "stop_loss": 1.0950,
+        },
+    )
+
+    assert response.status_code == 403
+
+    data = response.json()
+
+    assert (
+        "must be supplied together"
+        in data["detail"]
+    )
+
+
+def test_execute_trade_api_rejects_entry_without_sl_tp():
+    """
+    Entry alone must not be accepted.
+    """
+
+    response = client.post(
+        "/execution/execute",
+        json={
+            "user_id": 1,
+            "symbol": "EUR/USD",
+            "direction": "BUY",
+            "volume": 0.20,
+            "approved": True,
+            "entry_price": 1.1000,
+        },
+    )
+
+    assert response.status_code == 403
+
+    assert (
+        "must be supplied together"
+        in response.json()["detail"]
+    )
+
+
+def test_execute_trade_api_rejects_stop_loss_without_other_prices():
+    """
+    Stop Loss alone must not be accepted.
+    """
+
+    response = client.post(
+        "/execution/execute",
+        json={
+            "user_id": 1,
+            "symbol": "EUR/USD",
+            "direction": "BUY",
+            "volume": 0.20,
+            "approved": True,
+            "stop_loss": 1.0950,
+        },
+    )
+
+    assert response.status_code == 403
+
+    assert (
+        "must be supplied together"
+        in response.json()["detail"]
+    )
+
+
+def test_execute_trade_api_rejects_take_profit_without_other_prices():
+    """
+    Take Profit alone must not be accepted.
+    """
+
+    response = client.post(
+        "/execution/execute",
+        json={
+            "user_id": 1,
+            "symbol": "EUR/USD",
+            "direction": "BUY",
+            "volume": 0.20,
+            "approved": True,
+            "take_profit": 1.1100,
+        },
+    )
+
+    assert response.status_code == 403
+
+    assert (
+        "must be supplied together"
+        in response.json()["detail"]
+    )
+
+
+def test_execute_trade_api_rejects_invalid_buy_price_structure():
+    """
+    BUY structure must satisfy:
+
+        stop_loss < entry_price < take_profit
+    """
+
+    response = client.post(
+        "/execution/execute",
+        json={
+            "user_id": 1,
+            "symbol": "EUR/USD",
+            "direction": "BUY",
+            "volume": 0.20,
+            "approved": True,
+            "entry_price": 1.1000,
+            "stop_loss": 1.1050,
+            "take_profit": 1.1100,
+        },
+    )
+
+    assert response.status_code == 403
+
+    assert (
+        "Invalid BUY price structure"
+        in response.json()["detail"]
+    )
+
+
+def test_execute_trade_api_rejects_invalid_sell_price_structure():
+    """
+    SELL structure must satisfy:
+
+        take_profit < entry_price < stop_loss
+    """
+
+    response = client.post(
+        "/execution/execute",
+        json={
+            "user_id": 1,
+            "symbol": "EUR/USD",
+            "direction": "SELL",
+            "volume": 0.20,
+            "approved": True,
+            "entry_price": 1.1000,
+
+            # Invalid for SELL because SL
+            # must be ABOVE entry.
+            "stop_loss": 1.0950,
+
+            "take_profit": 1.0900,
+        },
+    )
+
+    assert response.status_code == 403
+
+    assert (
+        "Invalid SELL price structure"
+        in response.json()["detail"]
+    )
+
+
+def test_execute_trade_api_without_prices_remains_backward_compatible():
+    """
+    Existing direct execution requests that do
+    not supply Entry, SL or TP must continue
+    working.
+    """
+
+    response = client.post(
+        "/execution/execute",
+        json={
+            "user_id": 1,
+            "symbol": "EUR/USD",
+            "direction": "BUY",
+            "volume": 0.10,
+            "approved": True,
+        },
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert (
+        data["symbol"]
+        == "EUR/USD"
+    )
+
+    assert (
+        data["direction"]
+        == "BUY"
+    )
+
+    assert (
+        data["volume"]
+        == 0.10
+    )
+
+    assert (
+        data["status"]
+        == "EXECUTED"
+    )
+    
 def test_ai_execution_api_runs_server_side_approval_workflow(
     monkeypatch,
 ):
@@ -1373,3 +1754,4 @@ def test_ai_execution_response_schema_supports_execution_result():
         response.execution_result.broker_order_id
         == "TEST-001"
     )
+
