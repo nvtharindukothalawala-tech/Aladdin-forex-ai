@@ -1257,3 +1257,114 @@ def test_execution_safety_volume_mismatch_blocks_mt5(
     finally:
         session.close()
 
+
+# ==========================================================
+# EXECUTION SAFETY PRICE-BINDING / TAMPER PROTECTION
+# ==========================================================
+
+
+@pytest.mark.parametrize(
+    (
+        "field_name",
+        "approved_value",
+        "request_value",
+        "expected_message",
+    ),
+    [
+        ("entry_price", 1.1000, 1.1010, "entry price does not match"),
+        ("stop_loss", 1.0950, 1.0940, "stop loss does not match"),
+        ("take_profit", 1.1100, 1.1120, "take profit does not match"),
+    ],
+)
+def test_execution_safety_price_mismatch_blocks_mt5(
+    monkeypatch,
+    field_name,
+    approved_value,
+    request_value,
+    expected_message,
+):
+    """
+    Safety approval must be bound to the exact entry,
+    stop-loss and take-profit values that were approved.
+    """
+
+    from app.services import execution_service as module
+
+    session = SessionLocal()
+    repository = ExecutionRepository(session)
+    service = ExecutionService(repository)
+
+    request_prices = {
+        "entry_price": 1.1000,
+        "stop_loss": 1.0950,
+        "take_profit": 1.1100,
+    }
+    request_prices[field_name] = request_value
+
+    request = ExecutionManager.prepare_execution(
+        symbol="EUR/USD",
+        direction="BUY",
+        lot_size=0.20,
+        approved=True,
+        entry_price=request_prices["entry_price"],
+        stop_loss=request_prices["stop_loss"],
+        take_profit=request_prices["take_profit"],
+    )
+
+    approved_prices = {
+        "entry_price": 1.1000,
+        "stop_loss": 1.0950,
+        "take_profit": 1.1100,
+    }
+    approved_prices[field_name] = approved_value
+
+    broker_called = {"value": False}
+
+    def approve_safety(*args, **kwargs):
+        return {
+            "status": "APPROVED",
+            "approved": True,
+            "reason": "Execution passed deterministic safety checks.",
+            "engine": "DETERMINISTIC",
+            "symbol": "EUR/USD",
+            "direction": "BUY",
+            "volume": 0.20,
+            "entry_price": approved_prices["entry_price"],
+            "stop_loss": approved_prices["stop_loss"],
+            "take_profit": approved_prices["take_profit"],
+        }
+
+    def fake_execute_with_mt5(execution_request):
+        broker_called["value"] = True
+        raise AssertionError(
+            "MT5 must not be contacted when an execution "
+            "price differs from the safety-approved price."
+        )
+
+    monkeypatch.setattr(
+        module.ExecutionSafetyService,
+        "analyze",
+        approve_safety,
+    )
+    monkeypatch.setattr(
+        ExecutionManager,
+        "execute_with_mt5",
+        fake_execute_with_mt5,
+    )
+
+    try:
+        with pytest.raises(
+            ExecutionSafetyRejectedError,
+            match=expected_message,
+        ):
+            service.execute_trade(
+                user_id=910006,
+                execution_request=request,
+                safety_context=_SafetyContextStub(),
+            )
+
+        assert broker_called["value"] is False
+        assert request.execution_id is None
+
+    finally:
+        session.close()

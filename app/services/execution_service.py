@@ -274,6 +274,10 @@ class ExecutionService:
 
         The gate runs before a PENDING execution record is
         created and before MT5 is contacted.
+
+        An approved result is bound to the exact validated
+        symbol, direction, volume, entry price, stop loss,
+        and take profit.
         """
 
         safety_result = ExecutionSafetyService.analyze(
@@ -285,100 +289,160 @@ class ExecutionService:
             demo_execution_enabled=demo_execution_enabled,
         )
 
-        if not safety_result.get(
-            "approved",
-            False,
-        ):
+        if not safety_result.get("approved", False):
             reason = ""
+            reasons = safety_result.get("reasons")
 
-            # Current safety-service contract:
-            #     "reasons": [...]
-            reasons = safety_result.get(
-                "reasons"
-            )
-
-            if isinstance(
-                reasons,
-                (list, tuple),
-            ):
+            if isinstance(reasons, (list, tuple)):
                 reason = "; ".join(
                     str(item).strip()
                     for item in reasons
                     if str(item).strip()
                 )
-
             elif reasons is not None:
-                reason = str(
-                    reasons
-                ).strip()
+                reason = str(reasons).strip()
 
-            # Backward compatibility for older
-            # integrations/tests using:
-            #     "reason": "..."
             if not reason:
-                legacy_reason = (
-                    safety_result.get(
-                        "reason"
-                    )
-                )
-
+                legacy_reason = safety_result.get("reason")
                 if legacy_reason is not None:
-                    reason = str(
-                        legacy_reason
-                    ).strip()
+                    reason = str(legacy_reason).strip()
 
             if not reason:
-                reason = (
-                    "Execution safety gate "
-                    "rejected trade."
+                reason = "Execution safety gate rejected trade."
+
+            raise ExecutionSafetyRejectedError(reason)
+
+        raw_binding = safety_result.get("execution_binding")
+
+        if raw_binding is None:
+            binding = {
+                key: safety_result.get(key)
+                for key in (
+                    "symbol",
+                    "direction",
+                    "volume",
+                    "entry_price",
+                    "stop_loss",
+                    "take_profit",
                 )
-
+                if safety_result.get(key) is not None
+            }
+        elif isinstance(raw_binding, dict):
+            binding = raw_binding
+        else:
             raise ExecutionSafetyRejectedError(
-                reason
+                "Execution safety binding is invalid."
             )
 
-        # The safety decision must authorize the exact trade
-        # that will be sent to the broker.
-        safety_symbol = str(
-            safety_result.get("symbol", "")
-        ).strip().upper()
-        request_symbol = str(
-            execution_request.symbol
-        ).strip().upper()
-
-        if safety_symbol and safety_symbol != request_symbol:
-            raise ExecutionSafetyRejectedError(
-                "Execution symbol does not match "
-                "the approved safety analysis."
+        safety_symbol = binding.get("symbol")
+        if safety_symbol is not None:
+            normalized_safety_symbol = (
+                str(safety_symbol)
+                .replace("/", "")
+                .strip()
+                .upper()
             )
-
-        safety_direction = str(
-            safety_result.get("direction", "")
-        ).strip().upper()
-        request_direction = str(
-            execution_request.order_type
-        ).strip().upper()
-
-        if (
-            safety_direction
-            and safety_direction != request_direction
-        ):
-            raise ExecutionSafetyRejectedError(
-                "Execution direction does not match "
-                "the approved safety analysis."
+            normalized_request_symbol = (
+                str(execution_request.symbol)
+                .replace("/", "")
+                .strip()
+                .upper()
             )
-
-        safety_volume = safety_result.get("volume")
-
-        if safety_volume is not None:
-            if abs(
-                float(safety_volume)
-                - float(execution_request.volume)
-            ) > 1e-9:
+            if (
+                normalized_safety_symbol
+                and normalized_safety_symbol
+                != normalized_request_symbol
+            ):
                 raise ExecutionSafetyRejectedError(
-                    "Execution volume does not match "
+                    "Execution symbol does not match "
                     "the approved safety analysis."
                 )
+
+        safety_direction = binding.get("direction")
+        if safety_direction is not None:
+            normalized_safety_direction = (
+                str(safety_direction).strip().upper()
+            )
+            normalized_request_direction = (
+                str(execution_request.order_type).strip().upper()
+            )
+            if (
+                normalized_safety_direction
+                and normalized_safety_direction
+                != normalized_request_direction
+            ):
+                raise ExecutionSafetyRejectedError(
+                    "Execution direction does not match "
+                    "the approved safety analysis."
+                )
+
+        def verify_numeric_binding(
+            binding_key: str,
+            request_attribute: str,
+            label: str,
+        ) -> None:
+            safety_value = binding.get(binding_key)
+
+            if safety_value is None:
+                return
+
+            request_value = getattr(
+                execution_request,
+                request_attribute,
+                None,
+            )
+
+            if request_value is None:
+                raise ExecutionSafetyRejectedError(
+                    f"Execution {label} does not match "
+                    "the approved safety analysis."
+                )
+
+            try:
+                normalized_safety_value = float(safety_value)
+                normalized_request_value = float(request_value)
+            except (TypeError, ValueError) as error:
+                raise ExecutionSafetyRejectedError(
+                    f"Execution {label} binding is invalid."
+                ) from error
+
+            tolerance = max(
+                1e-9,
+                abs(normalized_safety_value) * 1e-12,
+            )
+
+            if (
+                abs(
+                    normalized_safety_value
+                    - normalized_request_value
+                )
+                > tolerance
+            ):
+                raise ExecutionSafetyRejectedError(
+                    f"Execution {label} does not match "
+                    "the approved safety analysis."
+                )
+
+        verify_numeric_binding(
+            "volume",
+            "volume",
+            "volume",
+        )
+        verify_numeric_binding(
+            "entry_price",
+            "entry_price",
+            "entry price",
+        )
+        verify_numeric_binding(
+            "stop_loss",
+            "stop_loss",
+            "stop loss",
+        )
+        verify_numeric_binding(
+            "take_profit",
+            "take_profit",
+            "take profit",
+        )
 
         return safety_result
 
