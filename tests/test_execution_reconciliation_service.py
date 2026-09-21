@@ -41,6 +41,42 @@ class FakeExecutionRepository:
 
         self.updated_executions = []
 
+    def get_safety_audit_by_execution_id(
+        self,
+        execution_id: int,
+    ):
+        """
+        Return an APPROVED deterministic safety audit
+        for existing reconciliation tests.
+
+        Safety-gate tests can override this method on
+        the repository instance to simulate missing or
+        rejected audit records.
+        """
+
+        execution = next(
+            (
+                item
+                for item in self.pending_executions
+                if item.id == execution_id
+            ),
+            None,
+        )
+
+        if execution is None:
+            return None
+
+        return SimpleNamespace(
+            execution_id=execution.id,
+            user_id=execution.user_id,
+            safety_status="APPROVED",
+            safety_engine="DETERMINISTIC",
+            execution_mode="DEMO",
+            symbol=execution.symbol,
+            direction=execution.direction,
+            volume=execution.volume,
+        )
+
     def get_pending_executions(
         self,
         user_id: int,
@@ -949,3 +985,118 @@ def test_legacy_aladdin_comment_is_not_reconciled(
         repository.updated_executions
         == []
     )
+
+# ============================================================
+# SAFETY AUDIT RECONCILIATION GATE
+# ============================================================
+
+
+def _set_single_open_position_evidence(
+    monkeypatch,
+    *,
+    execution_id: int,
+    ticket: int,
+):
+    monkeypatch.setattr(
+        BrokerService,
+        "get_open_positions",
+        lambda: {
+            "execution_mode": "DEMO",
+            "connected": True,
+            "position_count": 1,
+            "positions": [
+                {
+                    "ticket": ticket,
+                    "identifier": ticket + 1,
+                    "symbol": "EURUSD",
+                    "direction": "BUY",
+                    "volume": 0.01,
+                    "comment": f"ALADDIN E{execution_id}",
+                }
+            ],
+        },
+    )
+
+    monkeypatch.setattr(
+        BrokerService,
+        "get_trade_history",
+        lambda days=None: {
+            "execution_mode": "DEMO",
+            "connected": True,
+            "history_days": days,
+            "closed_trade_count": 0,
+            "closed_trades": [],
+        },
+    )
+
+
+def test_reconciliation_requires_safety_audit(monkeypatch):
+    execution = make_pending_execution(execution_id=856)
+    repository = FakeExecutionRepository([execution])
+    repository.get_safety_audit_by_execution_id = lambda execution_id: None
+    service = ExecutionReconciliationService(repository)
+    set_demo_mode(monkeypatch)
+    _set_single_open_position_evidence(
+        monkeypatch, execution_id=856, ticket=9501
+    )
+
+    result = service.reconcile_pending_executions(user_id=1)
+
+    assert result["reconciled_count"] == 0
+    assert result["conflict_count"] == 1
+    assert execution.status == "PENDING"
+    assert repository.updated_executions == []
+    assert result["conflicts"][0]["reason"] == (
+        "Execution safety audit is missing. "
+        "Reconciliation was blocked."
+    )
+
+
+def test_reconciliation_requires_approved_safety_audit(monkeypatch):
+    execution = make_pending_execution(execution_id=857)
+    repository = FakeExecutionRepository([execution])
+    repository.get_safety_audit_by_execution_id = (
+        lambda execution_id: SimpleNamespace(
+            execution_id=execution_id,
+            user_id=1,
+            safety_status="REJECTED",
+            safety_engine="DETERMINISTIC",
+            execution_mode="DEMO",
+            symbol="EURUSD",
+            direction="BUY",
+            volume=0.01,
+        )
+    )
+    service = ExecutionReconciliationService(repository)
+    set_demo_mode(monkeypatch)
+    _set_single_open_position_evidence(
+        monkeypatch, execution_id=857, ticket=9601
+    )
+
+    result = service.reconcile_pending_executions(user_id=1)
+
+    assert result["reconciled_count"] == 0
+    assert result["conflict_count"] == 1
+    assert execution.status == "PENDING"
+    assert repository.updated_executions == []
+    assert result["conflicts"][0]["reason"] == (
+        "Execution safety audit does not contain "
+        "an approved safety decision."
+    )
+
+
+def test_reconciliation_with_approved_safety_audit(monkeypatch):
+    execution = make_pending_execution(execution_id=858)
+    repository = FakeExecutionRepository([execution])
+    service = ExecutionReconciliationService(repository)
+    set_demo_mode(monkeypatch)
+    _set_single_open_position_evidence(
+        monkeypatch, execution_id=858, ticket=9701
+    )
+
+    result = service.reconcile_pending_executions(user_id=1)
+
+    assert result["reconciled_count"] == 1
+    assert result["conflict_count"] == 0
+    assert execution.status == "EXECUTED"
+    assert execution.broker_order_id == "9701"

@@ -875,6 +875,172 @@ class ExecutionReconciliationService:
                 continue
 
             # ============================================
+            # Persisted safety authorization
+            # ============================================
+
+            safety_audit = (
+                self.repository
+                .get_safety_audit_by_execution_id(
+                    execution_id
+                )
+            )
+
+            if safety_audit is None:
+                conflicts.append({
+                    "execution_id": execution_id,
+                    "symbol": execution.symbol,
+                    "direction": execution.direction,
+                    "volume": float(execution.volume),
+                    "evidence_source": evidence.get("source"),
+                    "reason": (
+                        "Execution safety audit is missing. "
+                        "Reconciliation was blocked."
+                    ),
+                })
+                continue
+
+            if getattr(safety_audit, "execution_id", None) != execution_id:
+                conflicts.append({
+                    "execution_id": execution_id,
+                    "symbol": execution.symbol,
+                    "direction": execution.direction,
+                    "volume": float(execution.volume),
+                    "evidence_source": evidence.get("source"),
+                    "reason": (
+                        "Execution safety audit does not belong "
+                        "to the execution."
+                    ),
+                })
+                continue
+
+            if getattr(safety_audit, "user_id", None) != execution.user_id:
+                conflicts.append({
+                    "execution_id": execution_id,
+                    "symbol": execution.symbol,
+                    "direction": execution.direction,
+                    "volume": float(execution.volume),
+                    "evidence_source": evidence.get("source"),
+                    "reason": (
+                        "Execution safety audit user does not "
+                        "match the execution owner."
+                    ),
+                })
+                continue
+
+            safety_status = str(
+                getattr(safety_audit, "safety_status", "") or ""
+            ).strip().upper()
+
+            if safety_status != "APPROVED":
+                conflicts.append({
+                    "execution_id": execution_id,
+                    "symbol": execution.symbol,
+                    "direction": execution.direction,
+                    "volume": float(execution.volume),
+                    "evidence_source": evidence.get("source"),
+                    "safety_status": safety_status,
+                    "reason": (
+                        "Execution safety audit does not contain "
+                        "an approved safety decision."
+                    ),
+                })
+                continue
+
+            safety_engine = str(
+                getattr(safety_audit, "safety_engine", "") or ""
+            ).strip().upper()
+
+            if safety_engine != "DETERMINISTIC":
+                conflicts.append({
+                    "execution_id": execution_id,
+                    "symbol": execution.symbol,
+                    "direction": execution.direction,
+                    "volume": float(execution.volume),
+                    "evidence_source": evidence.get("source"),
+                    "reason": (
+                        "Execution safety audit was not produced "
+                        "by the deterministic safety engine."
+                    ),
+                })
+                continue
+
+            audit_execution_mode = str(
+                getattr(safety_audit, "execution_mode", "") or ""
+            ).strip().upper()
+
+            if audit_execution_mode != "DEMO":
+                conflicts.append({
+                    "execution_id": execution_id,
+                    "symbol": execution.symbol,
+                    "direction": execution.direction,
+                    "volume": float(execution.volume),
+                    "evidence_source": evidence.get("source"),
+                    "reason": (
+                        "Execution safety audit was not created "
+                        "in DEMO mode."
+                    ),
+                })
+                continue
+
+            audit_symbol = self._normalize_symbol(
+                getattr(safety_audit, "symbol", None)
+            )
+            local_symbol = self._normalize_symbol(execution.symbol)
+
+            if not audit_symbol or audit_symbol != local_symbol:
+                conflicts.append({
+                    "execution_id": execution_id,
+                    "symbol": execution.symbol,
+                    "direction": execution.direction,
+                    "volume": float(execution.volume),
+                    "evidence_source": evidence.get("source"),
+                    "reason": (
+                        "Execution safety audit symbol does not "
+                        "match the execution."
+                    ),
+                })
+                continue
+
+            audit_direction = self._normalize_direction(
+                getattr(safety_audit, "direction", None)
+            )
+            local_direction = self._normalize_direction(execution.direction)
+
+            if (
+                audit_direction not in {"BUY", "SELL"}
+                or audit_direction != local_direction
+            ):
+                conflicts.append({
+                    "execution_id": execution_id,
+                    "symbol": execution.symbol,
+                    "direction": execution.direction,
+                    "volume": float(execution.volume),
+                    "evidence_source": evidence.get("source"),
+                    "reason": (
+                        "Execution safety audit direction does not "
+                        "match the execution."
+                    ),
+                })
+                continue
+
+            if not self._volume_matches(
+                execution.volume,
+                getattr(safety_audit, "volume", None),
+            ):
+                conflicts.append({
+                    "execution_id": execution_id,
+                    "symbol": execution.symbol,
+                    "direction": execution.direction,
+                    "volume": float(execution.volume),
+                    "evidence_source": evidence.get("source"),
+                    "reason": (
+                        "Execution safety audit volume does not "
+                        "match the execution."
+                    ),
+                })
+                continue
+
+            # ============================================
             # Broker identifier must exist
             # ============================================
 
