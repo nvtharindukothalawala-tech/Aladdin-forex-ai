@@ -1,13 +1,17 @@
 """
 repository.py
 
-Database operations for execution history.
+Database operations for execution history and
+execution-safety audit snapshots.
 
 Author: Tharindu Kothalawala
 Project: Aladdin
 """
 
-from app.execution.models import ExecutionModel
+from app.execution.models import (
+    ExecutionModel,
+    ExecutionSafetyAuditModel,
+)
 
 
 class ExecutionRepository:
@@ -20,6 +24,10 @@ class ExecutionRepository:
         session,
     ):
         self.session = session
+
+    # ==================================================
+    # EXECUTION CREATE
+    # ==================================================
 
     def save_execution(
         self,
@@ -67,6 +75,10 @@ class ExecutionRepository:
             self.session.rollback()
             raise
 
+    # ==================================================
+    # EXECUTION UPDATE
+    # ==================================================
+
     def update_execution(
         self,
         execution,
@@ -96,6 +108,10 @@ class ExecutionRepository:
             self.session.rollback()
             raise
 
+    # ==================================================
+    # IDEMPOTENCY LOOKUP
+    # ==================================================
+
     def get_execution_by_idempotency_key(
         self,
         user_id: int,
@@ -116,6 +132,10 @@ class ExecutionRepository:
             )
             .one_or_none()
         )
+
+    # ==================================================
+    # EXECUTION READ OPERATIONS
+    # ==================================================
 
     def get_user_executions(
         self,
@@ -172,6 +192,130 @@ class ExecutionRepository:
             self.session.query(ExecutionModel)
             .filter(
                 ExecutionModel.user_id == user_id
+            )
+            .count()
+        )
+
+    # ==================================================
+    # EXECUTION SAFETY AUDIT
+    # ==================================================
+
+    def save_safety_audit(
+        self,
+        *,
+        execution_id: int,
+        user_id: int,
+        safety_status: str,
+        safety_engine: str,
+        execution_mode: str,
+        symbol: str,
+        direction: str,
+        volume: float,
+        entry_price: float | None,
+        stop_loss: float | None,
+        take_profit: float | None,
+        checks_json: str,
+        reasons_json: str,
+        limits_json: str,
+    ):
+        """
+        Persist the deterministic safety snapshot associated
+        with one execution.
+
+        The unique index on execution_id guarantees that one
+        execution can have at most one safety audit snapshot.
+        """
+
+        audit = ExecutionSafetyAuditModel(
+            execution_id=execution_id,
+            user_id=user_id,
+            safety_status=safety_status,
+            safety_engine=safety_engine,
+            execution_mode=execution_mode,
+            symbol=symbol,
+            direction=direction,
+            volume=volume,
+            entry_price=entry_price,
+            stop_loss=stop_loss,
+            take_profit=take_profit,
+            checks_json=checks_json,
+            reasons_json=reasons_json,
+            limits_json=limits_json,
+        )
+
+        try:
+            self.session.add(audit)
+            self.session.commit()
+            self.session.refresh(audit)
+
+            return audit
+
+        except Exception:
+            self.session.rollback()
+            raise
+
+    def get_safety_audit_by_execution_id(
+        self,
+        execution_id: int,
+    ):
+        """
+        Return the safety audit snapshot associated
+        with one execution.
+        """
+
+        return (
+            self.session.query(
+                ExecutionSafetyAuditModel
+            )
+            .filter(
+                ExecutionSafetyAuditModel.execution_id
+                == execution_id
+            )
+            .one_or_none()
+        )
+
+    def get_user_safety_audits(
+        self,
+        user_id: int,
+    ):
+        """
+        Return all safety audit snapshots belonging
+        to one user.
+
+        Oldest records are returned first to keep
+        retrieval deterministic.
+        """
+
+        return (
+            self.session.query(
+                ExecutionSafetyAuditModel
+            )
+            .filter(
+                ExecutionSafetyAuditModel.user_id
+                == user_id
+            )
+            .order_by(
+                ExecutionSafetyAuditModel.id.asc()
+            )
+            .all()
+        )
+
+    def count_user_safety_audits(
+        self,
+        user_id: int,
+    ):
+        """
+        Count safety audit snapshots belonging
+        to one user.
+        """
+
+        return (
+            self.session.query(
+                ExecutionSafetyAuditModel
+            )
+            .filter(
+                ExecutionSafetyAuditModel.user_id
+                == user_id
             )
             .count()
         )
