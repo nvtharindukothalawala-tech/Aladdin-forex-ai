@@ -72,6 +72,7 @@ SessionLocal = sessionmaker(
 # - trades
 # - notifications
 # - execution_orders
+# - execution_safety_audits
 #
 # This is especially important for fresh databases
 # such as GitHub Actions CI.
@@ -89,6 +90,7 @@ from app.auth.models import (  # noqa: E402, F401
 
 from app.execution.models import (  # noqa: E402, F401
     ExecutionModel,
+    ExecutionSafetyAuditModel,
 )
 
 
@@ -184,6 +186,10 @@ def create_database_tables():
     Fresh databases receive the complete current schema through
     SQLAlchemy. Existing databases are then checked for backward-
     compatible execution idempotency fields.
+
+    The execution_safety_audits table is a new table, so
+    Base.metadata.create_all() creates it automatically when
+    missing. No ALTER TABLE compatibility step is required.
     """
 
     Base.metadata.create_all(
@@ -197,8 +203,9 @@ def create_database_tables():
 # database module is loaded.
 #
 # This allows fresh environments such as GitHub CI
-# to create execution_orders and the other tables
-# before services and tests use them.
+# to create execution_orders, execution_safety_audits,
+# and the other registered tables before services and
+# tests use them.
 #
 # Existing local databases are also upgraded with the
 # Phase 7 execution idempotency fields when required.

@@ -1,7 +1,14 @@
 """
 repository.py
 
-Database operations for trades.
+SQLAlchemy database repository for journal trades.
+
+This repository is used by database-backed journal,
+performance, coaching, and MT5 synchronization services.
+
+The JSON-based TradeRepository remains separately in:
+
+    app.repositories.trade_repository
 
 Author: Tharindu Kothalawala
 Project: Aladdin
@@ -16,7 +23,12 @@ from app.database.models import TradeModel
 
 class TradeRepository:
     """
-    Handles trade database operations.
+    Handles database-backed trade operations.
+
+    This repository uses a SQLAlchemy Session.
+
+    It is intentionally separate from the JSON repository
+    located at app.repositories.trade_repository.
     """
 
     def __init__(
@@ -37,8 +49,8 @@ class TradeRepository:
         """
         Save a normal Aladdin journal trade.
 
-        This keeps the previous behavior for
-        backward compatibility.
+        The default user_id=1 is retained for backward
+        compatibility with existing tests and callers.
         """
 
         db_trade = TradeModel(
@@ -70,8 +82,8 @@ class TradeRepository:
         mt5_deal_ticket: int,
     ):
         """
-        Find an imported MT5 trade using
-        its unique MT5 deal ticket.
+        Find an imported MT5 trade using its
+        unique MT5 closing deal ticket.
         """
 
         return (
@@ -88,7 +100,7 @@ class TradeRepository:
         mt5_deal_ticket: int,
     ) -> bool:
         """
-        Return True if an MT5 deal has already
+        Return True when an MT5 deal has already
         been imported into the journal.
         """
 
@@ -122,24 +134,32 @@ class TradeRepository:
         risk_reward: float | None = None,
     ):
         """
-        Import one MT5 closed trade into
+        Import one completed MT5 trade into
         the Aladdin journal.
 
-        Duplicate MT5 deal tickets are ignored.
+        Duplicate MT5 closing deal tickets are
+        ignored.
 
-        profit_loss uses net broker P/L:
+        Net P/L is calculated as:
 
             profit
             + commission
             + swap
             + fee
 
-        risk_reward may be None when the
-        original planned R:R is unavailable.
+        Returns:
+            tuple:
+                (TradeModel, created)
+
+                created=True
+                    A new database row was created.
+
+                created=False
+                    The MT5 deal already existed.
         """
 
         # ----------------------------------------------
-        # Validate required values
+        # Validate deal ticket
         # ----------------------------------------------
 
         if deal_ticket is None:
@@ -147,10 +167,24 @@ class TradeRepository:
                 "MT5 deal ticket is required."
             )
 
-        if not symbol:
+        # ----------------------------------------------
+        # Validate symbol
+        # ----------------------------------------------
+
+        normalized_symbol = (
+            str(symbol)
+            .strip()
+            .upper()
+        )
+
+        if not normalized_symbol:
             raise ValueError(
                 "Trade symbol is required."
             )
+
+        # ----------------------------------------------
+        # Validate direction
+        # ----------------------------------------------
 
         normalized_direction = (
             str(direction)
@@ -181,18 +215,18 @@ class TradeRepository:
             return existing_trade, False
 
         # ----------------------------------------------
-        # Calculate true journal P/L
+        # Calculate net broker P/L
         # ----------------------------------------------
 
         net_profit = (
-            float(profit)
+            float(profit or 0.0)
             + float(commission or 0.0)
             + float(swap or 0.0)
             + float(fee or 0.0)
         )
 
         # ----------------------------------------------
-        # Determine trade result
+        # Determine journal result
         # ----------------------------------------------
 
         if net_profit > 0:
@@ -205,21 +239,33 @@ class TradeRepository:
             result = "BREAKEVEN"
 
         # ----------------------------------------------
-        # Build database record
+        # Create database model
         # ----------------------------------------------
 
         db_trade = TradeModel(
             user_id=user_id,
-            symbol=symbol,
+            symbol=normalized_symbol,
             direction=normalized_direction,
             result=result,
             profit_loss=net_profit,
             risk_reward=risk_reward,
             source="MT5",
-            mt5_deal_ticket=deal_ticket,
-            mt5_order_ticket=order_ticket,
-            mt5_position_id=position_id,
-            close_price=close_price,
+            mt5_deal_ticket=int(
+                deal_ticket
+            ),
+            mt5_order_ticket=(
+                int(order_ticket)
+                if order_ticket is not None
+                else None
+            ),
+            mt5_position_id=(
+                int(position_id)
+                if position_id is not None
+                else None
+            ),
+            close_price=float(
+                close_price or 0.0
+            ),
             commission=float(
                 commission or 0.0
             ),
@@ -238,7 +284,7 @@ class TradeRepository:
         )
 
         # ----------------------------------------------
-        # Save safely
+        # Persist safely
         # ----------------------------------------------
 
         try:
@@ -250,9 +296,8 @@ class TradeRepository:
 
         except IntegrityError:
             """
-            Handles race conditions where two
-            requests try to import the same MT5
-            deal at the same time.
+            Handle a race where two requests attempt
+            to import the same MT5 deal simultaneously.
             """
 
             self.session.rollback()
@@ -273,7 +318,7 @@ class TradeRepository:
             raise
 
     # ==================================================
-    # JOURNAL READ OPERATIONS
+    # USER JOURNAL READ OPERATIONS
     # ==================================================
 
     def get_user_trades(
@@ -281,7 +326,8 @@ class TradeRepository:
         user_id: int,
     ):
         """
-        Return trades belonging to a user.
+        Return all journal trades belonging
+        to one user.
         """
 
         return (
@@ -298,7 +344,8 @@ class TradeRepository:
         user_id: int,
     ):
         """
-        Return trade count for a user.
+        Return the number of journal trades
+        belonging to one user.
         """
 
         return (
@@ -310,11 +357,15 @@ class TradeRepository:
             .count()
         )
 
+    # ==================================================
+    # LEGACY READ OPERATIONS
+    # ==================================================
+
     def get_all_trades(self):
         """
-        Return all trades.
+        Return every journal trade.
 
-        Kept for backward compatibility.
+        Retained for backward compatibility.
         """
 
         return (
@@ -326,9 +377,9 @@ class TradeRepository:
 
     def count_trades(self):
         """
-        Return total trade count.
+        Return total journal trade count.
 
-        Kept for backward compatibility.
+        Retained for backward compatibility.
         """
 
         return (
