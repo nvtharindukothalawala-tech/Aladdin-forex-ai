@@ -267,6 +267,48 @@ class ExecutionReconciliationResponseSchema(
 
     message: str
 
+# ==========================================
+# Execution Reconciliation Audit Response
+# ==========================================
+
+class ExecutionReconciliationAuditSchema(BaseModel):
+    """
+    Response schema for one persisted
+    execution-reconciliation audit record.
+
+    Reconciliation audits are immutable historical
+    records describing what happened during a
+    reconciliation attempt.
+    """
+
+    model_config = ConfigDict(
+        from_attributes=True,
+    )
+
+    id: int
+
+    execution_id: int
+
+    user_id: int
+
+    outcome: str
+
+    reason: str
+
+    evidence_source: str | None = None
+
+    broker_order_id: str | None = None
+
+    symbol: str
+
+    direction: str
+
+    volume: float
+
+    details_json: str
+
+    created_at: Any
+
 
 # ==========================================
 # AI Execution Request

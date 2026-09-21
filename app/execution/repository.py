@@ -423,6 +423,38 @@ class ExecutionRepository:
             .all()
         )
 
+    def get_execution_reconciliation_audits(
+        self,
+        execution_id: int,
+        user_id: int,
+    ):
+        """
+        Return reconciliation audit records for one
+        execution belonging to one user.
+
+        Both execution_id and user_id are included in
+        the query so audit records cannot leak across
+        authenticated users.
+
+        Oldest records are returned first.
+        """
+
+        return (
+            self.session.query(
+                ExecutionReconciliationAuditModel
+            )
+            .filter(
+                ExecutionReconciliationAuditModel.execution_id
+                == execution_id,
+                ExecutionReconciliationAuditModel.user_id
+                == user_id,
+            )
+            .order_by(
+                ExecutionReconciliationAuditModel.id.asc()
+            )
+            .all()
+        )
+
     def count_user_reconciliation_audits(
         self,
         user_id: int,

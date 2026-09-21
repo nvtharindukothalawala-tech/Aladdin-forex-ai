@@ -569,7 +569,7 @@ def test_execute_trade_api_without_prices_remains_backward_compatible():
         data["status"]
         == "EXECUTED"
     )
-    
+
 def test_ai_execution_api_runs_server_side_approval_workflow(
     monkeypatch,
 ):
@@ -1755,3 +1755,230 @@ def test_ai_execution_response_schema_supports_execution_result():
         == "TEST-001"
     )
 
+# ==========================================================
+# RECONCILIATION AUDIT API
+# ==========================================================
+
+
+def test_reconciliation_audit_history_returns_user_audits(
+    monkeypatch,
+):
+    """
+    Authenticated users can retrieve their own
+    persisted reconciliation audit history.
+    """
+
+    from app.api.routes import execution_routes
+
+    audit = SimpleNamespace(
+        id=1,
+        execution_id=101,
+        user_id=1,
+        outcome="RECONCILED",
+        reason="Exact broker correlation confirmed.",
+        evidence_source="history",
+        broker_order_id="MT5-101",
+        symbol="EUR/USD",
+        direction="BUY",
+        volume=0.10,
+        details_json="{}",
+        created_at=None,
+    )
+
+    monkeypatch.setattr(
+        execution_routes.ExecutionRepository,
+        "get_user_reconciliation_audits",
+        lambda self, user_id: [audit],
+    )
+
+    response = client.get(
+        "/execution/reconciliation-audits/1"
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert len(data) == 1
+    assert data[0]["id"] == 1
+    assert data[0]["execution_id"] == 101
+    assert data[0]["user_id"] == 1
+    assert data[0]["outcome"] == "RECONCILED"
+    assert (
+        data[0]["broker_order_id"]
+        == "MT5-101"
+    )
+    assert data[0]["symbol"] == "EUR/USD"
+    assert data[0]["direction"] == "BUY"
+    assert data[0]["volume"] == 0.10
+
+
+def test_reconciliation_audit_history_empty():
+    """
+    Users with no reconciliation audits receive
+    an empty list.
+    """
+
+    response = client.get(
+        "/execution/reconciliation-audits/1"
+    )
+
+    assert response.status_code == 200
+
+    assert response.json() == []
+
+
+def test_reconciliation_audit_history_rejects_other_user():
+    """
+    An authenticated user must not access another
+    user's reconciliation audit history.
+    """
+
+    response = client.get(
+        "/execution/reconciliation-audits/2"
+    )
+
+    assert response.status_code == 403
+
+
+def test_reconciliation_audit_history_rejects_invalid_user_id():
+    """
+    Invalid user IDs are rejected by FastAPI
+    validation.
+    """
+
+    response = client.get(
+        "/execution/reconciliation-audits/0"
+    )
+
+    assert response.status_code == 422
+
+
+def test_execution_reconciliation_audit_history(
+    monkeypatch,
+):
+    """
+    Return reconciliation audit history for one
+    execution belonging to the authenticated user.
+    """
+
+    from app.api.routes import execution_routes
+
+    audits = [
+        SimpleNamespace(
+            id=1,
+            execution_id=101,
+            user_id=1,
+            outcome="UNMATCHED",
+            reason="No exact broker evidence found.",
+            evidence_source=None,
+            broker_order_id=None,
+            symbol="EUR/USD",
+            direction="BUY",
+            volume=0.10,
+            details_json="{}",
+            created_at=None,
+        ),
+        SimpleNamespace(
+            id=2,
+            execution_id=101,
+            user_id=1,
+            outcome="RECONCILED",
+            reason="Exact broker correlation confirmed.",
+            evidence_source="history",
+            broker_order_id="MT5-101",
+            symbol="EUR/USD",
+            direction="BUY",
+            volume=0.10,
+            details_json="{}",
+            created_at=None,
+        ),
+    ]
+
+    def fake_get_audits(
+        self,
+        execution_id,
+        user_id,
+    ):
+        assert execution_id == 101
+        assert user_id == 1
+
+        return audits
+
+    monkeypatch.setattr(
+        execution_routes.ExecutionRepository,
+        "get_execution_reconciliation_audits",
+        fake_get_audits,
+    )
+
+    response = client.get(
+        "/execution/reconciliation-audits/1/101"
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert len(data) == 2
+
+    assert data[0]["execution_id"] == 101
+    assert data[0]["outcome"] == "UNMATCHED"
+
+    assert data[1]["execution_id"] == 101
+    assert data[1]["outcome"] == "RECONCILED"
+
+    assert (
+        data[1]["broker_order_id"]
+        == "MT5-101"
+    )
+
+
+def test_execution_reconciliation_audit_history_empty(
+    monkeypatch,
+):
+    """
+    An execution with no reconciliation audits
+    returns an empty list.
+    """
+
+    from app.api.routes import execution_routes
+
+    monkeypatch.setattr(
+        execution_routes.ExecutionRepository,
+        "get_execution_reconciliation_audits",
+        lambda self, execution_id, user_id: [],
+    )
+
+    response = client.get(
+        "/execution/reconciliation-audits/1/999"
+    )
+
+    assert response.status_code == 200
+
+    assert response.json() == []
+
+
+def test_execution_reconciliation_audit_rejects_other_user():
+    """
+    An authenticated user must not retrieve
+    execution audits through another user ID.
+    """
+
+    response = client.get(
+        "/execution/reconciliation-audits/2/101"
+    )
+
+    assert response.status_code == 403
+
+
+def test_execution_reconciliation_audit_rejects_invalid_execution_id():
+    """
+    Invalid execution IDs are rejected by
+    FastAPI validation.
+    """
+
+    response = client.get(
+        "/execution/reconciliation-audits/1/0"
+    )
+
+    assert response.status_code == 422

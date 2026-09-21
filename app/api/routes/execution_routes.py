@@ -70,6 +70,7 @@ from app.schemas.execution_schema import (
     ExecutionHistoryResponseSchema,
     ExecutionStatisticsResponseSchema,
     ExecutionReconciliationResponseSchema,
+    ExecutionReconciliationAuditSchema,
     AIExecutionRequestSchema,
     AIExecutionResponseSchema,
 )
@@ -487,6 +488,113 @@ def reconcile_mt5_executions(
             detail=str(error),
         ) from error
 
+# ==========================================
+# Reconciliation Audit History
+# ==========================================
+
+
+@router.get(
+    "/reconciliation-audits/{user_id}",
+    response_model=list[
+        ExecutionReconciliationAuditSchema
+    ],
+)
+def get_reconciliation_audits(
+    user_id: int = Path(
+        ...,
+        gt=0,
+    ),
+    database: Session = Depends(
+        get_database
+    ),
+    current_user: UserModel = Depends(
+        get_current_user
+    ),
+):
+    """
+    Return persisted reconciliation audit records
+    for the authenticated user.
+
+    This endpoint is read-only.
+
+    It does not:
+    - contact MT5,
+    - perform reconciliation,
+    - modify execution records.
+    """
+
+    authenticated_user_id = (
+        verify_execution_ownership(
+            user_id,
+            current_user,
+        )
+    )
+
+    repository = ExecutionRepository(
+        database
+    )
+
+    return (
+        repository
+        .get_user_reconciliation_audits(
+            authenticated_user_id
+        )
+    )
+
+
+# ==========================================
+# Execution Reconciliation Audit History
+# ==========================================
+
+
+@router.get(
+    "/reconciliation-audits/{user_id}/{execution_id}",
+    response_model=list[
+        ExecutionReconciliationAuditSchema
+    ],
+)
+def get_execution_reconciliation_audits(
+    user_id: int = Path(
+        ...,
+        gt=0,
+    ),
+    execution_id: int = Path(
+        ...,
+        gt=0,
+    ),
+    database: Session = Depends(
+        get_database
+    ),
+    current_user: UserModel = Depends(
+        get_current_user
+    ),
+):
+    """
+    Return reconciliation audit records for one
+    execution belonging to the authenticated user.
+
+    This endpoint is read-only and does not contact
+    the broker.
+    """
+
+    authenticated_user_id = (
+        verify_execution_ownership(
+            user_id,
+            current_user,
+        )
+    )
+
+    repository = ExecutionRepository(
+        database
+    )
+
+    return (
+        repository
+        .get_execution_reconciliation_audits(
+            execution_id=execution_id,
+            user_id=authenticated_user_id,
+        )
+    )
 
 # ==========================================
 # Execution History
