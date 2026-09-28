@@ -24,6 +24,11 @@ from app.services.execution_reconciliation_service import (
     ExecutionReconciliationService,
 )
 
+from datetime import (
+    datetime,
+    timedelta,
+    timezone,
+)
 
 class FakeExecutionRepository:
     """
@@ -155,10 +160,16 @@ def make_pending_execution(
     symbol="EURUSD",
     direction="BUY",
     volume=0.01,
+    created_at=None,
 ):
     """
     Create a lightweight PENDING execution.
     """
+
+    if created_at is None:
+        created_at = datetime.now(
+            timezone.utc
+        )
 
     return SimpleNamespace(
         id=execution_id,
@@ -172,6 +183,7 @@ def make_pending_execution(
             "Execution started. "
             "Awaiting broker result."
         ),
+        created_at=created_at,
     )
 
 
@@ -1513,3 +1525,186 @@ def test_safety_gate_conflict_is_persisted(monkeypatch):
         is False
     )
 
+def test_recent_unmatched_execution_remains_pending(
+    monkeypatch,
+):
+    """
+    A recent execution with no broker evidence
+    must remain PENDING.
+    """
+
+    execution = make_pending_execution(
+        execution_id=870,
+        created_at=(
+            datetime.now(timezone.utc)
+            - timedelta(hours=2)
+        ),
+    )
+
+    repository = FakeExecutionRepository(
+        [execution]
+    )
+
+    service = ExecutionReconciliationService(
+        repository
+    )
+
+    set_demo_mode(monkeypatch)
+
+    monkeypatch.setattr(
+        BrokerService,
+        "get_open_positions",
+        lambda: {
+            "execution_mode": "DEMO",
+            "connected": True,
+            "position_count": 0,
+            "positions": [],
+        },
+    )
+
+    monkeypatch.setattr(
+        BrokerService,
+        "get_trade_history",
+        lambda days=None: {
+            "execution_mode": "DEMO",
+            "connected": True,
+            "history_days": days,
+            "closed_trade_count": 0,
+            "closed_trades": [],
+        },
+    )
+
+    result = (
+        service.reconcile_pending_executions(
+            user_id=1
+        )
+    )
+
+    assert result["unmatched_count"] == 1
+
+    assert execution.status == "PENDING"
+
+    assert execution.broker_order_id is None
+
+    assert (
+        repository.updated_executions
+        == []
+    )
+
+
+def test_stale_unmatched_execution_moves_to_needs_review(
+    monkeypatch,
+):
+    """
+    An old PENDING execution with no exact
+    broker evidence must be escalated for
+    manual review instead of being marked FAILED.
+    """
+
+    execution = make_pending_execution(
+        execution_id=871,
+        created_at=(
+            datetime.now(timezone.utc)
+            - timedelta(hours=25)
+        ),
+    )
+
+    repository = FakeExecutionRepository(
+        [execution]
+    )
+
+    service = ExecutionReconciliationService(
+        repository
+    )
+
+    set_demo_mode(monkeypatch)
+
+    monkeypatch.setattr(
+        BrokerService,
+        "get_open_positions",
+        lambda: {
+            "execution_mode": "DEMO",
+            "connected": True,
+            "position_count": 0,
+            "positions": [],
+        },
+    )
+
+    monkeypatch.setattr(
+        BrokerService,
+        "get_trade_history",
+        lambda days=None: {
+            "execution_mode": "DEMO",
+            "connected": True,
+            "history_days": days,
+            "closed_trade_count": 0,
+            "closed_trades": [],
+        },
+    )
+
+    result = (
+        service.reconcile_pending_executions(
+            user_id=1
+        )
+    )
+
+    assert execution.status == "NEEDS_REVIEW"
+
+    assert execution.status != "FAILED"
+
+    assert execution.broker_order_id is None
+
+    assert (
+        len(repository.updated_executions)
+        == 1
+    )
+
+    assert (
+        repository.updated_executions[0]
+        is execution
+    )
+
+    assert result["needs_review_count"] == 1
+
+    assert (
+        result["needs_review"][0][
+            "execution_id"
+        ]
+        == 871
+    )
+
+    assert (
+        repository.reconciliation_audits[-1]
+        .outcome
+        == "STALE"
+    )
+
+def test_exact_broker_evidence_wins_over_stale_age(
+    monkeypatch,
+):
+    """
+    Execution age must never override exact,
+    valid broker evidence.
+    """
+
+    execution = make_pending_execution(
+        execution_id=872,
+        created_at=(
+            datetime.now(timezone.utc)
+            - timedelta(days=3)
+        ),
+    )
+
+    repository = FakeExecutionRepository(
+        [execution]
+    )
+
+    service = ExecutionReconciliationService(
+        repository
+    )
+
+    set_demo_mode(monkeypatch)
+
+    # Use the same valid broker evidence structure
+    # already used by the successful reconciliation
+    # tests in this file.
