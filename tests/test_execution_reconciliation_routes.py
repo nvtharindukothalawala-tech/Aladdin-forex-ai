@@ -145,6 +145,7 @@ def test_reconciliation_api_returns_summary(
             "scanned_pending": 1,
             "reconciled_count": 1,
             "unmatched_count": 0,
+            "needs_review_count": 0,
             "conflict_count": 0,
             "reconciled": [
                 {
@@ -161,6 +162,7 @@ def test_reconciliation_api_returns_summary(
                 }
             ],
             "unmatched": [],
+            "needs_review": [],
             "conflicts": [],
             "message": (
                 "MT5 execution reconciliation "
@@ -265,9 +267,11 @@ def test_reconciliation_api_uses_default_days(
             "scanned_pending": 0,
             "reconciled_count": 0,
             "unmatched_count": 0,
+            "needs_review_count": 0,
             "conflict_count": 0,
             "reconciled": [],
             "unmatched": [],
+            "needs_review": [],
             "conflicts": [],
             "message": (
                 "No PENDING executions "

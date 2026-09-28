@@ -159,15 +159,10 @@ class ExecutionReconciledItemSchema(BaseModel):
     """
 
     execution_id: int
-
     symbol: str
-
     direction: str
-
     volume: float
-
     broker_order_id: str
-
     evidence_source: str
 
 
@@ -177,18 +172,39 @@ class ExecutionReconciledItemSchema(BaseModel):
 
 class ExecutionUnmatchedItemSchema(BaseModel):
     """
-    One PENDING execution with no exact
+    One recent PENDING execution with no exact
     broker correlation.
+
+    Recent unmatched executions remain PENDING
+    so that a later reconciliation attempt can
+    check for broker evidence again.
     """
 
     execution_id: int
-
     symbol: str
-
     direction: str
-
     volume: float
+    reason: str
 
+
+# ==========================================
+# Execution Reconciliation Needs Review Item
+# ==========================================
+
+class ExecutionNeedsReviewItemSchema(BaseModel):
+    """
+    One stale PENDING execution escalated to
+    NEEDS_REVIEW.
+
+    The execution is not marked FAILED because
+    the absence of broker evidence does not prove
+    that broker execution failed.
+    """
+
+    execution_id: int
+    symbol: str
+    direction: str
+    volume: float
     reason: str
 
 
@@ -209,19 +225,12 @@ class ExecutionConflictItemSchema(BaseModel):
     """
 
     execution_id: int
-
     symbol: str
-
     direction: str
-
     volume: float
-
     reason: str
-
     evidence_source: str | None = None
-
     evidence_count: int | None = None
-
     errors: list[str] | None = None
 
 
@@ -229,28 +238,30 @@ class ExecutionConflictItemSchema(BaseModel):
 # Execution Reconciliation Response
 # ==========================================
 
-class ExecutionReconciliationResponseSchema(
-    BaseModel
-):
+class ExecutionReconciliationResponseSchema(BaseModel):
     """
     Response from manual MT5 execution
     reconciliation.
 
     Reconciliation is read-only on the broker
-    side. Only confirmed local PENDING records
-    are changed to EXECUTED.
+    side.
+
+    Confirmed PENDING executions may be changed
+    to EXECUTED.
+
+    Recent unmatched executions remain PENDING.
+
+    Stale unmatched executions may be escalated
+    to NEEDS_REVIEW for manual investigation.
     """
 
     execution_mode: str
-
     history_days: int
-
     scanned_pending: int
 
     reconciled_count: int
-
     unmatched_count: int
-
+    needs_review_count: int
     conflict_count: int
 
     reconciled: list[
@@ -261,11 +272,16 @@ class ExecutionReconciliationResponseSchema(
         ExecutionUnmatchedItemSchema
     ]
 
+    needs_review: list[
+        ExecutionNeedsReviewItemSchema
+    ]
+
     conflicts: list[
         ExecutionConflictItemSchema
     ]
 
     message: str
+
 
 # ==========================================
 # Execution Reconciliation Audit Response
@@ -286,29 +302,17 @@ class ExecutionReconciliationAuditSchema(BaseModel):
     )
 
     id: int
-
     execution_id: int
-
     user_id: int
-
     outcome: str
-
     reason: str
-
     evidence_source: str | None = None
-
     broker_order_id: str | None = None
-
     symbol: str
-
     direction: str
-
     volume: float
-
     details_json: str
-
     created_at: Any
-
 
 # ==========================================
 # AI Execution Request
