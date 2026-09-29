@@ -9,7 +9,9 @@ Project: Aladdin
 
 from types import SimpleNamespace
 
-from app.database.connection import SessionLocal
+from app.database.connection import (
+    SessionLocal,
+)
 
 from app.execution.repository import (
     ExecutionRepository,
@@ -27,11 +29,20 @@ from app.planning.trade_plan import (
     TradePlan,
 )
 
+from app.execution.execution_manager import (
+    ExecutionManager,
+)
+
+
+# ==========================================================
+# COMMON EXECUTION INPUTS
+# ==========================================================
+
 
 def get_execution_inputs():
     """
     Common inputs for deterministic
-    execution safety tests.
+    execution workflow tests.
     """
 
     return {
@@ -60,183 +71,287 @@ def get_execution_inputs():
     }
 
 
+# ==========================================================
+# FULL APPROVED EXECUTION WORKFLOW
+# ==========================================================
+
+
 def test_ai_execution_workflow(
     monkeypatch,
 ):
     """
-    Test a fully approved BUY trade
+    Test that a fully approved BUY trade
     reaches execution.
 
-    Market intelligence is mocked so
-    this test does not depend on live
-    market conditions.
+    Market intelligence is mocked so this
+    test does not depend on live market
+    conditions.
+
+    Broker execution is also mocked so the
+    test cannot send a real MT5 order and
+    does not depend on the current EUR/USD
+    market price.
     """
 
     session = SessionLocal()
 
-    repository = ExecutionRepository(
-        session
-    )
+    try:
 
-    execution_service = ExecutionService(
-        repository
-    )
-
-    trade_plan = TradePlan(
-        symbol="EUR/USD",
-        direction="BUY",
-        entry_price=1.1000,
-        stop_loss=1.0950,
-        take_profit=1.1100,
-        risk_reward=2.0,
-    )
-
-    fake_result = {
-        "decision": SimpleNamespace(
-            action="BUY",
-            approved=True,
-            decision_confidence=90,
-        ),
-        "trade_plan": trade_plan,
-        "risk_gate": SimpleNamespace(
-            approved=True,
-        ),
-        "risk_validation": SimpleNamespace(
-            approved=True,
-        ),
-        "approval": SimpleNamespace(
-            approved=True,
-        ),
-        "reasoning": (
-            "Approved deterministic "
-            "test trade."
-        ),
-    }
-
-    monkeypatch.setattr(
-        TradingService,
-        "generate_ai_trade_setup",
-        staticmethod(
-            lambda **kwargs: fake_result
-        ),
-    )
-
-    inputs = get_execution_inputs()
-
-    inputs["execution_service"] = (
-        execution_service
-    )
-
-    result = (
-        TradingService.generate_ai_execution_workflow(
-            **inputs
+        repository = ExecutionRepository(
+            session
         )
-    )
 
-    # ==========================================
-    # Decision Validation
-    # ==========================================
+        execution_service = ExecutionService(
+            repository
+        )
 
-    assert (
-        result["decision"].action
-        == "BUY"
-    )
+        # ==================================================
+        # Deterministic Approved Trade Plan
+        # ==================================================
 
-    assert (
-        result["decision"].approved
-        is True
-    )
+        trade_plan = TradePlan(
+            symbol="EUR/USD",
+            direction="BUY",
+            entry_price=1.1000,
+            stop_loss=1.0950,
+            take_profit=1.1100,
+            risk_reward=2.0,
+        )
 
-    # ==========================================
-    # Risk Validation
-    # ==========================================
+        # ==================================================
+        # Deterministic AI Workflow Result
+        # ==================================================
 
-    assert (
-        result["risk_gate"].approved
-        is True
-    )
+        fake_result = {
+            "decision": SimpleNamespace(
+                action="BUY",
+                approved=True,
+                decision_confidence=90,
+            ),
+            "trade_plan": trade_plan,
+            "risk_gate": SimpleNamespace(
+                approved=True,
+            ),
+            "risk_validation": SimpleNamespace(
+                approved=True,
+            ),
+            "approval": SimpleNamespace(
+                approved=True,
+            ),
+            "reasoning": (
+                "Approved deterministic "
+                "test trade."
+            ),
+        }
 
-    assert (
-        result["approval"].approved
-        is True
-    )
+        # ==================================================
+        # Mock AI Trade Setup
+        # ==================================================
 
-    # ==========================================
-    # Execution Request Validation
-    # ==========================================
+        monkeypatch.setattr(
+            TradingService,
+            "generate_ai_trade_setup",
+            staticmethod(
+                lambda **kwargs: fake_result
+            ),
+        )
 
-    assert "execution" in result
+        # ==================================================
+        # Mock Broker Execution
+        # ==================================================
+        #
+        # IMPORTANT:
+        #
+        # This test validates the Aladdin workflow.
+        # It must not depend on current MT5 prices
+        # and must never send a real broker order.
+        #
+        # ExecutionService and its safety lifecycle
+        # still run normally. Only the final broker
+        # boundary is replaced with a deterministic
+        # successful result.
+        # ==================================================
 
-    assert (
-        result["execution"].symbol
-        == "EUR/USD"
-    )
+        monkeypatch.setattr(
+            ExecutionManager,
+            "execute_with_mt5",
+            staticmethod(
+                lambda execution_request: (
+                    SimpleNamespace(
+                        success=True,
+                        order_id=(
+                            "MOCK_ORDER_001"
+                        ),
+                        message=(
+                            "Mock order executed "
+                            "successfully."
+                        ),
+                    )
+                )
+            ),
+        )
 
-    assert (
-        result["execution"].order_type
-        == "BUY"
-    )
+        # ==================================================
+        # Execute Workflow
+        # ==================================================
 
-    assert (
-        result["execution"].volume
-        == 0.10
-    )
+        inputs = get_execution_inputs()
 
-    assert (
-        result["execution"].entry_price
-        == 1.1000
-    )
+        inputs["execution_service"] = (
+            execution_service
+        )
 
-    assert (
-        result["execution"].stop_loss
-        == 1.0950
-    )
+        result = (
+            TradingService
+            .generate_ai_execution_workflow(
+                **inputs
+            )
+        )
 
-    assert (
-        result["execution"].take_profit
-        == 1.1100
-    )
+        # ==================================================
+        # Decision Validation
+        # ==================================================
 
-    # ==========================================
-    # Execution Result Validation
-    # ==========================================
+        assert (
+            result["decision"].action
+            == "BUY"
+        )
 
-    assert "execution_result" in result
+        assert (
+            result["decision"].approved
+            is True
+        )
 
-    assert (
-        result["execution_result"].status
-        == "EXECUTED"
-    )
+        # ==================================================
+        # Risk Validation
+        # ==================================================
 
-    assert (
-        result[
-            "execution_result"
-        ].broker_order_id
-        == "MOCK_ORDER_001"
-    )
+        assert (
+            result["risk_gate"].approved
+            is True
+        )
 
-    session.close()
+        assert (
+            result[
+                "risk_validation"
+            ].approved
+            is True
+        )
+
+        assert (
+            result["approval"].approved
+            is True
+        )
+
+        # ==================================================
+        # Execution Request Validation
+        # ==================================================
+
+        assert "execution" in result
+
+        assert (
+            result["execution"].symbol
+            == "EUR/USD"
+        )
+
+        assert (
+            result["execution"].order_type
+            == "BUY"
+        )
+
+        assert (
+            result["execution"].volume
+            == 0.10
+        )
+
+        assert (
+            result["execution"].entry_price
+            == 1.1000
+        )
+
+        assert (
+            result["execution"].stop_loss
+            == 1.0950
+        )
+
+        assert (
+            result["execution"].take_profit
+            == 1.1100
+        )
+
+        # ==================================================
+        # Execution Result Validation
+        # ==================================================
+
+        assert "execution_result" in result
+
+        assert (
+            result[
+                "execution_result"
+            ].status
+            == "EXECUTED"
+        )
+
+        assert (
+            result[
+                "execution_result"
+            ].broker_order_id
+            == "MOCK_ORDER_001"
+        )
+
+        assert (
+            result[
+                "execution_result"
+            ].execution_message
+            == (
+                "Mock order executed "
+                "successfully."
+            )
+        )
+
+    finally:
+
+        session.close()
+
+
+# ==========================================================
+# FAKE BLOCKING EXECUTION SERVICE
+# ==========================================================
 
 
 class FakeExecutionService:
     """
-    Fake execution service used to prove that
-    blocked trades never reach execution.
+    Fake execution service used to prove
+    that blocked trades never reach
+    execution.
     """
 
-    def __init__(self):
+    def __init__(
+        self,
+    ):
         self.called = False
 
     def execute_trade(
         self,
         user_id,
         execution_request,
+        **kwargs,
     ):
+        """
+        Fail immediately if a blocked trade
+        incorrectly reaches execution.
+        """
+
         self.called = True
 
         raise AssertionError(
             "Execution should not be reached."
         )
+
+
+# ==========================================================
+# BLOCKED DECISION
+# ==========================================================
 
 
 def test_blocked_decision_never_reaches_execution(
@@ -283,7 +398,8 @@ def test_blocked_decision_never_reaches_execution(
     )
 
     result = (
-        TradingService.generate_ai_execution_workflow(
+        TradingService
+        .generate_ai_execution_workflow(
             **inputs
         )
     )
@@ -309,12 +425,18 @@ def test_blocked_decision_never_reaches_execution(
     )
 
 
+# ==========================================================
+# FAILED RISK GATE
+# ==========================================================
+
+
 def test_failed_risk_gate_never_reaches_execution(
     monkeypatch,
 ):
     """
     Even with an approved BUY decision,
-    a failed Risk Gate must stop execution.
+    a failed Risk Gate must stop
+    execution.
     """
 
     fake_result = {
@@ -353,7 +475,8 @@ def test_failed_risk_gate_never_reaches_execution(
     )
 
     result = (
-        TradingService.generate_ai_execution_workflow(
+        TradingService
+        .generate_ai_execution_workflow(
             **inputs
         )
     )
@@ -377,6 +500,11 @@ def test_failed_risk_gate_never_reaches_execution(
         "execution_result"
         not in result
     )
+
+
+# ==========================================================
+# FAILED FINAL APPROVAL
+# ==========================================================
 
 
 def test_failed_final_approval_never_reaches_execution(
@@ -424,7 +552,8 @@ def test_failed_final_approval_never_reaches_execution(
     )
 
     result = (
-        TradingService.generate_ai_execution_workflow(
+        TradingService
+        .generate_ai_execution_workflow(
             **inputs
         )
     )

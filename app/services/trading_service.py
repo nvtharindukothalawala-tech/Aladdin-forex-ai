@@ -54,6 +54,13 @@ from app.services.market_intelligence_service import (
     MarketIntelligenceService,
 )
 
+from app.execution.execution_safety_context import (
+    ExecutionSafetyContext,
+)
+
+from app.market.mt5_provider import (
+    MT5DataProvider,
+)
 
 class TradingService:
     """
@@ -745,7 +752,101 @@ class TradingService:
         )
 
         # ==========================================
+        # Load Real MT5 Safety Evidence
+        # ==========================================
+        #
+        # The final deterministic execution safety
+        # gate requires:
+        #
+        # - approved trade setup
+        # - approved risk information
+        # - current MT5 bid / ask quote
+        # - current MT5 broker volume rules
+        #
+        # These values are read from MT5 immediately
+        # before execution.
+        # ==========================================
+
+        mt5_provider = MT5DataProvider()
+
+        try:
+
+            quote = (
+                mt5_provider.get_quote(
+                    trade_plan.symbol
+                )
+            )
+
+            symbol_info = (
+                mt5_provider.get_symbol_risk_info(
+                    trade_plan.symbol
+                )
+            )
+
+        finally:
+
+            mt5_provider.disconnect()
+
+        # ==========================================
+        # Build Deterministic Safety Context
+        # ==========================================
+
+        safety_trade_setup = {
+            "status": "TRADE",
+            "direction": (
+                trade_plan.direction
+            ),
+            "symbol": (
+                trade_plan.symbol
+            ),
+            "targets": [
+                {
+                    "name": "TP1",
+                    "price": (
+                        trade_plan.take_profit
+                    ),
+                }
+            ],
+        }
+
+        safety_risk = {
+            "status": "APPROVED",
+            "approved": True,
+            "entry_price": (
+                trade_plan.entry_price
+            ),
+            "stop_loss": (
+                trade_plan.stop_loss
+            ),
+            "volume": lot_size,
+        }
+
+        safety_context = (
+            ExecutionSafetyContext(
+                trade_setup=(
+                    safety_trade_setup
+                ),
+                risk=(
+                    safety_risk
+                ),
+                quote=quote,
+                symbol_info=(
+                    symbol_info
+                ),
+            )
+        )
+
+        # ==========================================
         # Execute Through Execution Service
+        # ==========================================
+        #
+        # IMPORTANT:
+        #
+        # Execute exactly ONCE.
+        #
+        # The deterministic safety context is passed
+        # into ExecutionService so the final safety
+        # gate runs immediately before MT5 execution.
         # ==========================================
 
         execution_result = (
@@ -757,8 +858,15 @@ class TradingService:
                 idempotency_key=(
                     idempotency_key
                 ),
+                safety_context=(
+                    safety_context
+                ),
             )
         )
+
+        # ==========================================
+        # Store Execution Result
+        # ==========================================
 
         result["execution"] = (
             execution_request
