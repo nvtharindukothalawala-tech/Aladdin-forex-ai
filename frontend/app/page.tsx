@@ -866,6 +866,11 @@ export default function DashboardPage() {
   }
 
   async function handleAIExecute() {
+    // The analysis endpoint provides the pre-execution
+    // Decision Gate and Risk Gate. The execution endpoint
+    // performs risk validation, final approval, execution
+    // safety checks, and broker execution.
+
     if (!aiAnalysis) {
       setTradeActionError(
         "Please analyze the trade first.",
@@ -880,10 +885,14 @@ export default function DashboardPage() {
       return;
     }
 
-    const action =
-      String(aiAnalysis.decision.action || "").toUpperCase();
+    const action = String(
+      aiAnalysis.decision?.action || "",
+    ).toUpperCase();
 
-    if (action !== "BUY" && action !== "SELL") {
+    if (
+      action !== "BUY" &&
+      action !== "SELL"
+    ) {
       setTradeActionError(
         "AI decision is HOLD. Trade execution is blocked.",
       );
@@ -891,8 +900,17 @@ export default function DashboardPage() {
     }
 
     if (
-      aiAnalysis.risk_gate &&
-      !aiAnalysis.risk_gate.approved
+      aiAnalysis.decision?.approved !== true
+    ) {
+      setTradeActionError(
+        "Trade execution blocked by the Decision Gate.",
+      );
+      return;
+    }
+
+    if (
+      !aiAnalysis.risk_gate ||
+      aiAnalysis.risk_gate.approved !== true
     ) {
       setTradeActionError(
         "Trade execution blocked by the Risk Gate.",
@@ -906,7 +924,9 @@ export default function DashboardPage() {
       setTradeExecuting(true);
       setAiExecutionResult(null);
 
-      if (!aiExecutionIdempotencyKeyRef.current) {
+      if (
+        !aiExecutionIdempotencyKeyRef.current
+      ) {
         aiExecutionIdempotencyKeyRef.current =
           crypto.randomUUID();
       }
@@ -935,7 +955,8 @@ export default function DashboardPage() {
 
       if (executionStatus === "EXECUTED") {
         const executionMode = String(
-          result.execution_result?.execution_mode ?? "UNKNOWN",
+          result.execution_result
+            ?.execution_mode ?? "UNKNOWN",
         ).toUpperCase();
 
         if (executionMode === "DEMO") {
@@ -951,11 +972,16 @@ export default function DashboardPage() {
             "Trade execution completed through the Aladdin execution service.",
           );
         }
+
+        // A completed execution gets a fresh key next time.
+        aiExecutionIdempotencyKeyRef.current =
+          null;
       } else {
         setTradeActionMessage("");
 
         setTradeActionError(
-          result.execution_result?.execution_message ??
+          result.execution_result
+            ?.execution_message ??
             "The AI workflow completed, but the trade was not executed.",
         );
       }
@@ -973,9 +999,11 @@ export default function DashboardPage() {
 
       if (
         err instanceof Error &&
-        err.message === "Authentication required."
+        err.message ===
+          "Authentication required."
       ) {
-        window.location.href = "/login";
+        window.location.href =
+          "/login";
         return;
       }
 
@@ -4773,18 +4801,17 @@ async function handleReconcileMT5() {
                     disabled={
                       tradeExecuting ||
                       !aiTradeData ||
+                      !aiAnalysis ||
                       (
                         String(
-                          aiAnalysis.decision.action || "",
+                          aiAnalysis?.decision?.action || "",
                         ).toUpperCase() !== "BUY" &&
                         String(
-                          aiAnalysis.decision.action || "",
+                          aiAnalysis?.decision?.action || "",
                         ).toUpperCase() !== "SELL"
                       ) ||
-                      (
-                        aiAnalysis.risk_gate !== undefined &&
-                        !aiAnalysis.risk_gate.approved
-                      )
+                      aiAnalysis?.decision?.approved !== true ||
+                      aiAnalysis?.risk_gate?.approved !== true
                     }
                     className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-400 px-5 py-3 text-xs font-bold text-[#06100c] transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"
                   >
@@ -4799,7 +4826,22 @@ async function handleReconcileMT5() {
                     ) : (
                       <>
                         <TrendingUp size={14} />
-                        Execute AI Trade
+                        {(
+                          aiTradeData &&
+                          aiAnalysis &&
+                          (
+                            String(
+                              aiAnalysis.decision?.action || "",
+                            ).toUpperCase() === "BUY" ||
+                            String(
+                              aiAnalysis.decision?.action || "",
+                            ).toUpperCase() === "SELL"
+                          ) &&
+                          aiAnalysis.decision?.approved === true &&
+                          aiAnalysis.risk_gate?.approved === true
+                        )
+                          ? "Execute AI Trade"
+                          : "Execution Blocked"}
                       </>
                     )}
                   </button>
