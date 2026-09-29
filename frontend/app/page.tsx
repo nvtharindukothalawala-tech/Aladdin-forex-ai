@@ -42,6 +42,12 @@ import {
   markAllNotificationsAsRead,
   markNotificationAsRead,
   removeAccessToken,
+
+  getExecutionHistory,
+  getExecutionStatistics,
+  reconcileMT5Executions,
+  getExecutionReconciliationAudits,
+
   type AITradeAnalysisData,
   type AITradeAnalysisResult,
   type AIExecutionResult,
@@ -54,6 +60,11 @@ import {
   type Notification,
   type Trade,
   type TradeCreateData,
+
+  type ExecutionHistoryItem,
+  type ExecutionStatistics,
+  type ExecutionReconciliationResult,
+  type ExecutionReconciliationAudit,
 } from "../lib/api";
 
 import {
@@ -579,6 +590,24 @@ export default function DashboardPage() {
   const [sidebarOpen, setSidebarOpen] =
     useState(false);
 
+  const [executionHistory, setExecutionHistory] =
+    useState<ExecutionHistoryItem[]>([]);
+
+  const [executionStatistics, setExecutionStatistics] =
+    useState<ExecutionStatistics | null>(null);
+
+  const [reconciliationAudits, setReconciliationAudits] =
+    useState<ExecutionReconciliationAudit[]>([]);
+ 
+  const [reconciliationResult, setReconciliationResult] =
+    useState<ExecutionReconciliationResult | null>(null);
+
+  const [reconciliationLoading, setReconciliationLoading] =
+    useState(false);
+
+  const [reconciliationError, setReconciliationError] =
+    useState("");
+
 
   function scrollToSection(sectionId: string) {
     const element = document.getElementById(sectionId);
@@ -982,9 +1011,14 @@ export default function DashboardPage() {
         tradesData,
         unreadCount,
         brokerResult,
+        executionHistoryResult,
+        executionStatisticsResult,
+        reconciliationAuditsResult,
       ] = await Promise.all([
         getTrades(),
+
         getUnreadNotificationCount(),
+
         getBrokerStatus()
           .then((data) => ({
             data,
@@ -996,6 +1030,45 @@ export default function DashboardPage() {
               brokerLoadError instanceof Error
                 ? brokerLoadError.message
                 : "Unable to load MT5 broker status.",
+          })),
+
+        getExecutionHistory()
+          .then((data) => ({
+            data,
+            error: "",
+          }))
+          .catch((executionHistoryError) => ({
+            data: [] as ExecutionHistoryItem[],
+            error:
+              executionHistoryError instanceof Error
+                ? executionHistoryError.message
+                : "Unable to load execution history.",
+          })),
+
+        getExecutionStatistics()
+          .then((data) => ({
+            data,
+            error: "",
+          }))
+          .catch((executionStatisticsError) => ({
+            data: null as ExecutionStatistics | null,
+            error:
+              executionStatisticsError instanceof Error
+                ? executionStatisticsError.message
+                : "Unable to load execution statistics.",
+          })),
+
+        getExecutionReconciliationAudits()
+          .then((data) => ({
+            data,
+            error: "",
+          }))
+          .catch((auditError) => ({
+            data: [] as ExecutionReconciliationAudit[],
+            error:
+              auditError instanceof Error
+                ? auditError.message
+                : "Unable to load reconciliation audits.",
           })),
       ]);
 
@@ -1013,6 +1086,28 @@ export default function DashboardPage() {
 
       setBrokerError(
         brokerResult.error,
+      );
+
+      setExecutionHistory(
+        executionHistoryResult.data,
+      );
+
+      setExecutionStatistics(
+        executionStatisticsResult.data,
+      );
+
+      setReconciliationAudits(
+        reconciliationAuditsResult.data,
+      );
+
+      const executionLoadErrors = [
+        executionHistoryResult.error,
+        executionStatisticsResult.error,
+        reconciliationAuditsResult.error,
+      ].filter(Boolean);
+
+      setReconciliationError(
+        executionLoadErrors.join(" "),
       );
 
     } catch (err) {
@@ -1042,7 +1137,60 @@ export default function DashboardPage() {
       setLoading(false);
       setRefreshing(false);
     }
+
   }
+  /* =========================================================
+   MT5 EXECUTION RECONCILIATION
+   ========================================================= */
+
+async function handleReconcileMT5() {
+  try {
+    setReconciliationLoading(true);
+    setReconciliationError("");
+
+    const result =
+      await reconcileMT5Executions(30);
+
+    setReconciliationResult(
+      result,
+    );
+
+    const [
+      historyData,
+      statisticsData,
+      auditData,
+    ] = await Promise.all([
+      getExecutionHistory(),
+      getExecutionStatistics(),
+      getExecutionReconciliationAudits(),
+    ]);
+
+    setExecutionHistory(
+      historyData,
+    );
+
+    setExecutionStatistics(
+      statisticsData,
+    );
+
+    setReconciliationAudits(
+      auditData,
+    );
+  } catch (err) {
+    console.error(
+      "Execution reconciliation error:",
+      err,
+    );
+
+    setReconciliationError(
+      err instanceof Error
+        ? err.message
+        : "Unable to reconcile MT5 executions.",
+    );
+  } finally {
+    setReconciliationLoading(false);
+  }
+}
 
 
   /* =========================================================
@@ -3139,6 +3287,495 @@ export default function DashboardPage() {
               </>
             )}
           </div>
+
+              {/* =================================================
+              EXECUTION RECONCILIATION
+              ================================================= */}
+
+          <div className="mt-8 rounded-2xl border border-white/10 bg-[#0a0e13]">
+            <div className="flex flex-col gap-4 border-b border-white/10 px-5 py-5 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <ShieldCheck
+                    size={18}
+                    className="text-emerald-400"
+                  />
+
+                  <h2 className="text-base font-semibold text-white">
+                    Execution Reconciliation
+                  </h2>
+                </div>
+
+                <p className="mt-1 text-xs text-gray-600">
+                  Compare pending Aladdin executions with MT5 broker
+                  evidence and identify unmatched, conflicting, or stale
+                  executions.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleReconcileMT5}
+                disabled={reconciliationLoading}
+                className="flex w-fit items-center gap-2 rounded-xl border border-emerald-400/20 bg-emerald-400/5 px-4 py-2 text-xs font-medium text-emerald-400 transition hover:border-emerald-400/40 hover:bg-emerald-400/10 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <RefreshCw
+                  size={14}
+                  className={
+                    reconciliationLoading
+                      ? "animate-spin"
+                      : ""
+                  }
+                />
+
+                {reconciliationLoading
+                  ? "Reconciling..."
+                  : "Reconcile MT5"}
+              </button>
+            </div>
+
+            {/* Reconciliation error */}
+
+            {reconciliationError && (
+              <div className="m-5 rounded-xl border border-red-400/20 bg-red-400/5 p-4">
+                <p className="text-sm text-red-400">
+                  {reconciliationError}
+                </p>
+              </div>
+            )}
+
+            {/* Execution statistics */}
+
+            <div className="grid gap-3 p-5 sm:grid-cols-2 xl:grid-cols-4">
+              <BrokerMetric
+                label="Pending Executions"
+                value={String(
+                  executionHistory.filter(
+                    (execution) =>
+                      execution.status === "PENDING",
+                  ).length,
+                )}
+              />
+
+              <BrokerMetric
+                label="Executed"
+                value={String(
+                  executionStatistics?.successful_executions ??
+                    0,
+                )}
+                valueClassName="text-emerald-400"
+              />
+
+              <BrokerMetric
+                label="Failed"
+                value={String(
+                  executionStatistics?.failed_executions ??
+                    0,
+                )}
+                valueClassName={
+                  (executionStatistics?.failed_executions ??
+                    0) > 0
+                    ? "text-red-400"
+                    : "text-white"
+                }
+              />
+
+              <BrokerMetric
+                label="Total Executions"
+                value={String(
+                  executionStatistics?.total_executions ??
+                    0,
+                )}
+              />
+            </div>
+
+            {/* Last reconciliation result */}
+
+            {reconciliationResult && (
+              <div className="border-t border-white/10 p-5">
+                <div className="mb-4">
+                  <h3 className="text-sm font-semibold text-white">
+                    Last Reconciliation
+                  </h3>
+
+                  <p className="mt-1 text-[10px] text-gray-600">
+                    {reconciliationResult.message}
+                  </p>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <BrokerMetric
+                    label="Scanned Pending"
+                    value={String(
+                      reconciliationResult.scanned_pending,
+                    )}
+                  />
+
+                  <BrokerMetric
+                    label="Reconciled"
+                    value={String(
+                      reconciliationResult.reconciled_count,
+                    )}
+                    valueClassName="text-emerald-400"
+                  />
+
+                  <BrokerMetric
+                    label="Unmatched"
+                    value={String(
+                      reconciliationResult.unmatched_count,
+                    )}
+                    valueClassName={
+                      reconciliationResult.unmatched_count >
+                      0
+                        ? "text-amber-400"
+                        : "text-white"
+                    }
+                  />
+
+                  <BrokerMetric
+                    label="Conflicts"
+                    value={String(
+                      reconciliationResult.conflict_count,
+                    )}
+                    valueClassName={
+                      reconciliationResult.conflict_count >
+                      0
+                        ? "text-red-400"
+                        : "text-white"
+                    }
+                  />
+                </div>
+
+                {/* Needs review warning */}
+
+                {(reconciliationResult.needs_review_count ??
+                  0) > 0 && (
+                  <div className="mt-4 rounded-xl border border-amber-400/20 bg-amber-400/5 p-4">
+                    <p className="text-xs font-semibold text-amber-400">
+                      Manual Review Required
+                    </p>
+
+                    <p className="mt-1 text-[10px] text-gray-500">
+                      {reconciliationResult.needs_review_count ??
+                        0}{" "}
+                      stale execution
+                      {(reconciliationResult.needs_review_count ??
+                        0) === 1
+                        ? ""
+                        : "s"}{" "}
+                      require review.
+                    </p>
+                  </div>
+                )}
+
+                {/* Needs review records */}
+
+                {(reconciliationResult.needs_review?.length ??
+                  0) > 0 && (
+                  <div className="mt-4">
+                    <p className="mb-3 text-xs font-semibold text-white">
+                      Executions Needing Review
+                    </p>
+
+                    <div className="grid gap-3">
+                      {reconciliationResult.needs_review?.map(
+                        (item) => (
+                          <div
+                            key={item.execution_id}
+                            className="rounded-xl border border-amber-400/10 bg-black/20 p-4"
+                          >
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <p className="text-sm font-semibold text-white">
+                                    {item.symbol}
+                                  </p>
+
+                                  <span className="rounded-md bg-amber-400/10 px-2 py-1 text-[9px] font-semibold text-amber-400">
+                                    NEEDS REVIEW
+                                  </span>
+                                </div>
+
+                                <p className="mt-1 text-[10px] text-gray-600">
+                                  Execution #
+                                  {item.execution_id}
+                                </p>
+                              </div>
+
+                              <div className="text-right">
+                                <p className="text-[9px] uppercase tracking-wider text-gray-600">
+                                  Volume
+                                </p>
+
+                                <p className="mt-1 text-xs font-semibold text-amber-400">
+                                  {item.volume}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                              <div className="rounded-lg border border-white/5 bg-white/[0.02] p-3">
+                                <p className="text-[9px] uppercase tracking-wider text-gray-600">
+                                  Direction
+                                </p>
+
+                                <p className="mt-1 text-xs text-gray-300">
+                                  {item.direction}
+                                </p>
+                              </div>
+
+                              <div className="rounded-lg border border-white/5 bg-white/[0.02] p-3">
+                                <p className="text-[9px] uppercase tracking-wider text-gray-600">
+                                  Volume
+                                </p>
+
+                                <p className="mt-1 text-xs text-gray-300">
+                                  {item.volume}
+                                </p>
+                              </div>
+
+                              <div className="rounded-lg border border-white/5 bg-white/[0.02] p-3">
+                                <p className="text-[9px] uppercase tracking-wider text-gray-600">
+                                  Status
+                                </p>
+
+                                <p className="mt-1 text-xs text-amber-400">
+                                  NEEDS_REVIEW
+                                </p>
+                              </div>
+                            </div>
+
+                            <p className="mt-3 text-[10px] text-gray-500">
+                              {item.reason}
+                            </p>
+                          </div>
+                        ),
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Execution history */}
+
+            <div className="border-t border-white/10">
+              <div className="flex items-center justify-between px-5 py-4">
+                <div>
+                  <h3 className="text-sm font-semibold text-white">
+                    Execution History
+                  </h3>
+
+                  <p className="mt-1 text-[10px] text-gray-600">
+                    Latest local execution records.
+                  </p>
+                </div>
+
+                <span className="rounded-full bg-white/5 px-2.5 py-1 text-[10px] text-gray-500">
+                  {executionHistory.length}
+                </span>
+              </div>
+
+              {executionHistory.length === 0 ? (
+                <div className="border-t border-white/5 px-5 py-8 text-center">
+                  <p className="text-sm text-gray-500">
+                    No execution history available.
+                  </p>
+                </div>
+              ) : (
+                <div className="border-t border-white/5 p-4">
+                  <div className="grid gap-3">
+                    {executionHistory
+                      .slice(0, 10)
+                      .map(
+                        (
+                          execution,
+                          index,
+                        ) => (
+                          <div
+                            key={`${execution.symbol}-${execution.direction}-${index}`}
+                            className="rounded-xl border border-white/10 bg-black/20 p-4"
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <p className="text-sm font-semibold text-white">
+                                    {
+                                      execution.symbol
+                                    }
+                                  </p>
+
+                                  <span
+                                    className={`rounded-md px-2 py-1 text-[9px] font-semibold ${
+                                      execution.status ===
+                                      "EXECUTED"
+                                        ? "bg-emerald-400/10 text-emerald-400"
+                                        : execution.status ===
+                                            "PENDING"
+                                          ? "bg-amber-400/10 text-amber-400"
+                                          : execution.status ===
+                                              "NEEDS_REVIEW"
+                                            ? "bg-amber-400/10 text-amber-400"
+                                            : "bg-red-400/10 text-red-400"
+                                    }`}
+                                  >
+                                    {
+                                      execution.status
+                                    }
+                                  </span>
+                                </div>
+
+                                <p className="mt-1 text-[10px] text-gray-600">
+                                  {execution.broker_order_id
+                                    ? `Broker Order #${execution.broker_order_id}`
+                                    : "No broker order ID"}
+                                </p>
+                              </div>
+
+                              <div className="text-right">
+                                <p className="text-[9px] uppercase tracking-wider text-gray-600">
+                                  Direction
+                                </p>
+
+                                <p className="mt-1 text-xs font-semibold text-gray-300">
+                                  {
+                                    execution.direction
+                                  }
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                              <div>
+                                <p className="text-[9px] uppercase tracking-wider text-gray-600">
+                                  Volume
+                                </p>
+
+                                <p className="mt-1 text-xs text-gray-300">
+                                  {execution.volume}
+                                </p>
+                              </div>
+
+                              {execution.execution_message && (
+                                <p className="max-w-xl text-right text-[10px] text-gray-500">
+                                  {
+                                    execution.execution_message
+                                  }
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        ),
+                      )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Reconciliation audit trail */}
+
+            <div className="border-t border-white/10">
+              <div className="flex items-center justify-between px-5 py-4">
+                <div>
+                  <h3 className="text-sm font-semibold text-white">
+                    Reconciliation Audit Trail
+                  </h3>
+
+                  <p className="mt-1 text-[10px] text-gray-600">
+                    Immutable history of reconciliation decisions.
+                  </p>
+                </div>
+
+                <span className="rounded-full bg-white/5 px-2.5 py-1 text-[10px] text-gray-500">
+                  {reconciliationAudits.length}
+                </span>
+              </div>
+
+              {reconciliationAudits.length === 0 ? (
+                <div className="border-t border-white/5 px-5 py-8 text-center">
+                  <p className="text-sm text-gray-500">
+                    No reconciliation audits available.
+                  </p>
+                </div>
+              ) : (
+                <div className="border-t border-white/5 p-4">
+                  <div className="grid gap-3">
+                    {reconciliationAudits
+                      .slice(0, 10)
+                      .map((audit) => (
+                        <div
+                          key={audit.id}
+                          className="rounded-xl border border-white/10 bg-black/20 p-4"
+                        >
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-semibold text-white">
+                                {audit.symbol}{" "}
+                                {audit.direction}
+                              </p>
+
+                              <p className="mt-1 text-[10px] text-gray-600">
+                                Execution #
+                                {audit.execution_id}
+                              </p>
+                            </div>
+
+                            <span
+                              className={`rounded-md px-2 py-1 text-[9px] font-semibold ${
+                                audit.outcome ===
+                                "RECONCILED"
+                                  ? "bg-emerald-400/10 text-emerald-400"
+                                  : audit.outcome ===
+                                      "CONFLICT"
+                                    ? "bg-red-400/10 text-red-400"
+                                    : audit.outcome ===
+                                        "NEEDS_REVIEW" ||
+                                      audit.outcome ===
+                                        "STALE"
+                                      ? "bg-amber-400/10 text-amber-400"
+                                      : "bg-white/5 text-gray-400"
+                              }`}
+                            >
+                              {audit.outcome}
+                            </span>
+                          </div>
+
+                          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                            <div>
+                              <p className="text-[9px] uppercase tracking-wider text-gray-600">
+                                Volume
+                              </p>
+
+                              <p className="mt-1 text-xs text-gray-300">
+                                {audit.volume}
+                              </p>
+                            </div>
+
+                            <div>
+                              <p className="text-[9px] uppercase tracking-wider text-gray-600">
+                                Broker Order
+                              </p>
+
+                              <p className="mt-1 text-xs text-gray-300">
+                                {audit.broker_order_id ??
+                                  "—"}
+                              </p>
+                            </div>
+                          </div>
+
+                          <p className="mt-3 text-[10px] text-gray-500">
+                            {audit.reason}
+                          </p>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+
+          
 
 
           {/* =================================================

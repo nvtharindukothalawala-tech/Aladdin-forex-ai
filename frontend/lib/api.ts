@@ -290,6 +290,95 @@ export type AIExecutionResult = {
 };
 
 
+
+/* =========================================================
+   EXECUTION RECONCILIATION TYPES
+   ========================================================= */
+
+export type ExecutionHistoryItem = {
+  symbol: string;
+  direction: string;
+  volume: number;
+  status: string;
+  broker_order_id: string | null;
+  execution_message: string | null;
+};
+
+export type ExecutionStatistics = {
+  total_executions: number;
+  successful_executions: number;
+  failed_executions: number;
+  success_rate: number;
+};
+
+export type ExecutionReconciledItem = {
+  execution_id: number;
+  symbol: string;
+  direction: string;
+  volume: number;
+  broker_order_id: string;
+  evidence_source: string;
+};
+
+export type ExecutionUnmatchedItem = {
+  execution_id: number;
+  symbol: string;
+  direction: string;
+  volume: number;
+  reason: string;
+};
+
+export type ExecutionConflictItem = {
+  execution_id: number;
+  symbol: string;
+  direction: string;
+  volume: number;
+  reason: string;
+  evidence_source?: string | null;
+  evidence_count?: number | null;
+  errors?: string[] | null;
+};
+
+export type ExecutionNeedsReviewItem = {
+  execution_id: number;
+  symbol: string;
+  direction: string;
+  volume: number;
+  reason: string;
+};
+
+export type ExecutionReconciliationResult = {
+  execution_mode: string;
+  history_days: number;
+  scanned_pending: number;
+  reconciled_count: number;
+  unmatched_count: number;
+  conflict_count: number;
+  needs_review_count?: number;
+
+  reconciled: ExecutionReconciledItem[];
+  unmatched: ExecutionUnmatchedItem[];
+  conflicts: ExecutionConflictItem[];
+  needs_review?: ExecutionNeedsReviewItem[];
+
+  message: string;
+};
+
+export type ExecutionReconciliationAudit = {
+  id: number;
+  execution_id: number;
+  user_id: number;
+  outcome: string;
+  reason: string;
+  evidence_source: string | null;
+  broker_order_id: string | null;
+  symbol: string;
+  direction: string;
+  volume: number;
+  details_json: string;
+  created_at: string;
+};
+
 export type TradeStatistics = {
   total_trades: number;
   open_trades: number;
@@ -2093,6 +2182,170 @@ export async function executeAITrade(
 /* =========================================================
    MT5 BROKER STATUS
    ========================================================= */
+
+
+/* =========================================================
+   EXECUTION HISTORY
+   ========================================================= */
+
+export async function getExecutionHistory():
+  Promise<ExecutionHistoryItem[]> {
+  const userId =
+    await getCurrentUserId();
+
+  const response =
+    await authenticatedFetch(
+      `/execution/history/${userId}`,
+    );
+
+  if (!response.ok) {
+    throw new Error(
+      `Failed to load execution history (${response.status}).`,
+    );
+  }
+
+  return response.json();
+}
+
+
+/* =========================================================
+   EXECUTION STATISTICS
+   ========================================================= */
+
+export async function getExecutionStatistics():
+  Promise<ExecutionStatistics> {
+  const userId =
+    await getCurrentUserId();
+
+  const response =
+    await authenticatedFetch(
+      `/execution/statistics/${userId}`,
+    );
+
+  if (!response.ok) {
+    throw new Error(
+      `Failed to load execution statistics (${response.status}).`,
+    );
+  }
+
+  return response.json();
+}
+
+
+/* =========================================================
+   MT5 EXECUTION RECONCILIATION
+   ========================================================= */
+
+export async function reconcileMT5Executions(
+  historyDays = 30,
+): Promise<ExecutionReconciliationResult> {
+  const userId =
+    await getCurrentUserId();
+
+  const safeHistoryDays =
+    Math.max(
+      1,
+      Math.min(
+        Math.trunc(historyDays),
+        3650,
+      ),
+    );
+
+  const response =
+    await authenticatedFetch(
+      `/execution/reconcile-mt5/${userId}?history_days=${encodeURIComponent(
+        String(safeHistoryDays),
+      )}`,
+      {
+        method: "POST",
+      },
+    );
+
+  if (!response.ok) {
+    let message =
+      `Execution reconciliation failed (${response.status}).`;
+
+    try {
+      const data =
+        await response.json();
+
+      if (
+        typeof data.detail ===
+        "string"
+      ) {
+        message =
+          data.detail;
+      }
+    } catch {
+      // Keep default error message.
+    }
+
+    throw new Error(
+      message,
+    );
+  }
+
+  return response.json();
+}
+
+
+/* =========================================================
+   RECONCILIATION AUDIT HISTORY
+   ========================================================= */
+
+export async function getExecutionReconciliationAudits():
+  Promise<ExecutionReconciliationAudit[]> {
+  const userId =
+    await getCurrentUserId();
+
+  const response =
+    await authenticatedFetch(
+      `/execution/reconciliation-audits/${userId}`,
+    );
+
+  if (!response.ok) {
+    throw new Error(
+      `Failed to load reconciliation audits (${response.status}).`,
+    );
+  }
+
+  return response.json();
+}
+
+
+/* =========================================================
+   RECONCILIATION AUDITS BY EXECUTION
+   ========================================================= */
+
+export async function getExecutionReconciliationAuditsByExecution(
+  executionId: number,
+): Promise<ExecutionReconciliationAudit[]> {
+  const userId =
+    await getCurrentUserId();
+
+  if (
+    !Number.isInteger(executionId) ||
+    executionId <= 0
+  ) {
+    throw new Error(
+      "Execution ID must be a positive integer.",
+    );
+  }
+
+  const response =
+    await authenticatedFetch(
+      `/execution/reconciliation-audits/${userId}/${executionId}`,
+    );
+
+  if (!response.ok) {
+    throw new Error(
+      `Failed to load execution reconciliation audits (${response.status}).`,
+    );
+  }
+
+  return response.json();
+}
+
 
 export async function getBrokerStatus():
   Promise<BrokerStatus> {
