@@ -67,6 +67,10 @@ type MarketChartProps = {
   onTimeframeChange?: (
     timeframe: MarketTimeframe,
   ) => void;
+  onExecutionDataChange?: (
+    tradeSetup: TradeSetup | null,
+    riskAnalysis: MarketRiskAnalysis | null,
+  ) => void;
 };
 
 type LatestCandleState = {
@@ -528,6 +532,7 @@ export default function MarketChart({
     DEFAULT_REFRESH_INTERVAL_MS,
   className = "",
   onTimeframeChange,
+  onExecutionDataChange,
 }: MarketChartProps) {
   const containerRef =
     useRef<HTMLDivElement | null>(
@@ -1825,12 +1830,29 @@ export default function MarketChart({
 
           latestStructureRef.current = result.market_structure;
           latestChartDataRef.current = chartData;
+
           setMarketBias(result.market_bias);
           setTradeSetup(result.trade_setup);
-          setRiskAnalysis(result.risk);
-          const activeStructureFilters = structureFiltersRef.current;
+
+          const normalizedRisk =
+            result.risk ?? null;
+
+          setRiskAnalysis(normalizedRisk);
+
+          onExecutionDataChange?.(
+            result.trade_setup,
+            normalizedRisk,
+          );
+
+          const activeStructureFilters =
+            structureFiltersRef.current;
+
           const structureMarkers =
-            toStructureMarkers(result.market_structure, activeStructureFilters, smartViewRef.current);
+            toStructureMarkers(
+              result.market_structure,
+              activeStructureFilters,
+              smartViewRef.current,
+            );
 
           structureMarkerDataRef.current =
             structureMarkers;
@@ -1970,6 +1992,7 @@ export default function MarketChart({
     setMarketBias(null);
     setTradeSetup(null);
     setRiskAnalysis(null);
+    onExecutionDataChange?.(null, null);
     setLatestCandle(null);
     setCandleTotal(0);
     setLastUpdated(null);

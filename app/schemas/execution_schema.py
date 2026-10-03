@@ -20,6 +20,7 @@ from pydantic import (
 # Direct Execution Request
 # ==========================================
 
+
 class ExecutionRequestSchema(BaseModel):
     """
     Input schema for direct execution request.
@@ -79,6 +80,7 @@ class ExecutionRequestSchema(BaseModel):
 # Execution Response
 # ==========================================
 
+
 class ExecutionResponseSchema(BaseModel):
     """
     Response schema after execution.
@@ -109,6 +111,7 @@ class ExecutionResponseSchema(BaseModel):
 # Execution History Response
 # ==========================================
 
+
 class ExecutionHistoryResponseSchema(BaseModel):
     """
     Response schema for execution history.
@@ -135,6 +138,7 @@ class ExecutionHistoryResponseSchema(BaseModel):
 # Execution Statistics Response
 # ==========================================
 
+
 class ExecutionStatisticsResponseSchema(BaseModel):
     """
     Response schema for execution statistics.
@@ -153,6 +157,7 @@ class ExecutionStatisticsResponseSchema(BaseModel):
 # Execution Reconciliation Item
 # ==========================================
 
+
 class ExecutionReconciledItemSchema(BaseModel):
     """
     One successfully reconciled execution.
@@ -169,6 +174,7 @@ class ExecutionReconciledItemSchema(BaseModel):
 # ==========================================
 # Execution Reconciliation Unmatched Item
 # ==========================================
+
 
 class ExecutionUnmatchedItemSchema(BaseModel):
     """
@@ -191,6 +197,7 @@ class ExecutionUnmatchedItemSchema(BaseModel):
 # Execution Reconciliation Needs Review Item
 # ==========================================
 
+
 class ExecutionNeedsReviewItemSchema(BaseModel):
     """
     One stale PENDING execution escalated to
@@ -211,6 +218,7 @@ class ExecutionNeedsReviewItemSchema(BaseModel):
 # ==========================================
 # Execution Reconciliation Conflict Item
 # ==========================================
+
 
 class ExecutionConflictItemSchema(BaseModel):
     """
@@ -237,6 +245,7 @@ class ExecutionConflictItemSchema(BaseModel):
 # ==========================================
 # Execution Reconciliation Response
 # ==========================================
+
 
 class ExecutionReconciliationResponseSchema(BaseModel):
     """
@@ -287,6 +296,7 @@ class ExecutionReconciliationResponseSchema(BaseModel):
 # Execution Reconciliation Audit Response
 # ==========================================
 
+
 class ExecutionReconciliationAuditSchema(BaseModel):
     """
     Response schema for one persisted
@@ -314,9 +324,11 @@ class ExecutionReconciliationAuditSchema(BaseModel):
     details_json: str
     created_at: Any
 
+
 # ==========================================
 # AI Execution Request
 # ==========================================
+
 
 class AIExecutionRequestSchema(BaseModel):
     """
@@ -330,6 +342,9 @@ class AIExecutionRequestSchema(BaseModel):
     compatibility. Clients that provide it receive
     duplicate-execution protection if the workflow
     reaches the execution stage.
+
+    This schema is retained for the legacy
+    AI execution workflow.
     """
 
     user_id: int = Field(
@@ -449,8 +464,109 @@ class AIExecutionRequestSchema(BaseModel):
 
 
 # ==========================================
+# Approved Deterministic AI Execution Request
+# ==========================================
+
+
+class ApprovedAIExecutionRequestSchema(BaseModel):
+    """
+    Execute a trade that has already passed
+    Aladdin's deterministic TradeSetupService
+    and RiskService.
+
+    This request does not run the complete
+    AI market-decision workflow again.
+
+    Client approval alone is never sufficient
+    to reach MT5. The backend must still run
+    the final deterministic execution safety
+    checks using fresh broker information.
+    """
+
+    user_id: int = Field(
+        ...,
+        gt=0,
+    )
+
+    idempotency_key: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=128,
+        pattern=r".*\S.*",
+    )
+
+    symbol: str = Field(
+        ...,
+        min_length=1,
+        pattern=r".*\S.*",
+    )
+
+    timeframe: str = Field(
+        ...,
+        min_length=1,
+        pattern=r".*\S.*",
+    )
+
+    direction: str = Field(
+        ...,
+        pattern="^(BUY|SELL)$",
+    )
+
+    entry_price: float = Field(
+        ...,
+        gt=0,
+    )
+
+    stop_loss: float = Field(
+        ...,
+        gt=0,
+    )
+
+    take_profit: float = Field(
+        ...,
+        gt=0,
+    )
+
+    volume: float = Field(
+        ...,
+        gt=0,
+    )
+
+    risk_percent: float = Field(
+        ...,
+        gt=0,
+        le=2.0,
+    )
+
+    risk_amount: float = Field(
+        ...,
+        gt=0,
+    )
+
+    estimated_loss: float = Field(
+        ...,
+        gt=0,
+    )
+
+    setup_engine: str = Field(
+        default="DETERMINISTIC",
+        pattern="^DETERMINISTIC$",
+    )
+
+    risk_engine: str = Field(
+        default="DETERMINISTIC",
+        pattern="^DETERMINISTIC$",
+    )
+
+    setup_approved: bool
+
+    risk_approved: bool
+
+
+# ==========================================
 # AI Execution Information
 # ==========================================
+
 
 class AIExecutionExecutionSchema(BaseModel):
     """
@@ -480,6 +596,7 @@ class AIExecutionExecutionSchema(BaseModel):
 # ==========================================
 # AI Reasoning Response
 # ==========================================
+
 
 class AIReasoningResponseSchema(BaseModel):
     """
@@ -540,6 +657,7 @@ class AIReasoningResponseSchema(BaseModel):
 # ==========================================
 # AI Execution Response
 # ==========================================
+
 
 class AIExecutionResponseSchema(BaseModel):
     """

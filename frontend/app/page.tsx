@@ -65,6 +65,8 @@ import {
   type ExecutionStatistics,
   type ExecutionReconciliationResult,
   type ExecutionReconciliationAudit,
+  type TradeSetup,
+  type MarketRiskAnalysis,
 } from "../lib/api";
 
 import {
@@ -557,6 +559,12 @@ export default function DashboardPage() {
   const [aiExecutionResult, setAiExecutionResult] =
     useState<AIExecutionDisplayResult | null>(null);
 
+  const [marketTradeSetup, setMarketTradeSetup] =
+    useState<TradeSetup | null>(null);
+
+  const [marketRiskAnalysis, setMarketRiskAnalysis] =
+    useState<MarketRiskAnalysis | null>(null);
+
   const [tradeExecuting, setTradeExecuting] =
     useState(false);
 
@@ -866,54 +874,70 @@ export default function DashboardPage() {
   }
 
   async function handleAIExecute() {
-    // The analysis endpoint provides the pre-execution
-    // Decision Gate and Risk Gate. The execution endpoint
-    // performs risk validation, final approval, execution
-    // safety checks, and broker execution.
+    const tradeSetup = marketTradeSetup;
+    const risk = marketRiskAnalysis;
 
-    if (!aiAnalysis) {
+    if (!tradeSetup || tradeSetup.status !== "TRADE") {
       setTradeActionError(
-        "Please analyze the trade first.",
-      );
-      return;
-    }
-
-    if (!aiTradeData) {
-      setTradeActionError(
-        "AI trade data is not available. Please analyze the trade again.",
-      );
-      return;
-    }
-
-    const action = String(
-      aiAnalysis.decision?.action || "",
-    ).toUpperCase();
-
-    if (
-      action !== "BUY" &&
-      action !== "SELL"
-    ) {
-      setTradeActionError(
-        "AI decision is HOLD. Trade execution is blocked.",
+        "Current deterministic market setup is not executable.",
       );
       return;
     }
 
     if (
-      aiAnalysis.decision?.approved !== true
+      tradeSetup.direction !== "BUY" &&
+      tradeSetup.direction !== "SELL"
+    ) {
+      setTradeActionError("Trade direction must be BUY or SELL.");
+      return;
+    }
+
+    if (!tradeSetup.entry) {
+      setTradeActionError("Approved entry price is not available.");
+      return;
+    }
+
+    const entryPrice = tradeSetup.entry.preferred;
+    const stopLoss = tradeSetup.stop_loss;
+    const takeProfit = tradeSetup.targets?.[0]?.price;
+
+    if (
+      !Number.isFinite(entryPrice) ||
+      typeof stopLoss !== "number" ||
+      !Number.isFinite(stopLoss) ||
+      typeof takeProfit !== "number" ||
+      !Number.isFinite(takeProfit)
     ) {
       setTradeActionError(
-        "Trade execution blocked by the Decision Gate.",
+        "Approved entry, stop loss, or take profit is unavailable.",
       );
       return;
     }
 
     if (
-      !aiAnalysis.risk_gate ||
-      aiAnalysis.risk_gate.approved !== true
+      !risk ||
+      risk.approved !== true ||
+      String(risk.status).toUpperCase() !== "APPROVED"
     ) {
       setTradeActionError(
-        "Trade execution blocked by the Risk Gate.",
+        risk?.reason ?? "Trade execution blocked by deterministic risk analysis.",
+      );
+      return;
+    }
+
+    const volume = risk.volume;
+    const riskPercent = risk.risk_percent;
+    const riskAmount = risk.risk_amount;
+    const estimatedLoss = risk.estimated_loss;
+
+    if (
+      typeof volume !== "number" || !Number.isFinite(volume) || volume <= 0 ||
+      typeof riskPercent !== "number" || !Number.isFinite(riskPercent) || riskPercent <= 0 ||
+      typeof riskAmount !== "number" || !Number.isFinite(riskAmount) || riskAmount <= 0 ||
+      typeof estimatedLoss !== "number" || !Number.isFinite(estimatedLoss) || estimatedLoss <= 0
+    ) {
+      setTradeActionError(
+        "Approved risk values are incomplete. Wait for the market risk panel to refresh.",
       );
       return;
     }
@@ -924,30 +948,32 @@ export default function DashboardPage() {
       setTradeExecuting(true);
       setAiExecutionResult(null);
 
-      if (
-        !aiExecutionIdempotencyKeyRef.current
-      ) {
-        aiExecutionIdempotencyKeyRef.current =
-          crypto.randomUUID();
+      if (!aiExecutionIdempotencyKeyRef.current) {
+        aiExecutionIdempotencyKeyRef.current = crypto.randomUUID();
       }
 
-      const idempotencyKey =
-        aiExecutionIdempotencyKeyRef.current;
-
-      const result =
-        await executeAITrade(
-          aiTradeData,
-          idempotencyKey,
-        );
-
-      console.log(
-        "ALADDIN AI EXECUTION RESULT:",
-        result,
+      const result = await executeAITrade(
+        {
+          symbol: tradeSetup.symbol,
+          timeframe: tradeSetup.timeframe,
+          direction: tradeSetup.direction,
+          entry_price: entryPrice,
+          stop_loss: stopLoss,
+          take_profit: takeProfit,
+          volume,
+          risk_percent: riskPercent,
+          risk_amount: riskAmount,
+          estimated_loss: estimatedLoss,
+          setup_engine: "DETERMINISTIC",
+          risk_engine: "DETERMINISTIC",
+          setup_approved: true,
+          risk_approved: true,
+        },
+        aiExecutionIdempotencyKeyRef.current,
       );
 
-      setAiExecutionResult(
-        result as AIExecutionDisplayResult,
-      );
+      console.log("ALADDIN APPROVED EXECUTION RESULT:", result);
+      setAiExecutionResult(result as AIExecutionDisplayResult);
 
       const executionStatus = String(
         result.execution_result?.status ?? "",
@@ -955,8 +981,7 @@ export default function DashboardPage() {
 
       if (executionStatus === "EXECUTED") {
         const executionMode = String(
-          result.execution_result
-            ?.execution_mode ?? "UNKNOWN",
+          result.execution_result?.execution_mode ?? "UNKNOWN",
         ).toUpperCase();
 
         if (executionMode === "DEMO") {
@@ -973,16 +998,11 @@ export default function DashboardPage() {
           );
         }
 
-        // A completed execution gets a fresh key next time.
-        aiExecutionIdempotencyKeyRef.current =
-          null;
+        aiExecutionIdempotencyKeyRef.current = null;
       } else {
-        setTradeActionMessage("");
-
         setTradeActionError(
-          result.execution_result
-            ?.execution_message ??
-            "The AI workflow completed, but the trade was not executed.",
+          result.execution_result?.execution_message ??
+            "The approved trade was not executed.",
         );
       }
 
@@ -992,25 +1012,20 @@ export default function DashboardPage() {
         await loadNotifications();
       }
     } catch (err) {
-      console.error(
-        "AI execution error:",
-        err,
-      );
+      console.error("Approved AI execution error:", err);
 
       if (
         err instanceof Error &&
-        err.message ===
-          "Authentication required."
+        err.message === "Authentication required."
       ) {
-        window.location.href =
-          "/login";
+        window.location.href = "/login";
         return;
       }
 
       setTradeActionError(
         err instanceof Error
           ? err.message
-          : "Unable to execute AI trade.",
+          : "Unable to execute approved AI trade.",
       );
     } finally {
       setTradeExecuting(false);
@@ -2969,6 +2984,11 @@ async function handleReconcileMT5() {
                 symbol={tradeForm.symbol}
                 timeframe="H1"
                 className="min-w-0"
+                onExecutionDataChange={(tradeSetup, riskAnalysis) => {
+                  setMarketTradeSetup(tradeSetup);
+                  setMarketRiskAnalysis(riskAnalysis);
+                  aiExecutionIdempotencyKeyRef.current = null;
+                }}
               />
             </div>
           </section>
@@ -4800,18 +4820,15 @@ async function handleReconcileMT5() {
                     onClick={handleAIExecute}
                     disabled={
                       tradeExecuting ||
-                      !aiTradeData ||
-                      !aiAnalysis ||
+                      !marketTradeSetup ||
+                      marketTradeSetup.status !== "TRADE" ||
                       (
-                        String(
-                          aiAnalysis?.decision?.action || "",
-                        ).toUpperCase() !== "BUY" &&
-                        String(
-                          aiAnalysis?.decision?.action || "",
-                        ).toUpperCase() !== "SELL"
+                        marketTradeSetup.direction !== "BUY" &&
+                        marketTradeSetup.direction !== "SELL"
                       ) ||
-                      aiAnalysis?.decision?.approved !== true ||
-                      aiAnalysis?.risk_gate?.approved !== true
+                      !marketRiskAnalysis ||
+                      marketRiskAnalysis.approved !== true ||
+                      String(marketRiskAnalysis.status).toUpperCase() !== "APPROVED"
                     }
                     className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-400 px-5 py-3 text-xs font-bold text-[#06100c] transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"
                   >
@@ -4827,18 +4844,13 @@ async function handleReconcileMT5() {
                       <>
                         <TrendingUp size={14} />
                         {(
-                          aiTradeData &&
-                          aiAnalysis &&
+                          marketTradeSetup?.status === "TRADE" &&
                           (
-                            String(
-                              aiAnalysis.decision?.action || "",
-                            ).toUpperCase() === "BUY" ||
-                            String(
-                              aiAnalysis.decision?.action || "",
-                            ).toUpperCase() === "SELL"
+                            marketTradeSetup.direction === "BUY" ||
+                            marketTradeSetup.direction === "SELL"
                           ) &&
-                          aiAnalysis.decision?.approved === true &&
-                          aiAnalysis.risk_gate?.approved === true
+                          marketRiskAnalysis?.approved === true &&
+                          String(marketRiskAnalysis.status).toUpperCase() === "APPROVED"
                         )
                           ? "Execute AI Trade"
                           : "Execution Blocked"}

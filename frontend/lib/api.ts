@@ -290,95 +290,6 @@ export type AIExecutionResult = {
 };
 
 
-
-/* =========================================================
-   EXECUTION RECONCILIATION TYPES
-   ========================================================= */
-
-export type ExecutionHistoryItem = {
-  symbol: string;
-  direction: string;
-  volume: number;
-  status: string;
-  broker_order_id: string | null;
-  execution_message: string | null;
-};
-
-export type ExecutionStatistics = {
-  total_executions: number;
-  successful_executions: number;
-  failed_executions: number;
-  success_rate: number;
-};
-
-export type ExecutionReconciledItem = {
-  execution_id: number;
-  symbol: string;
-  direction: string;
-  volume: number;
-  broker_order_id: string;
-  evidence_source: string;
-};
-
-export type ExecutionUnmatchedItem = {
-  execution_id: number;
-  symbol: string;
-  direction: string;
-  volume: number;
-  reason: string;
-};
-
-export type ExecutionConflictItem = {
-  execution_id: number;
-  symbol: string;
-  direction: string;
-  volume: number;
-  reason: string;
-  evidence_source?: string | null;
-  evidence_count?: number | null;
-  errors?: string[] | null;
-};
-
-export type ExecutionNeedsReviewItem = {
-  execution_id: number;
-  symbol: string;
-  direction: string;
-  volume: number;
-  reason: string;
-};
-
-export type ExecutionReconciliationResult = {
-  execution_mode: string;
-  history_days: number;
-  scanned_pending: number;
-  reconciled_count: number;
-  unmatched_count: number;
-  conflict_count: number;
-  needs_review_count?: number;
-
-  reconciled: ExecutionReconciledItem[];
-  unmatched: ExecutionUnmatchedItem[];
-  conflicts: ExecutionConflictItem[];
-  needs_review?: ExecutionNeedsReviewItem[];
-
-  message: string;
-};
-
-export type ExecutionReconciliationAudit = {
-  id: number;
-  execution_id: number;
-  user_id: number;
-  outcome: string;
-  reason: string;
-  evidence_source: string | null;
-  broker_order_id: string | null;
-  symbol: string;
-  direction: string;
-  volume: number;
-  details_json: string;
-  created_at: string;
-};
-
 export type TradeStatistics = {
   total_trades: number;
   open_trades: number;
@@ -1077,84 +988,33 @@ export type TradeSetup = {
   engine: "DETERMINISTIC";
 };
 
-/*
- * Deterministic pre-trade risk analysis returned by
- * /market-data/candles.
- *
- * Risk calculations are owned by the backend RiskService.
- * The frontend must not recalculate position size.
- */
+
 export type MarketRiskAnalysis = {
-  status:
-    | "APPROVED"
-    | "REJECTED"
-    | string;
-
+  status: "APPROVED" | "REJECTED" | "WAIT" | string;
   approved: boolean;
-
   reason?: string | null;
-
   engine: "DETERMINISTIC";
-
+  symbol?: string | null;
+  timeframe?: MarketTimeframe | string | null;
+  direction?: "BUY" | "SELL" | null;
   equity?: number | null;
-
   risk_percent?: number | null;
-
   risk_amount?: number | null;
-
   entry_price?: number | null;
-
   stop_loss?: number | null;
-
   stop_distance?: number | null;
-
   trade_tick_size?: number | null;
-
   trade_tick_value?: number | null;
-
+  ticks_at_risk?: number | null;
+  loss_per_lot?: number | null;
   raw_volume?: number | null;
-
   volume?: number | null;
-
   estimated_loss?: number | null;
+  volume_min?: number | null;
+  volume_max?: number | null;
+  volume_step?: number | null;
 };
 
-/*
- * Deterministic pre-trade risk analysis returned by /market-data/candles.
- *
- * The backend RiskService owns all risk calculations.
- * The frontend only consumes and displays this contract.
- */
-export type RiskAnalysis = {
-  status:
-    | "APPROVED"
-    | "REJECTED"
-    | "WAIT"
-    | string;
-
-  approved: boolean;
-
-  symbol: string;
-
-  direction:
-    | "BUY"
-    | "SELL"
-    | null;
-
-  entry_price: number | null;
-
-  stop_loss: number | null;
-
-  volume: number | null;
-
-  risk_percent: number | null;
-
-  risk_amount: number | null;
-
-  estimated_loss: number | null;
-
-  reason: string | null;
-};
 
 export type MarketCandlesResponse = {
   symbol: string;
@@ -1190,7 +1050,8 @@ export type MarketCandlesResponse = {
 
   trade_setup: TradeSetup;
 
-  risk: MarketRiskAnalysis;
+  risk?: MarketRiskAnalysis | null;
+  risk_analysis?: MarketRiskAnalysis | null;
 };
 
 
@@ -1231,6 +1092,88 @@ export type MarketQuotesResponse = {
   quotes: MarketQuote[];
 };
 
+
+
+/* =========================================================
+   EXECUTION MONITORING / RECONCILIATION TYPES
+   ========================================================= */
+
+export type ExecutionHistoryItem = {
+  symbol: string;
+  direction: string;
+  volume: number;
+  status: string;
+  broker_order_id: string | null;
+  execution_message: string | null;
+};
+
+export type ExecutionStatistics = {
+  total_executions: number;
+  successful_executions: number;
+  failed_executions: number;
+  success_rate: number;
+};
+
+export type ExecutionReconciledItem = {
+  execution_id: number;
+  symbol: string;
+  direction: string;
+  volume: number;
+  broker_order_id: string;
+  evidence_source: string;
+};
+
+export type ExecutionUnmatchedItem = {
+  execution_id: number;
+  symbol: string;
+  direction: string;
+  volume: number;
+  reason?: string | null;
+};
+
+export type ExecutionNeedsReviewItem = {
+  execution_id: number;
+  symbol: string;
+  direction: string;
+  volume: number;
+  reason: string;
+};
+
+export type ExecutionConflictItem = {
+  execution_id: number;
+  symbol: string;
+  direction: string;
+  volume: number;
+  reason: string;
+};
+
+export type ExecutionReconciliationResult = {
+  message: string;
+  scanned_pending: number;
+  reconciled_count: number;
+  unmatched_count: number;
+  needs_review_count?: number;
+  conflict_count: number;
+  reconciled: ExecutionReconciledItem[];
+  unmatched: ExecutionUnmatchedItem[];
+  needs_review: ExecutionNeedsReviewItem[];
+  conflicts: ExecutionConflictItem[];
+};
+
+export type ExecutionReconciliationAudit = {
+  id: number;
+  execution_id: number;
+  user_id: number;
+  outcome: string;
+  reason: string;
+  evidence_source: string | null;
+  broker_order_id: string | null;
+  symbol: string;
+  direction: string;
+  volume: number;
+  details_json: string;
+  created_at?: string | null;
+};
 
 
 /* =========================================================
@@ -2069,283 +2012,94 @@ export async function analyzeAITrade(
 }
 
 
+export type ApprovedAITradeExecutionData = {
+  symbol: string;
+  timeframe: string;
+  direction: "BUY" | "SELL";
+  entry_price: number;
+  stop_loss: number;
+  take_profit: number;
+  volume: number;
+  risk_percent: number;
+  risk_amount: number;
+  estimated_loss: number;
+  setup_engine: "DETERMINISTIC";
+  risk_engine: "DETERMINISTIC";
+  setup_approved: true;
+  risk_approved: true;
+};
+
+
 /* =========================================================
    AI TRADE EXECUTION
    ========================================================= */
 
 export async function executeAITrade(
-  tradeData:
-    AITradeAnalysisData,
+  tradeData: ApprovedAITradeExecutionData,
   idempotencyKey: string,
-): Promise<
-  AIExecutionResult
-> {
-  const userId =
-    await getCurrentUserId();
+): Promise<AIExecutionResult> {
+  const userId = await getCurrentUserId();
+  const normalizedIdempotencyKey = idempotencyKey.trim();
 
-  const normalizedIdempotencyKey =
-    idempotencyKey.trim();
-
-  if (
-    normalizedIdempotencyKey.length === 0
-  ) {
-    throw new Error(
-      "Execution idempotency key is required.",
-    );
+  if (normalizedIdempotencyKey.length === 0) {
+    throw new Error("Execution idempotency key is required.");
   }
 
-  if (
-    normalizedIdempotencyKey.length > 128
-  ) {
+  if (normalizedIdempotencyKey.length > 128) {
     throw new Error(
       "Execution idempotency key cannot exceed 128 characters.",
     );
   }
 
-  const response =
-    await authenticatedFetch(
-      "/execution/ai-execute",
-      {
-        method: "POST",
-
-        body:
-          JSON.stringify({
-            user_id:
-              userId,
-
-            ...tradeData,
-
-            idempotency_key:
-              normalizedIdempotencyKey,
-          }),
-      },
-    );
+  const response = await authenticatedFetch(
+    "/execution/approved-ai-execute",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        user_id: userId,
+        ...tradeData,
+        idempotency_key: normalizedIdempotencyKey,
+      }),
+    },
+  );
 
   if (!response.ok) {
-    let message =
-      `AI execution failed (${response.status}).`;
+    let message = `AI execution failed (${response.status}).`;
 
     try {
-      const data =
-        await response.json();
-
-      if (
-        typeof data.detail ===
-        "string"
-      ) {
-        message =
-          data.detail;
-      } else if (
-        Array.isArray(
-          data.detail
-        )
-      ) {
-        message =
-          data.detail
-            .map(
-              (
-                error: {
-                  loc?: unknown[];
-                  msg?: string;
-                }
-              ) => {
-                const location =
-                  Array.isArray(
-                    error.loc
-                  )
-                    ? error.loc.join(
-                        "."
-                      )
-                    : "field";
-
-                return `${location}: ${
-                  error.msg ??
-                  "Invalid value."
-                }`;
-              },
-            )
-            .join(", ");
+      const data = await response.json();
+      if (typeof data.detail === "string") {
+        message = data.detail;
+      } else if (Array.isArray(data.detail)) {
+        message = data.detail
+          .map((error: { loc?: unknown[]; msg?: string }) => {
+            const location = Array.isArray(error.loc)
+              ? error.loc.join(".")
+              : "field";
+            return `${location}: ${error.msg ?? "Invalid value."}`;
+          })
+          .join("; ");
       }
     } catch {
-      // Keep default error message.
+      // Keep the default message.
     }
 
-    throw new Error(
-      message
-    );
+    throw new Error(message);
   }
 
-  return response.json();
+  const executionResult = await response.json();
+
+  // Keep the dashboard's existing AIExecutionResult shape while
+  // using the deterministic approved-execution endpoint.
+  return {
+    execution_result: executionResult,
+  };
 }
 
 
 /* =========================================================
    MT5 BROKER STATUS
    ========================================================= */
-
-
-/* =========================================================
-   EXECUTION HISTORY
-   ========================================================= */
-
-export async function getExecutionHistory():
-  Promise<ExecutionHistoryItem[]> {
-  const userId =
-    await getCurrentUserId();
-
-  const response =
-    await authenticatedFetch(
-      `/execution/history/${userId}`,
-    );
-
-  if (!response.ok) {
-    throw new Error(
-      `Failed to load execution history (${response.status}).`,
-    );
-  }
-
-  return response.json();
-}
-
-
-/* =========================================================
-   EXECUTION STATISTICS
-   ========================================================= */
-
-export async function getExecutionStatistics():
-  Promise<ExecutionStatistics> {
-  const userId =
-    await getCurrentUserId();
-
-  const response =
-    await authenticatedFetch(
-      `/execution/statistics/${userId}`,
-    );
-
-  if (!response.ok) {
-    throw new Error(
-      `Failed to load execution statistics (${response.status}).`,
-    );
-  }
-
-  return response.json();
-}
-
-
-/* =========================================================
-   MT5 EXECUTION RECONCILIATION
-   ========================================================= */
-
-export async function reconcileMT5Executions(
-  historyDays = 30,
-): Promise<ExecutionReconciliationResult> {
-  const userId =
-    await getCurrentUserId();
-
-  const safeHistoryDays =
-    Math.max(
-      1,
-      Math.min(
-        Math.trunc(historyDays),
-        3650,
-      ),
-    );
-
-  const response =
-    await authenticatedFetch(
-      `/execution/reconcile-mt5/${userId}?history_days=${encodeURIComponent(
-        String(safeHistoryDays),
-      )}`,
-      {
-        method: "POST",
-      },
-    );
-
-  if (!response.ok) {
-    let message =
-      `Execution reconciliation failed (${response.status}).`;
-
-    try {
-      const data =
-        await response.json();
-
-      if (
-        typeof data.detail ===
-        "string"
-      ) {
-        message =
-          data.detail;
-      }
-    } catch {
-      // Keep default error message.
-    }
-
-    throw new Error(
-      message,
-    );
-  }
-
-  return response.json();
-}
-
-
-/* =========================================================
-   RECONCILIATION AUDIT HISTORY
-   ========================================================= */
-
-export async function getExecutionReconciliationAudits():
-  Promise<ExecutionReconciliationAudit[]> {
-  const userId =
-    await getCurrentUserId();
-
-  const response =
-    await authenticatedFetch(
-      `/execution/reconciliation-audits/${userId}`,
-    );
-
-  if (!response.ok) {
-    throw new Error(
-      `Failed to load reconciliation audits (${response.status}).`,
-    );
-  }
-
-  return response.json();
-}
-
-
-/* =========================================================
-   RECONCILIATION AUDITS BY EXECUTION
-   ========================================================= */
-
-export async function getExecutionReconciliationAuditsByExecution(
-  executionId: number,
-): Promise<ExecutionReconciliationAudit[]> {
-  const userId =
-    await getCurrentUserId();
-
-  if (
-    !Number.isInteger(executionId) ||
-    executionId <= 0
-  ) {
-    throw new Error(
-      "Execution ID must be a positive integer.",
-    );
-  }
-
-  const response =
-    await authenticatedFetch(
-      `/execution/reconciliation-audits/${userId}/${executionId}`,
-    );
-
-  if (!response.ok) {
-    throw new Error(
-      `Failed to load execution reconciliation audits (${response.status}).`,
-    );
-  }
-
-  return response.json();
-}
-
 
 export async function getBrokerStatus():
   Promise<BrokerStatus> {
@@ -2429,6 +2183,98 @@ export async function getBrokerTradeHistory(
     throw new Error(
       message
     );
+  }
+
+  return response.json();
+}
+
+
+/* =========================================================
+   EXECUTION HISTORY / STATISTICS / RECONCILIATION
+   ========================================================= */
+
+export async function getExecutionHistory():
+  Promise<ExecutionHistoryItem[]> {
+  const userId = await getCurrentUserId();
+  const response = await authenticatedFetch(
+    `/execution/history/${encodeURIComponent(String(userId))}`,
+  );
+
+  if (!response.ok) {
+    let message = `Failed to load execution history (${response.status}).`;
+    try {
+      const data = await response.json();
+      if (typeof data.detail === "string") message = data.detail;
+    } catch {
+      // Keep default error message.
+    }
+    throw new Error(message);
+  }
+
+  return response.json();
+}
+
+export async function getExecutionStatistics():
+  Promise<ExecutionStatistics> {
+  const userId = await getCurrentUserId();
+  const response = await authenticatedFetch(
+    `/execution/statistics/${encodeURIComponent(String(userId))}`,
+  );
+
+  if (!response.ok) {
+    let message = `Failed to load execution statistics (${response.status}).`;
+    try {
+      const data = await response.json();
+      if (typeof data.detail === "string") message = data.detail;
+    } catch {
+      // Keep default error message.
+    }
+    throw new Error(message);
+  }
+
+  return response.json();
+}
+
+export async function reconcileMT5Executions(
+  historyDays = 30,
+): Promise<ExecutionReconciliationResult> {
+  const userId = await getCurrentUserId();
+  const safeDays = Math.max(1, Math.min(Math.trunc(historyDays), 3650));
+  const response = await authenticatedFetch(
+    `/execution/reconcile-mt5/${encodeURIComponent(String(userId))}?days=${encodeURIComponent(String(safeDays))}`,
+    { method: "POST" },
+  );
+
+  if (!response.ok) {
+    let message = `MT5 execution reconciliation failed (${response.status}).`;
+    try {
+      const data = await response.json();
+      if (typeof data.detail === "string") message = data.detail;
+    } catch {
+      // Keep default error message.
+    }
+    throw new Error(message);
+  }
+
+  return response.json();
+}
+
+export async function getExecutionReconciliationAudits():
+  Promise<ExecutionReconciliationAudit[]> {
+  const userId = await getCurrentUserId();
+  const response = await authenticatedFetch(
+    `/execution/reconciliation-audits/${encodeURIComponent(String(userId))}`,
+  );
+
+  if (!response.ok) {
+    let message = `Failed to load reconciliation audits (${response.status}).`;
+    try {
+      const data = await response.json();
+      if (typeof data.detail === "string") message = data.detail;
+    } catch {
+      // Keep default error message.
+    }
+    throw new Error(message);
   }
 
   return response.json();
