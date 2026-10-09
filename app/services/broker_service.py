@@ -457,15 +457,14 @@ class BrokerService:
             # HISTORY DATE RANGE
             # ==========================================
 
-            date_to = datetime.now(
-                timezone.utc
-            )
+            broker_time_tolerance = timedelta(hours=6)
 
-            date_from = (
-                date_to
-                - timedelta(
-                    days=history_days
-                )
+            current_utc = datetime.now(timezone.utc)
+
+            date_to = current_utc + broker_time_tolerance
+
+            date_from = current_utc - timedelta(
+                days=history_days
             )
 
             # ==========================================
