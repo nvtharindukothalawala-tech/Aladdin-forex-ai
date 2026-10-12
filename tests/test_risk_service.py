@@ -179,3 +179,40 @@ def test_default_risk_one_percent():
 
 def test_deterministic():
     assert analyze() == analyze()
+
+# ======================================================
+# FIXED LOT SIZE TESTS
+# ======================================================
+
+def test_fixed_lot_size_approved(monkeypatch):
+    monkeypatch.setenv(
+        "ALADDIN_FIXED_LOT_SIZE",
+        "0.10",
+    )
+
+    result = analyze()
+
+    assert result["status"] == "APPROVED"
+    assert result["approved"] is True
+
+    assert result["volume"] == pytest.approx(0.10)
+    assert result["risk_amount"] == pytest.approx(100.0)
+    assert result["estimated_loss"] == pytest.approx(50.0)
+
+
+def test_fixed_lot_size_rejected_when_risk_too_high(
+    monkeypatch,
+):
+    monkeypatch.setenv(
+        "ALADDIN_FIXED_LOT_SIZE",
+        "0.10",
+    )
+
+    result = analyze(
+        equity=1000.0,
+    )
+
+    assert result["status"] == "REJECTED"
+    assert result["approved"] is False
+
+    assert "exceeds the risk budget" in result["reason"]

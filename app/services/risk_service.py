@@ -2,6 +2,7 @@
 
 import math
 from decimal import Decimal, ROUND_FLOOR
+import os
 
 
 class RiskService:
@@ -203,12 +204,46 @@ class RiskService:
         loss_per_lot = float(loss_per_lot_decimal)
         raw_volume = float(raw_volume_decimal)
 
-        volume = cls._normalize_volume_down(
-            raw_volume,
-            volume_min,
-            volume_max,
-            volume_step,
-        )
+        fixed_lot = os.getenv(
+            "ALADDIN_FIXED_LOT_SIZE", ""
+        ).strip()
+
+        if fixed_lot:
+            try:
+                fixed_volume = Decimal(fixed_lot)
+            except Exception:
+                return cls._rejected(
+                    "Invalid fixed lot size configuration."
+                )
+
+            if not fixed_volume.is_finite() or fixed_volume <= 0:
+                return cls._rejected(
+                    "Fixed lot size must be positive."
+                )
+
+            broker_min = Decimal(str(volume_min))
+            broker_max = Decimal(str(volume_max))
+            broker_step = Decimal(str(volume_step))
+
+            if fixed_volume < broker_min or fixed_volume > broker_max:
+                return cls._rejected(
+                    "Fixed lot size is outside broker limits."
+                )
+
+            if (fixed_volume - broker_min) % broker_step != 0:
+                return cls._rejected(
+                    "Fixed lot size does not match broker volume step."
+                )
+
+            volume = float(fixed_volume)
+
+        else:
+            volume = cls._normalize_volume_down(
+                raw_volume,
+                volume_min,
+                volume_max,
+                volume_step,
+            )
 
         if volume is None:
             return cls._rejected(
