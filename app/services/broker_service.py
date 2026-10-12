@@ -17,6 +17,7 @@ Project: Aladdin
 """
 
 import os
+import math
 from datetime import (
     datetime,
     timedelta,
@@ -678,6 +679,15 @@ class BrokerService:
                     opening_deals[0]
                 )
 
+                # Planned R:R is only derived for a single opening fill.
+                # A multi-fill position needs explicit weighted-entry logic.
+                entry_price = float(
+                    getattr(first_opening_deal, "price", 0.0) or 0.0
+                )
+                original_sl = None
+                original_tp = None
+                planned_risk_reward = None
+
                 # --------------------------------------
                 # Original trade direction.
                 # --------------------------------------
@@ -895,6 +905,45 @@ class BrokerService:
                 if not symbol:
                     continue
 
+                # Original opening order may retain initial SL/TP after
+                # the position has closed. Never use a closing order's
+                # SL/TP or a price_open=0 market-order request as entry.
+                # If unavailable, keep planned R:R unknown (None).
+                if len(opening_deals) == 1 and entry_price > 0:
+                    getter = getattr(mt5, "history_orders_get", None)
+                    if callable(getter):
+                        try:
+                            position_orders = getter(position=position_id)
+                        except Exception:
+                            position_orders = None
+                        if position_orders:
+                            opening_ticket = int(
+                                getattr(first_opening_deal, "order", 0) or 0
+                            )
+                            matching = [
+                                order for order in position_orders
+                                if int(getattr(order, "ticket", 0) or 0)
+                                == opening_ticket
+                            ]
+                            if len(matching) == 1:
+                                order = matching[0]
+                                sl = float(getattr(order, "sl", 0.0) or 0.0)
+                                tp = float(getattr(order, "tp", 0.0) or 0.0)
+                                valid_prices = all(
+                                    math.isfinite(v) and v > 0
+                                    for v in (entry_price, sl, tp)
+                                )
+                                if valid_prices and (
+                                    (direction == "BUY" and sl < entry_price < tp)
+                                    or (direction == "SELL" and tp < entry_price < sl)
+                                ):
+                                    original_sl = sl
+                                    original_tp = tp
+                                    planned_risk_reward = round(
+                                        abs(tp - entry_price) / abs(entry_price - sl),
+                                        4,
+                                    )
+
                 # --------------------------------------
                 # One completed position record.
                 #
@@ -920,6 +969,10 @@ class BrokerService:
                     ),
                     "symbol": symbol,
                     "direction": direction,
+                    "entry_price": entry_price if len(opening_deals) == 1 else None,
+                    "stop_loss": original_sl,
+                    "take_profit": original_tp,
+                    "risk_reward": planned_risk_reward,
                     "volume": round(
                         opened_volume,
                         8,

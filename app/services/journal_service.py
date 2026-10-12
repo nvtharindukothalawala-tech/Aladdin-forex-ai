@@ -401,7 +401,7 @@ class JournalService:
                     is_aladdin_trade=(
                         is_aladdin_trade
                     ),
-                    risk_reward=None,
+                    risk_reward=trade.get("risk_reward"),
                 )
             )
 

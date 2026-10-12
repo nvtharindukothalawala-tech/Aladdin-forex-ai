@@ -10,6 +10,7 @@ Project: Aladdin
 """
 
 from datetime import datetime
+import math
 
 from sqlalchemy.exc import IntegrityError
 
@@ -180,6 +181,21 @@ class TradeRepository:
         )
 
         if existing_trade is not None:
+            if (
+                existing_trade.user_id == user_id
+                and existing_trade.source == "MT5"
+                and existing_trade.risk_reward is None
+                and risk_reward is not None
+                and math.isfinite(float(risk_reward))
+                and float(risk_reward) > 0
+            ):
+                try:
+                    existing_trade.risk_reward = float(risk_reward)
+                    self.session.commit()
+                    self.session.refresh(existing_trade)
+                except Exception:
+                    self.session.rollback()
+                    raise
             return existing_trade, False
 
         # ----------------------------------------------
