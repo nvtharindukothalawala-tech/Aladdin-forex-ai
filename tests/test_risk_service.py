@@ -2,7 +2,11 @@ import pytest
 
 from app.services.risk_service import RiskService
 
-
+@pytest.fixture(autouse=True)
+def isolate_fixed_lot_setting(monkeypatch):
+    # Automatic sizing tests must not use the .env fixed lot.
+    monkeypatch.delenv("ALADDIN_FIXED_LOT_SIZE", raising=False)
+    
 def setup(status="TRADE", direction="BUY", entry=1.1000, stop=1.0950):
     return {
         "status": status,

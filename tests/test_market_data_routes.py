@@ -19,6 +19,7 @@ from uuid import uuid4
 
 from fastapi.testclient import TestClient
 
+from app import risk
 from app.api.main import app
 from app.market.indicators import TechnicalIndicators
 
@@ -2155,11 +2156,20 @@ def _deterministic_wait_setup():
 def test_market_candles_include_risk_analysis(monkeypatch):
     """TRADE setups must expose deterministic risk analysis."""
 
+    # Use fixed 0.10 lot size for this test.
+    monkeypatch.setenv(
+        "ALADDIN_FIXED_LOT_SIZE",
+        "0.10",
+    )
+
+    # Mock MT5 data provider.
     monkeypatch.setattr(
         market_data_routes,
         "MT5DataProvider",
         FakeStructureMT5DataProvider,
     )
+
+    # Mock deterministic trade setup.
     monkeypatch.setattr(
         market_data_routes.TradeSetupService,
         "analyze",
@@ -2167,6 +2177,7 @@ def test_market_candles_include_risk_analysis(monkeypatch):
     )
 
     FakeStructureMT5DataProvider.candle_fetch_count = 0
+
     headers = get_auth_headers()
 
     response = client.get(
@@ -2174,22 +2185,39 @@ def test_market_candles_include_risk_analysis(monkeypatch):
         headers=headers,
     )
 
+    # Verify API response.
     assert response.status_code == 200
+
     data = response.json()
 
     assert "risk" in data
+
     risk = data["risk"]
+
+    # Verify risk approval.
     assert risk["status"] == "APPROVED"
     assert risk["approved"] is True
     assert risk["engine"] == "DETERMINISTIC"
+
+    # Verify account risk configuration.
     assert risk["equity"] == 10000.0
     assert risk["risk_percent"] == 1.0
     assert risk["risk_amount"] == 100.0
+
+    # Verify trade prices.
     assert risk["entry_price"] == 1.1000
     assert risk["stop_loss"] == 1.0950
-    assert risk["volume"] == 0.2
-    assert risk["estimated_loss"] == 100.0
 
+    # Verify fixed lot size.
+    assert risk["volume"] == 0.10
+
+    # Verify estimated loss stays within risk budget.
+    assert risk["estimated_loss"] <= risk["risk_amount"]
+
+    # 0.10 lots with 500 ticks at $1 per tick per lot.
+    assert risk["estimated_loss"] == 50.0
+
+    # Verify candles are fetched only once.
     assert FakeStructureMT5DataProvider.candle_fetch_count == 1
 
 

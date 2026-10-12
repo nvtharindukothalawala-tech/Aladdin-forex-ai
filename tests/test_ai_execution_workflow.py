@@ -172,6 +172,48 @@ def test_ai_execution_workflow(
         # successful result.
         # ==================================================
 
+        # ==========================================
+        # Mock MT5 Market Data (No Real Connection)
+        # ==========================================
+
+        from app.market.mt5_provider import MT5DataProvider
+
+        monkeypatch.setattr(
+            MT5DataProvider,
+            "get_quote",
+            lambda self, symbol: {
+                "symbol": "EURUSD",
+                "broker_symbol": "EURUSD",
+                "bid": 1.09998,
+                "ask": 1.10000,
+                "spread": 0.00002,
+                "spread_points": 2.0,
+                "digits": 5,
+                "point": 0.00001,
+                "time": 0,
+            },
+        )
+
+        monkeypatch.setattr(
+            MT5DataProvider,
+            "get_symbol_risk_info",
+            lambda self, symbol: {
+                "symbol": "EURUSD",
+                "broker_symbol": "EURUSD",
+                "trade_tick_size": 0.00001,
+                "trade_tick_value": 1.0,
+                "volume_min": 0.01,
+                "volume_max": 100.0,
+                "volume_step": 0.01,
+            },
+        )
+
+        monkeypatch.setattr(
+            MT5DataProvider,
+            "disconnect",
+            lambda self: None,
+        )
+
         monkeypatch.setattr(
             ExecutionManager,
             "execute_with_mt5",

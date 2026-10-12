@@ -46,13 +46,31 @@ def test_save_trades():
     assert repository.saved_trades == service.trades
 
 
-def test_load_trades():
-    repository = TradeRepository("data/trades.json")
+def test_load_trades(tmp_path):
+    # Create a temporary trade history file.
+    test_file = tmp_path / "test_trades.json"
+
+    repository = TradeRepository(str(test_file))
     service = TradeService(repository)
 
-    trades = service.load_trades()
+    # Create sample trade data.
+    trade = create_sample_trade()
 
-    assert len(trades) > 0
+    # Save sample trade to temporary file.
+    service.add_trade(trade)
+    service.save_trades()
+
+    # Load trades using a new service instance.
+    new_service = TradeService(
+        TradeRepository(str(test_file))
+    )
+
+    trades = new_service.load_trades()
+
+    # Verify the saved trade was loaded.
+    assert len(trades) == 1
+    assert trades[0].symbol == "EURUSD"
+    assert trades[0].direction == "Buy"
 
 
 def test_find_trade():
