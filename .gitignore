@@ -27,3 +27,18 @@ aladdin.db
 
 # Local database backups
 *.db
+
+# Temporary backup files
+*.bak
+*.rr_backup
+
+# Temporary repair and debugging files
+apply_journal_rr_fix.py
+broker_date_logic.txt
+broker_fix_section.txt
+broker_history_logic.txt
+journal_sync.txt
+repository_mt5.txt
+
+# Local trading data
+/data/trades.json
